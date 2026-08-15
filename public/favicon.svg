@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1b4332"/>
+  <!-- bombilla -->
+  <path d="M300 132 L372 96 a14 14 0 0 1 12 25 L316 156 Z" fill="#d9d9d9"/>
+  <rect x="292" y="140" width="34" height="120" rx="14" transform="rotate(24 309 200)" fill="#e6e6e6"/>
+  <!-- calabaza -->
+  <path d="M256 176c62 0 112 46 112 108s-50 116-112 116-112-54-112-116 50-108 112-108z" fill="#b5651d"/>
+  <path d="M256 208c46 0 82 34 82 80s-36 86-82 86-82-40-82-86 36-80 82-80z" fill="#8c4a15"/>
+  <!-- virola -->
+  <rect x="168" y="188" width="176" height="34" rx="17" fill="#e0c341"/>
+  <!-- yerba -->
+  <path d="M196 214h120c-8 34-32 52-60 52s-52-18-60-52z" fill="#2d6a4f"/>
+</svg>

@@ -1,0 +1,13 @@
+node_modules
+dist
+dist-ssr
+dev-dist
+*.local
+.DS_Store
+.vite
+*.log
+
+# Planillas originales (se importan con scripts/, no se versionan)
+datos-originales/
+*.xlsx
+tsconfig.tsbuildinfo
