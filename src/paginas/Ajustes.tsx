@@ -147,7 +147,7 @@ export default function Ajustes() {
         </div>
       )}
 
-      <TarjetaSincronizacion />
+      <TarjetaRespaldo />
 
       <div className="tarjeta">
         <p className="tarjeta-titulo">Qué hay guardado</p>
@@ -170,14 +170,15 @@ export default function Ajustes() {
       </div>
 
       <div className="tarjeta">
-        <p className="tarjeta-titulo">Respaldo</p>
+        <p className="tarjeta-titulo">Copia manual</p>
         <p className="silencio" style={{ marginBottom: 10 }}>
-          Los datos viven solamente en este dispositivo. Hacé un respaldo seguido y guardalo en
-          Drive: si se pierde el celular, se pierden los datos.
+          {nubeConfigurada
+            ? 'Además del respaldo automático de arriba, podés bajar una copia manual cuando quieras y guardarla en Drive o mandártela por mail.'
+            : 'Todavía no está activado el respaldo automático de arriba, así que esta es tu única copia de seguridad: hacela seguido y guardala en Drive. Si se pierde o se rompe el celular sin haber bajado una copia, se pierden los datos.'}
         </p>
         <div className="botonera">
           <button className="boton-principal" onClick={exportar} disabled={trabajando}>
-            Descargar respaldo
+            Descargar copia
           </button>
         </div>
         <div className="campo" style={{ marginTop: 10 }}>
@@ -225,7 +226,7 @@ const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
   error: { texto: 'Hay un problema de conexión', clase: 'chip chip-alerta' },
 }
 
-function TarjetaSincronizacion() {
+function TarjetaRespaldo() {
   const estado = useEstadoNube()
   const [email, setEmail] = useState('')
   const [contrasena, setContrasena] = useState('')
@@ -235,11 +236,13 @@ function TarjetaSincronizacion() {
   if (!nubeConfigurada) {
     return (
       <div className="tarjeta">
-        <p className="tarjeta-titulo">Sincronización entre dispositivos</p>
+        <p className="tarjeta-titulo">Respaldo automático</p>
         <div className="aviso aviso-ojo" style={{ marginBottom: 0 }}>
-          Todavía no está configurada. Cada dispositivo guarda sus datos por separado hasta que
-          se cree la cuenta gratuita en la nube (ver "Sincronizar entre dispositivos" en el
-          README del proyecto).
+          Por ahora los datos viven solamente en este dispositivo: si el celular se pierde o se
+          rompe, se pierden los datos con él. Para que se guarden solos en un servidor —y se
+          compartan entre todos los dispositivos del negocio— falta activar la sincronización
+          gratuita, un paso único (ver la categoría "Sincronización y respaldo" en la Ayuda).
+          Mientras tanto, hacé copias manuales seguido más abajo.
         </div>
       </div>
     )
@@ -272,7 +275,7 @@ function TarjetaSincronizacion() {
 
   return (
     <div className="tarjeta">
-      <p className="tarjeta-titulo">Sincronización entre dispositivos</p>
+      <p className="tarjeta-titulo">Respaldo automático</p>
       <div className="fila" style={{ marginBottom: 10 }}>
         <span className="fila-etiqueta">Estado</span>
         <span className={info.clase}>{info.texto}</span>
@@ -281,8 +284,10 @@ function TarjetaSincronizacion() {
       {estado.email ? (
         <>
           <p className="silencio" style={{ marginBottom: 10 }}>
-            Vinculado como <strong>{estado.email}</strong>. Los cambios que hagas acá se ven en
-            los demás dispositivos vinculados, y al revés, en cuanto haya internet.
+            Vinculado como <strong>{estado.email}</strong>. Todo lo que cargás se guarda solo en
+            el servidor (no solo en este celular) y se ve en los demás dispositivos vinculados en
+            cuanto haya internet. Sin conexión la app sigue funcionando exactamente igual: nada se
+            pierde, se sube solo apenas vuelve la señal.
           </p>
           {estado.error && <div className="aviso aviso-error">{estado.error}</div>}
           <button
@@ -296,7 +301,8 @@ function TarjetaSincronizacion() {
         <>
           <p className="silencio" style={{ marginBottom: 10 }}>
             Usá el mismo mail y contraseña en todos los dispositivos del negocio: el primero crea
-            la cuenta compartida, los demás se suman con las mismas claves.
+            la cuenta compartida, los demás se suman con las mismas claves. Una vez vinculado,
+            el respaldo en el servidor queda automático y la app sigue andando sin internet.
           </p>
           {error && <div className="aviso aviso-error">{error}</div>}
           <div className="campo">

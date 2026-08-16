@@ -8,6 +8,7 @@ import Proveedores from './paginas/Proveedores'
 import Gastos from './paginas/Gastos'
 import Reportes from './paginas/Reportes'
 import Ajustes from './paginas/Ajustes'
+import Ayuda from './paginas/Ayuda'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp from './componentes/ActualizarApp'
 
@@ -60,7 +61,12 @@ export default function App() {
 
       <header className="cabecera">
         <span className="marca">🧉 El Club del Mate</span>
-        <Notificaciones />
+        <div className="acciones-cabecera">
+          <NavLink to="/ayuda" className="boton-ayuda" aria-label="Ayuda">
+            ?
+          </NavLink>
+          <Notificaciones />
+        </div>
       </header>
 
       {error && <div className="aviso aviso-error">No se pudo cargar el catálogo: {error}</div>}
@@ -74,6 +80,7 @@ export default function App() {
           <Route path="/gastos" element={<Gastos />} />
           <Route path="/reportes" element={<Reportes />} />
           <Route path="/ajustes" element={<Ajustes />} />
+          <Route path="/ayuda" element={<Ayuda />} />
           <Route path="*" element={<Navigate to="/caja" replace />} />
         </Routes>
       </main>
