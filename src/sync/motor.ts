@@ -24,7 +24,7 @@ import { ID_NEGOCIO } from './config'
 import { fijarEstadoNube } from './estado'
 import { obtenerAuth, obtenerFirestore } from './firebase'
 
-const TABLAS: NombreTabla[] = ['productos', 'jornadas', 'ventas', 'movimientos']
+const TABLAS: NombreTabla[] = ['productos', 'jornadas', 'ventas', 'movimientos', 'proveedores']
 
 let desuscribirColecciones: Unsubscribe[] = []
 let motorIniciado = false

@@ -4,6 +4,7 @@ import { sembrarCatalogo, sembrarHistorico } from './db/sembrar'
 import { nubeConfigurada } from './sync/config'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
+import Proveedores from './paginas/Proveedores'
 import Gastos from './paginas/Gastos'
 import Reportes from './paginas/Reportes'
 import Ajustes from './paginas/Ajustes'
@@ -13,6 +14,7 @@ import ActualizarApp from './componentes/ActualizarApp'
 const SECCIONES = [
   { ruta: '/caja', icono: '🧉', texto: 'Caja' },
   { ruta: '/productos', icono: '🏷️', texto: 'Productos' },
+  { ruta: '/proveedores', icono: '🚚', texto: 'Provee.' },
   { ruta: '/gastos', icono: '💸', texto: 'Gastos' },
   { ruta: '/reportes', icono: '📊', texto: 'Reportes' },
   { ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes' },
@@ -68,6 +70,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/caja" replace />} />
           <Route path="/caja" element={<Caja />} />
           <Route path="/productos" element={<Productos />} />
+          <Route path="/proveedores" element={<Proveedores />} />
           <Route path="/gastos" element={<Gastos />} />
           <Route path="/reportes" element={<Reportes />} />
           <Route path="/ajustes" element={<Ajustes />} />
