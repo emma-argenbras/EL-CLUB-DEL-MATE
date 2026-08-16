@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useNavigate } from 'react-router-dom'
 import { db } from '../db/db'
-import { resumirMes } from '../lib/calculos'
+import { costoDesactualizado, resumirMes } from '../lib/calculos'
 import { fechaLinda, mesActualISO, mesLindo, plata, porcentaje, numero } from '../lib/formato'
 
 export default function Reportes() {
+  const navegar = useNavigate()
   const [mes, setMes] = useState(mesActualISO())
 
   const ventas = useLiveQuery(
@@ -50,6 +52,31 @@ export default function Reportes() {
     }
     return [...mapa.entries()].sort((a, b) => b[1].venta - a[1].venta).slice(0, 12)
   }, [ventas])
+
+  const productos = useLiveQuery(() => db.productos.toArray(), [])
+
+  const aActualizar = useMemo(() => {
+    if (!ventas || !productos) return { lista: [], monto: 0, montoTotal: 0 }
+    const catalogo = new Map(productos.map((p) => [p.codigo, p]))
+    const mapa = new Map<string, { desc: string; unidades: number; monto: number }>()
+    let montoTotal = 0
+    for (const v of ventas) {
+      montoTotal += v.total
+      const producto = v.codigo ? catalogo.get(v.codigo) : undefined
+      if (producto && !costoDesactualizado(producto)) continue
+      const actual = mapa.get(v.codigo || v.descripcion) ?? {
+        desc: v.descripcion,
+        unidades: 0,
+        monto: 0,
+      }
+      actual.unidades += v.cantidad
+      actual.monto += v.total
+      mapa.set(v.codigo || v.descripcion, actual)
+    }
+    const lista = [...mapa.entries()].sort((a, b) => b[1].monto - a[1].monto)
+    const monto = lista.reduce((s, [, d]) => s + d.monto, 0)
+    return { lista, monto, montoTotal }
+  }, [ventas, productos])
 
   const cargando = !ventas || !movimientos
   const sinDatos = !cargando && resumen.operaciones === 0
@@ -150,6 +177,43 @@ export default function Reportes() {
               <strong>{plata(resumen.montoSinCosto)}</strong> no tienen precio de compra cargado.
               Ese monto entra completo como margen, así que el número real es más bajo. Cargá el
               costo en Productos para que la cuenta cierre.
+            </div>
+          )}
+
+          {/* ---- Que actualizar para que el margen sea real ---- */}
+          {aActualizar.lista.length > 0 && (
+            <div className="tarjeta">
+              <p className="tarjeta-titulo">Para que este margen sea real</p>
+              <p className="silencio" style={{ marginBottom: 10 }}>
+                <strong>{plata(aActualizar.monto)}</strong> de lo vendido en {mesLindo(mes)} (
+                {aActualizar.montoTotal > 0
+                  ? porcentaje((aActualizar.monto / aActualizar.montoTotal) * 100, 0)
+                  : '—'}
+                ) corresponde a productos con el costo de compra vencido o sin cargar. Actualizando
+                estos primeros, el margen se corrige solo:
+              </p>
+              <ul className="lista">
+                {aActualizar.lista.slice(0, 15).map(([codigo, d]) => (
+                  <li
+                    className="item notificacion"
+                    key={codigo}
+                    onClick={() => navegar('/productos?alertas=1')}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div className="item-titulo">{d.desc}</div>
+                      <div className="item-sub">
+                        {codigo || 'sin código'} · {numero(d.unidades)} un.
+                      </div>
+                    </div>
+                    <div className="item-monto">{plata(d.monto)}</div>
+                  </li>
+                ))}
+              </ul>
+              {aActualizar.lista.length > 15 && (
+                <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
+                  Y {aActualizar.lista.length - 15} productos más.
+                </p>
+              )}
             </div>
           )}
 

@@ -3,6 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { resembrarCatalogo } from '../db/sembrar'
 import { hoyISO, numero } from '../lib/formato'
+import { nubeConfigurada } from '../sync/config'
+import { useEstadoNube } from '../sync/useEstadoNube'
 
 interface Respaldo {
   app: string
@@ -145,6 +147,8 @@ export default function Ajustes() {
         </div>
       )}
 
+      <TarjetaSincronizacion />
+
       <div className="tarjeta">
         <p className="tarjeta-titulo">Qué hay guardado</p>
         <div className="fila">
@@ -208,5 +212,120 @@ export default function Ajustes() {
         </button>
       </div>
     </>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
+  'sin-configurar': { texto: 'No configurada', clase: 'chip' },
+  desconectado: { texto: 'Este dispositivo no está vinculado', clase: 'chip chip-alerta' },
+  conectando: { texto: 'Conectando…', clase: 'chip chip-alerta' },
+  sincronizado: { texto: 'Sincronizado', clase: 'chip chip-banco' },
+  error: { texto: 'Hay un problema de conexión', clase: 'chip chip-alerta' },
+}
+
+function TarjetaSincronizacion() {
+  const estado = useEstadoNube()
+  const [email, setEmail] = useState('')
+  const [contrasena, setContrasena] = useState('')
+  const [trabajando, setTrabajando] = useState(false)
+  const [error, setError] = useState('')
+
+  if (!nubeConfigurada) {
+    return (
+      <div className="tarjeta">
+        <p className="tarjeta-titulo">Sincronización entre dispositivos</p>
+        <div className="aviso aviso-ojo" style={{ marginBottom: 0 }}>
+          Todavía no está configurada. Cada dispositivo guarda sus datos por separado hasta que
+          se cree la cuenta gratuita en la nube (ver "Sincronizar entre dispositivos" en el
+          README del proyecto).
+        </div>
+      </div>
+    )
+  }
+
+  const info = ETIQUETA_ESTADO[estado.estado]
+
+  async function vincular() {
+    setError('')
+    if (!email.trim() || contrasena.length < 6) {
+      setError('Cargá el mail y una contraseña de al menos 6 caracteres.')
+      return
+    }
+    setTrabajando(true)
+    try {
+      const { vincularDispositivo } = await import('../sync/motor')
+      await vincularDispositivo(email.trim(), contrasena)
+      setContrasena('')
+    } catch (e) {
+      const codigo = (e as { code?: string }).code
+      setError(
+        codigo === 'auth/wrong-password' || codigo === 'auth/invalid-credential'
+          ? 'La contraseña no coincide con la de los demás dispositivos.'
+          : `No se pudo vincular: ${e}`,
+      )
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta">
+      <p className="tarjeta-titulo">Sincronización entre dispositivos</p>
+      <div className="fila" style={{ marginBottom: 10 }}>
+        <span className="fila-etiqueta">Estado</span>
+        <span className={info.clase}>{info.texto}</span>
+      </div>
+
+      {estado.email ? (
+        <>
+          <p className="silencio" style={{ marginBottom: 10 }}>
+            Vinculado como <strong>{estado.email}</strong>. Los cambios que hagas acá se ven en
+            los demás dispositivos vinculados, y al revés, en cuanto haya internet.
+          </p>
+          {estado.error && <div className="aviso aviso-error">{estado.error}</div>}
+          <button
+            style={{ width: '100%' }}
+            onClick={() => import('../sync/motor').then((m) => m.desvincularDispositivo())}
+          >
+            Desvincular este dispositivo
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="silencio" style={{ marginBottom: 10 }}>
+            Usá el mismo mail y contraseña en todos los dispositivos del negocio: el primero crea
+            la cuenta compartida, los demás se suman con las mismas claves.
+          </p>
+          {error && <div className="aviso aviso-error">{error}</div>}
+          <div className="campo">
+            <label htmlFor="sync-email">Mail del negocio</label>
+            <input
+              id="sync-email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="elclubdelmate@gmail.com"
+            />
+          </div>
+          <div className="campo">
+            <label htmlFor="sync-pass">Contraseña</label>
+            <input
+              id="sync-pass"
+              type="password"
+              autoComplete="current-password"
+              value={contrasena}
+              onChange={(e) => setContrasena(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+            />
+          </div>
+          <button className="boton-principal" onClick={vincular} disabled={trabajando}>
+            Vincular este dispositivo
+          </button>
+        </>
+      )}
+    </div>
   )
 }

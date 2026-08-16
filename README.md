@@ -2,8 +2,8 @@
 
 App PWA para la gestión y administración del local. Reemplaza la planilla mensual
 de Google Sheets (`JULIO 2026 nueva ECDM - CON BASE DE DATOS`) por una app que se
-instala en el celular, **funciona sin internet** y calcula sola el **margen de
-contribución** del mes.
+instala en el celular, **funciona sin internet**, **sincroniza entre dispositivos**
+cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 
 ---
 
@@ -15,7 +15,42 @@ contribución** del mes.
 | **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock. |
 | **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. |
 | **Reportes** | El número que importa: margen de contribución del mes, cómo se arma, y si el mes dio a favor o en contra. |
-| **Ajustes** | Respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
+| **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
+
+La campana 🔔 de arriba de todo avisa sola cuando hay algo para revisar: productos
+con costo vencido, ventas del mes sin costo cargado, diferencias de caja o
+problemas de sincronización.
+
+Cuando se publica una versión nueva de la app, aparece un botón **"Actualizar"**
+arriba de todo — no se actualiza sola de golpe para no cortar una venta a la mitad.
+
+---
+
+## Julio 2026 ya está cargado
+
+Las 62 jornadas, 337 ventas y 35 gastos que estaban anotados en la planilla de
+julio se cargan solos la primera vez que se abre la app (una sola vez: si después
+se sigue usando la app para cargar caja de verdad, no se vuelve a tocar).
+
+**Con eso, julio 2026 dio así:**
+
+| | |
+|---|--:|
+| Ventas totales | $7.427.650 |
+| Costo de mercadería vendida (con los costos actuales del catálogo) | −$2.775.453 |
+| Gastos variables | −$1.532.650 |
+| **Margen de contribución** | **$3.119.547 (42,0 %)** |
+| Gastos fijos (alquiler, luz, contador) | −$1.334.000 |
+| **Resultado del mes** | **$1.785.547 a favor** |
+
+⚠️ Ese margen usa el costo *actual* de cada producto (el que ya venías cargando en
+la planilla), y **el 88 % de lo vendido en julio corresponde a productos con el
+costo vencido o sin cargar** — ver la sección de abajo. El número real de julio es
+más bajo que $3.119.547. A medida que actualices los costos de lo que más se
+vende, el reporte de julio se va a ir corrigiendo solo.
+
+Para cargar otro mes histórico, ver "Importar un mes ya cargado en la planilla
+vieja" más abajo.
 
 ---
 
@@ -35,18 +70,61 @@ contribución** del mes.
 
 ### ⚠️ Un dato importante sobre los costos
 
-En la planilla original, **1243 de los 1336 productos tienen el precio de compra
-vencido o sin cargar**: los precios de venta se fueron actualizando durante 2026,
-pero los de compra quedaron en 2024 y 2025.
+En el catálogo, **1243 de los 1336 productos tienen el precio de compra vencido o
+sin cargar**: los precios de venta se fueron actualizando durante 2026, pero los de
+compra quedaron en 2024 y 2025.
 
-Eso hace que el margen **parezca más alto de lo que realmente es**. En la planilla,
+Eso hace que el margen **parezca más alto de lo que realmente es**. En el catálogo,
 la relación real entre precio de venta y precio de compra da 2,37 veces, cuando la
 rentabilidad objetivo cargada es de 1,3.
 
-La app **no oculta ese problema**: te avisa en Productos cuántos artículos tienen el
-costo vencido, y en Reportes te dice cuánta plata vendida no tiene costo cargado.
-Para que el margen del mes sea confiable, hay que ir actualizando los precios de
-compra de lo que más se vende.
+La app **no oculta ese problema**: te avisa en la campana 🔔 y en Productos cuántos
+artículos tienen el costo vencido, y en Reportes te dice cuánta plata vendida no
+tiene costo cargado. Para que el margen del mes sea confiable, hay que ir
+actualizando los precios de compra de lo que más se vende.
+
+---
+
+## Sincronizar entre dispositivos
+
+Por defecto cada celular guarda sus datos por separado (funciona perfecto así,
+pero no comparten información entre sí). Para que el celular del mostrador, el de
+Emma y una computadora vean **los mismos datos en tiempo real**, hay que crear una
+cuenta gratuita de Firebase — es un trámite de 5 minutos que **solo lo puede hacer
+alguien con acceso al mail del negocio**, así que quedó pendiente de tu lado:
+
+1. Entrar a **[console.firebase.google.com](https://console.firebase.google.com)**
+   con la cuenta de Google del negocio → **"Crear un proyecto"** → ponerle un
+   nombre (ej. "el-club-del-mate") → seguir los pasos (no hace falta activar
+   Google Analytics).
+2. Dentro del proyecto: **Compilación → Firestore Database → Crear base de
+   datos** → modo producción → elegir una región cercana (ej.
+   `southamerica-east1`).
+3. Pegar el contenido de [`firestore.rules`](./firestore.rules) en
+   **Firestore Database → Reglas** → Publicar.
+4. **Compilación → Authentication → Comenzar** → pestaña "Sign-in method" →
+   habilitar **"Correo electrónico/contraseña"**.
+5. **Configuración del proyecto** (ícono de engranaje) → bajar hasta "Tus apps" →
+   ícono `</>` (app web) → registrar una app (cualquier nombre) → copiar el
+   objeto `firebaseConfig` que aparece.
+6. Cargar esos 6 valores como **Settings → Secrets and variables → Actions** en
+   este repositorio de GitHub, con estos nombres exactos:
+   `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
+   `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`,
+   `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`.
+7. Volver a correr el deploy (un push a `main`, o "Run workflow" manual en
+   Actions). A partir de ahí, en **Ajustes → Sincronización entre dispositivos**
+   de la app va a aparecer el formulario para vincular cada celular.
+
+En cada dispositivo: cargar el mismo mail y contraseña (el primero que vincula
+**crea** esa cuenta compartida, los demás simplemente se suman con las mismas
+claves). No hace falta que sea un mail real que exista — funciona como usuario y
+contraseña del negocio, no como casilla de correo.
+
+Una vez vinculado, todo lo que se carga en cualquier dispositivo (ventas, cierres
+de caja, gastos, cambios de precio) se sube solo y aparece en los demás en
+segundos. Si se corta internet, sigue funcionando exactamente igual y sincroniza
+apenas vuelve la señal.
 
 ---
 
@@ -58,18 +136,15 @@ compra de lo que más se vende.
 
 ---
 
-## ⚠️ Los datos viven en el celular
+## Los datos viven primero en el celular
 
-Toda la información se guarda **en el dispositivo**, no en la nube. Eso significa:
-
-- **Anda perfecto sin internet.**
-- **Si se pierde o se formatea el celular, se pierden los datos.**
-- Cada dispositivo tiene sus propios datos: **no se sincronizan entre sí todavía.**
-
-👉 Por eso: entrar seguido a **Ajustes → Descargar respaldo** y guardar ese archivo
-en Google Drive.
-
-La sincronización entre varios dispositivos es el próximo paso (ver más abajo).
+- **Anda perfecto sin internet.** Cada acción se guarda al toque en el dispositivo.
+- **Sin sincronización configurada, cada celular tiene sus propios datos** (ver
+  arriba cómo activarla).
+- Con sincronización activada, si se pierde o rompe un celular, los datos siguen
+  disponibles en la nube y en los demás dispositivos vinculados.
+- Igual conviene entrar de vez en cuando a **Ajustes → Descargar respaldo** y
+  guardar ese archivo en Google Drive, como respaldo extra.
 
 ---
 
@@ -83,6 +158,9 @@ npm run preview      # prueba la versión compilada
 npm run typecheck    # revisa los tipos
 ```
 
+Para probar la sincronización en local, copiar `.env.example` a `.env` y cargar
+las claves de Firebase (ver arriba), después `npm run dev`.
+
 ### Volver a importar el catálogo desde una planilla
 
 ```bash
@@ -91,6 +169,20 @@ python3 scripts/importar-catalogo.py "mi-planilla.xlsx"
 ```
 
 Lee la hoja `PRODUCTOS` y regenera `public/productos.seed.json`.
+
+### Importar un mes ya cargado en la planilla vieja
+
+```bash
+python3 scripts/importar-historico.py "mi-planilla.xlsx" 2026 8
+```
+
+Lee las hojas `1M`/`1T`…`31M`/`31T` y la hoja `TOTALES` de ese mes, y genera
+`public/historico-2026-08.seed.json`. El script también imprime en pantalla qué
+productos vendidos ese mes no tienen costo de compra cargado.
+
+Después hay que agregar el mes a la lista `MESES_HISTORICOS` en `src/App.tsx` para
+que la app lo cargue solo la primera vez que se abre (no pisa datos si ya se
+estaba usando la app para cargar caja real).
 
 ### Regenerar los íconos
 
@@ -102,20 +194,37 @@ node scripts/generar-iconos.mjs
 
 ## Cómo está armado
 
-- **Vite + React + TypeScript** — app liviana, sin servidor.
-- **vite-plugin-pwa** — service worker, funciona sin conexión, instalable.
-- **Dexie (IndexedDB)** — base de datos en el propio dispositivo.
-- Sin backend: no hay cuentas, ni claves, ni costo mensual.
+- **Vite + React + TypeScript** — app liviana, sin servidor propio.
+- **vite-plugin-pwa** — service worker, funciona sin conexión, instalable, con
+  botón de actualización cuando hay una versión nueva.
+- **Dexie (IndexedDB)** — base de datos en el propio dispositivo. Es la que lee y
+  escribe toda la app; funciona sola, sin necesitar la nube.
+- **Firebase (Firestore + Authentication)**, opcional — sincroniza esa misma base
+  entre dispositivos. Si no está configurado, no se descarga ni se usa: la app
+  pesa lo mismo y funciona 100 % local.
 
 ```
 src/
-  db/db.ts          Estructura de datos (productos, turnos, ventas, movimientos)
-  db/sembrar.ts     Carga inicial del catálogo
+  db/db.ts          Estructura de datos + ganchos que avisan a sync de cada cambio
+  db/sembrar.ts     Carga inicial del catalogo y de los meses historicos
   lib/calculos.ts   Arqueo, margen de contribución, resúmenes
   lib/formato.ts    Pesos argentinos, fechas, lectura de números
+  sync/             Motor de sincronización con Firebase (opt-in)
   paginas/          Caja, Productos, Gastos, Reportes, Ajustes
-  componentes/      Buscador de productos, arqueo de caja
+  componentes/      Buscador de productos, arqueo de caja, notificaciones, update
 ```
+
+### Cómo sincroniza (para quien toque el código)
+
+Cada escritura a Dexie (crear, editar, borrar un producto/turno/venta/gasto) pasa
+por un gancho central en `db.ts`, así ninguna pantalla tiene que acordarse de nada
+especial. Ese gancho avisa al motor de sync (`sync/motor.ts`), que sube el cambio a
+Firestore. Firestore tiene su propio cache offline: si no hay internet, el cambio
+queda en cola en el dispositivo y se sube solo cuando vuelve la señal. Al revés,
+`sync/motor.ts` escucha Firestore en tiempo real y aplica los cambios que llegan de
+otros dispositivos a la base local. Cada turno, venta y gasto tiene un id propio
+generado en el dispositivo (no un número correlativo), así dos celulares pueden
+crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ---
 
@@ -129,14 +238,16 @@ src/
 | El costo se leía del catálogo actual | El costo queda **congelado en cada venta**: el margen histórico no se mueve |
 | Sin control de stock | Stock opcional por producto, se descuenta solo |
 | Margen de contribución calculado aparte | Calculado solo, con aviso cuando los datos no alcanzan |
+| Un solo archivo, sin avisos | Campana de notificaciones: costos vencidos, diferencias de caja, etc. |
+| Se comparte por Google Drive, sin tiempo real | Sincroniza entre dispositivos en segundos (una vez configurada) |
 | Necesita internet y cuenta de Google | Anda sin internet, instalada en el celular |
 
 ---
 
 ## Próximos pasos
 
-- [ ] **Sincronización entre dispositivos** (hoy cada celular tiene sus datos).
-- [ ] Cargar julio 2026 completo para comparar el margen real contra la planilla.
-- [ ] Actualizar precios de compra de los productos que más se venden.
+- [ ] Actualizar precios de compra de los productos que más se venden (ver la
+      campana 🔔 y Productos → "Ver esos productos").
 - [ ] Compras a proveedores y control de stock con reposición.
 - [ ] Comisiones de tarjeta y días de acreditación.
+- [ ] Multi-usuario con permisos distintos (hoy todos comparten un mismo acceso).

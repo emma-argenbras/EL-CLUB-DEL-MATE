@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useSearchParams } from 'react-router-dom'
 import { db, type Producto } from '../db/db'
 import { costoDesactualizado, margenPorcentual } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 
 export default function Productos() {
+  const [parametros] = useSearchParams()
   const [consulta, setConsulta] = useState('')
   const [editando, setEditando] = useState<Producto | null>(null)
   const [creando, setCreando] = useState(false)
-  const [soloAlertas, setSoloAlertas] = useState(false)
+  const [soloAlertas, setSoloAlertas] = useState(parametros.get('alertas') === '1')
 
   const total = useLiveQuery(() => db.productos.count(), [])
 

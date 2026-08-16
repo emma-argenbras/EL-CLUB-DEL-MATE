@@ -33,6 +33,15 @@ jobs:
         env:
           # La app queda servida en https://<usuario>.github.io/EL-CLUB-DEL-MATE/
           BASE_PATH: /${{ github.event.repository.name }}/
+          # Si estos secrets no estan cargados en el repo (Settings > Secrets
+          # and variables > Actions), quedan vacios y la app compila igual,
+          # solo que sin sincronizacion entre dispositivos.
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

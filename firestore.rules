@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore para El Club del Mate.
+//
+// Como pegarlas: Firebase Console > Firestore Database > Reglas >
+// pegar este contenido entero > Publicar.
+//
+// Todos los dispositivos del negocio comparten UNA sola cuenta (mail +
+// contraseña), asi que alcanza con pedir "estar logueado" para poder
+// leer y escribir. No hay datos de otros negocios en el mismo proyecto,
+// asi que no hace falta separar por usuario.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /negocios/el-club-del-mate/{coleccion}/{documento} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

@@ -11,7 +11,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': no se actualiza sola de golpe (podria cortar una venta
+      // a mitad); se avisa con un boton y se aplica cuando la persona
+      // toca "Actualizar".
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'icono-192.png', 'icono-512.png'],
       manifest: {
         name: 'El Club del Mate',

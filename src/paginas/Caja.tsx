@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   db,
+  nuevoId,
   MEDIOS_PAGO,
   type Arqueo,
   type Jornada,
@@ -88,6 +89,7 @@ function AbrirTurno({ fecha, turno }: { fecha: string; turno: Turno }) {
     setGuardando(true)
     try {
       await db.jornadas.add({
+        id: nuevoId(),
         fecha,
         turno,
         estado: 'abierto',
@@ -138,11 +140,11 @@ function TurnoAbierto({ jornada }: { jornada: Jornada }) {
   const [pestana, setPestana] = useState<'ventas' | 'egresos' | 'cierre'>('ventas')
 
   const ventas = useLiveQuery(
-    () => db.ventas.where('jornadaId').equals(jornada.id!).toArray(),
+    () => db.ventas.where('jornadaId').equals(jornada.id).toArray(),
     [jornada.id],
   )
   const movimientos = useLiveQuery(
-    () => db.movimientos.where('jornadaId').equals(jornada.id!).toArray(),
+    () => db.movimientos.where('jornadaId').equals(jornada.id).toArray(),
     [jornada.id],
   )
 
@@ -183,7 +185,7 @@ function TurnoAbierto({ jornada }: { jornada: Jornada }) {
         </div>
         {cerrado && (
           <div className="aviso aviso-ok" style={{ marginTop: 10, marginBottom: 0 }}>
-            Turno cerrado a las {jornada.horaCierre}.
+            Turno cerrado{jornada.horaCierre ? ` a las ${jornada.horaCierre}` : ''}.
           </div>
         )}
       </div>
@@ -250,7 +252,8 @@ function PanelVentas({
     if (!elegido || cant <= 0 || pre <= 0) return
     await db.transaction('rw', db.ventas, db.productos, async () => {
       await db.ventas.add({
-        jornadaId: jornada.id!,
+        id: nuevoId(),
+        jornadaId: jornada.id,
         fecha: jornada.fecha,
         hora: horaAhora(),
         codigo: elegido.codigo,
@@ -277,7 +280,7 @@ function PanelVentas({
   async function borrar(venta: import('../db/db').Venta) {
     if (!confirm(`¿Borrar la venta de ${venta.descripcion}?`)) return
     await db.transaction('rw', db.ventas, db.productos, async () => {
-      await db.ventas.delete(venta.id!)
+      await db.ventas.delete(venta.id)
       const producto = await db.productos.get(venta.codigo)
       if (producto && producto.stock !== null && producto.stock !== undefined) {
         await db.productos.update(venta.codigo, { stock: producto.stock + venta.cantidad })
@@ -419,12 +422,13 @@ function PanelEgresos({
     const valor = leerNumero(monto)
     if (!valor || valor <= 0) return
     await db.movimientos.add({
+      id: nuevoId(),
       fecha: jornada.fecha,
       tipo,
       concepto: concepto.trim() || (tipo === 'A_CAJA_GRANDE' ? 'Pase a caja grande' : 'Egreso'),
       monto: valor,
       categoria: tipo === 'EGRESO_CAJA' ? 'OTROS' : null,
-      jornadaId: jornada.id!,
+      jornadaId: jornada.id,
       // Un pase a caja grande no es un gasto: es plata que cambia de lugar.
       esVariable: tipo === 'EGRESO_CAJA',
     })
@@ -497,7 +501,7 @@ function PanelEgresos({
                     <button
                       className="boton-chico"
                       style={{ marginTop: 4 }}
-                      onClick={() => db.movimientos.delete(m.id!)}
+                      onClick={() => db.movimientos.delete(m.id)}
                     >
                       Borrar
                     </button>
@@ -529,7 +533,7 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
       )
     )
       return
-    await db.jornadas.update(jornada.id!, {
+    await db.jornadas.update(jornada.id, {
       estado: 'cerrado',
       arqueoCierre: arqueo,
       horaCierre: horaAhora(),
@@ -538,7 +542,7 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
 
   async function reabrir() {
     if (!confirm('¿Reabrir el turno para seguir cargando?')) return
-    await db.jornadas.update(jornada.id!, { estado: 'abierto', horaCierre: null })
+    await db.jornadas.update(jornada.id, { estado: 'abierto', horaCierre: null })
   }
 
   return (

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { sembrarCatalogo } from './db/sembrar'
+import { sembrarCatalogo, sembrarHistorico } from './db/sembrar'
+import { nubeConfigurada } from './sync/config'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
 import Gastos from './paginas/Gastos'
 import Reportes from './paginas/Reportes'
 import Ajustes from './paginas/Ajustes'
+import Notificaciones from './componentes/Notificaciones'
+import ActualizarApp from './componentes/ActualizarApp'
 
 const SECCIONES = [
   { ruta: '/caja', icono: '🧉', texto: 'Caja' },
@@ -15,12 +18,23 @@ const SECCIONES = [
   { ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes' },
 ]
 
+// Meses de la planilla vieja ya extraidos y listos para sembrar solos.
+const MESES_HISTORICOS = ['2026-07']
+
 export default function App() {
   const [listo, setListo] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    sembrarCatalogo()
+    if (nubeConfigurada) {
+      import('./sync/motor').then((m) => m.iniciarMotor())
+    }
+    ;(async () => {
+      await sembrarCatalogo()
+      for (const mes of MESES_HISTORICOS) {
+        await sembrarHistorico(mes)
+      }
+    })()
       .then(() => setListo(true))
       .catch((e) => {
         console.error(e)
@@ -40,8 +54,11 @@ export default function App() {
 
   return (
     <div className="app">
+      <ActualizarApp />
+
       <header className="cabecera">
         <span className="marca">🧉 El Club del Mate</span>
+        <Notificaciones />
       </header>
 
       {error && <div className="aviso aviso-error">No se pudo cargar el catálogo: {error}</div>}

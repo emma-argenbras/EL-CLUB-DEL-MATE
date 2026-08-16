@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CATEGORIAS_GASTO,
   db,
+  nuevoId,
   type CategoriaGasto,
   type Movimiento,
   type TipoMovimiento,
@@ -124,7 +125,7 @@ export default function Gastos() {
                     style={{ marginTop: 4 }}
                     onClick={() => {
                       if (confirm(`¿Borrar el gasto "${m.concepto}"?`)) {
-                        db.movimientos.delete(m.id!)
+                        db.movimientos.delete(m.id)
                       }
                     }}
                   >
@@ -160,6 +161,7 @@ function FormularioGasto({ onSalir }: { onSalir: () => void }) {
     const valor = leerNumero(monto)
     if (!valor || valor <= 0 || !concepto.trim()) return
     const registro: Movimiento = {
+      id: nuevoId(),
       fecha,
       tipo,
       concepto: concepto.trim(),
