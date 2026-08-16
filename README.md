@@ -113,7 +113,7 @@ alguien con acceso al mail del negocio**, así que quedó pendiente de tu lado:
    `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`,
    `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`.
 7. Volver a correr el deploy (un push a `main`, o "Run workflow" manual en
-   Actions). A partir de ahí, en **Ajustes → Sincronización entre dispositivos**
+   Actions). A partir de ahí, en **Ajustes → Respaldo automático**
    de la app va a aparecer el formulario para vincular cada celular.
 
 En cada dispositivo: cargar el mismo mail y contraseña (el primero que vincula
@@ -143,8 +143,8 @@ apenas vuelve la señal.
   arriba cómo activarla).
 - Con sincronización activada, si se pierde o rompe un celular, los datos siguen
   disponibles en la nube y en los demás dispositivos vinculados.
-- Igual conviene entrar de vez en cuando a **Ajustes → Descargar respaldo** y
-  guardar ese archivo en Google Drive, como respaldo extra.
+- Igual conviene entrar de vez en cuando a **Ajustes → Copia manual → Descargar
+  copia** y guardar ese archivo en Google Drive, como respaldo extra.
 
 ---
 
