@@ -50,7 +50,11 @@ export function nuevoId(): string {
 export interface Producto {
   codigo: string
   descripcion: string
+  /** Nombre del proveedor tal como venia de la planilla vieja. Se mantiene
+   *  para historial, pero para agrupar/filtrar se usa proveedorId. */
   proveedor: string | null
+  /** Vinculo al proveedor real (tabla proveedores). Null = sin asignar. */
+  proveedorId: string | null
   fechaCompra: string | null
   precioCompra: number | null
   /** Markup objetivo cargado en la planilla: 1.3 = 130 %. */
@@ -61,6 +65,16 @@ export interface Producto {
   busqueda: string
   stock: number | null
   activo: boolean
+  actualizadoEn?: number
+}
+
+export interface Proveedor {
+  id: string
+  nombre: string
+  contacto: string | null
+  notas: string | null
+  activo: boolean
+  creadoEn?: number
   actualizadoEn?: number
 }
 
@@ -159,7 +173,7 @@ export interface Ajuste {
 }
 
 /** Nombre de tabla tal como se usa en Firestore y en los ganchos de sync. */
-export type NombreTabla = 'productos' | 'jornadas' | 'ventas' | 'movimientos'
+export type NombreTabla = 'productos' | 'jornadas' | 'ventas' | 'movimientos' | 'proveedores'
 
 export type AccionCambio = 'guardar' | 'borrar'
 
@@ -197,6 +211,7 @@ class BaseECDM extends Dexie {
   ventas!: Table<Venta, string>
   movimientos!: Table<Movimiento, string>
   ajustes!: Table<Ajuste, string>
+  proveedores!: Table<Proveedor, string>
 
   constructor() {
     super('el-club-del-mate')
@@ -254,13 +269,60 @@ class BaseECDM extends Dexie {
           })
       })
 
+    // v3 agrega el modulo de Proveedores: un proveedor real (con su propio
+    // id) en vez de un texto suelto en cada producto. Migra los nombres de
+    // proveedor que ya estaban cargados (texto libre, con alguna variante
+    // de mayusculas/espacios) a proveedores propiamente dichos, agrupando
+    // los que tienen el mismo nombre normalizado.
+    this.version(3)
+      .stores({
+        productos: 'codigo, descripcion, proveedor, proveedorId, busqueda, activo',
+        jornadas: 'id, [fecha+turno], fecha, estado',
+        ventas: 'id, jornadaId, fecha, codigo, medioPago',
+        movimientos: 'id, fecha, tipo, categoria, jornadaId',
+        ajustes: 'clave',
+        proveedores: 'id, nombre, activo',
+      })
+      .upgrade(async (tx) => {
+        const porNombre = new Map<string, Proveedor>()
+        const ahora = Date.now()
+
+        await tx
+          .table('productos')
+          .toCollection()
+          .modify((p: Producto) => {
+            const nombreCrudo = (p.proveedor ?? '').trim()
+            if (!nombreCrudo) {
+              p.proveedorId = null
+              return
+            }
+            const clave = nombreCrudo.toLowerCase()
+            let proveedor = porNombre.get(clave)
+            if (!proveedor) {
+              proveedor = {
+                id: nuevoId(),
+                nombre: nombreCrudo,
+                contacto: null,
+                notas: null,
+                activo: true,
+                creadoEn: ahora,
+                actualizadoEn: ahora,
+              }
+              porNombre.set(clave, proveedor)
+            }
+            p.proveedorId = proveedor.id
+          })
+
+        await tx.table('proveedores').bulkAdd([...porNombre.values()])
+      })
+
     // Estos ganchos son el corazon de la sincronizacion: cada vez que se
-    // crea, edita o borra un producto/jornada/venta/movimiento en CUALQUIER
-    // parte de la app, quedan registrados aca una sola vez, sin tener que
-    // acordarse de llamar a nada especial desde cada pantalla. Usamos
-    // this.onsuccess (no el cuerpo del hook) para que el aviso de sync
-    // salga recien cuando la escritura local ya se confirmo.
-    for (const nombre of ['productos', 'jornadas', 'ventas', 'movimientos'] as const) {
+    // crea, edita o borra un producto/jornada/venta/movimiento/proveedor en
+    // CUALQUIER parte de la app, quedan registrados aca una sola vez, sin
+    // tener que acordarse de llamar a nada especial desde cada pantalla.
+    // Usamos this.onsuccess (no el cuerpo del hook) para que el aviso de
+    // sync salga recien cuando la escritura local ya se confirmo.
+    for (const nombre of ['productos', 'jornadas', 'ventas', 'movimientos', 'proveedores'] as const) {
       const tabla: Table<Record<string, unknown>, string> = this.table(nombre)
 
       tabla.hook('creating', function (
@@ -304,6 +366,47 @@ class BaseECDM extends Dexie {
 }
 
 export const db = new BaseECDM()
+
+/**
+ * Agrupa por nombre (normalizado) los productos que todavia no tienen
+ * proveedorId y crea un Proveedor por cada nombre distinto. Se usa la
+ * primera vez que se siembra el catalogo en un dispositivo nuevo: la
+ * migracion de Dexie (version 3) solo corre en dispositivos que ya
+ * tenian datos, no cuando el catalogo se carga de cero desde el JSON.
+ * No hace nada si ya existe algun proveedor (evita duplicar).
+ */
+export async function derivarProveedoresDesdeProductos(): Promise<number> {
+  if ((await db.proveedores.count()) > 0) return 0
+
+  const productos = await db.productos.toArray()
+  const porNombre = new Map<string, Proveedor>()
+  const ahora = Date.now()
+
+  for (const p of productos) {
+    const nombreCrudo = (p.proveedor ?? '').trim()
+    if (!nombreCrudo) continue
+    const clave = nombreCrudo.toLowerCase()
+    let proveedor = porNombre.get(clave)
+    if (!proveedor) {
+      proveedor = {
+        id: nuevoId(),
+        nombre: nombreCrudo,
+        contacto: null,
+        notas: null,
+        activo: true,
+        creadoEn: ahora,
+        actualizadoEn: ahora,
+      }
+      porNombre.set(clave, proveedor)
+    }
+    if (p.proveedorId !== proveedor.id) {
+      await db.productos.update(p.codigo, { proveedorId: proveedor.id })
+    }
+  }
+
+  if (porNombre.size > 0) await db.proveedores.bulkAdd([...porNombre.values()])
+  return porNombre.size
+}
 
 export async function leerAjuste(clave: string, porDefecto = ''): Promise<string> {
   const fila = await db.ajustes.get(clave)

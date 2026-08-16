@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSearchParams } from 'react-router-dom'
-import { db, type Producto } from '../db/db'
+import { db, nuevoId, type Producto } from '../db/db'
 import { costoDesactualizado, margenPorcentual } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 
@@ -13,6 +13,11 @@ export default function Productos() {
   const [soloAlertas, setSoloAlertas] = useState(parametros.get('alertas') === '1')
 
   const total = useLiveQuery(() => db.productos.count(), [])
+  const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
+  const nombresProveedor = useMemo(
+    () => new Map((proveedores ?? []).map((p) => [p.id, p.nombre])),
+    [proveedores],
+  )
 
   const resultados = useLiveQuery(async () => {
     const partes = normalizar(consulta).split(/\s+/).filter(Boolean)
@@ -100,7 +105,9 @@ export default function Productos() {
                     <div className="item-titulo">{p.descripcion}</div>
                     <div className="item-sub">
                       {p.codigo}
-                      {p.proveedor ? ` · ${p.proveedor}` : ''}
+                      {p.proveedorId && nombresProveedor.get(p.proveedorId)
+                        ? ` · ${nombresProveedor.get(p.proveedorId)}`
+                        : ''}
                       {p.stock !== null && p.stock !== undefined ? ` · stock ${p.stock}` : ''}
                     </div>
                     <div className="item-sub">
@@ -136,7 +143,8 @@ function FormularioProducto({
   const nuevo = !producto
   const [codigo, setCodigo] = useState(producto?.codigo ?? '')
   const [descripcion, setDescripcion] = useState(producto?.descripcion ?? '')
-  const [proveedor, setProveedor] = useState(producto?.proveedor ?? '')
+  const [proveedorId, setProveedorId] = useState(producto?.proveedorId ?? '')
+  const [nuevoProveedor, setNuevoProveedor] = useState('')
   const [precioCompra, setPrecioCompra] = useState(
     producto?.precioCompra != null ? String(producto.precioCompra) : '',
   )
@@ -151,6 +159,8 @@ function FormularioProducto({
     producto?.stock != null ? String(producto.stock) : '',
   )
   const [error, setError] = useState('')
+
+  const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
 
   const compraNum = leerNumero(precioCompra)
   const ventaNum = leerNumero(precioVenta)
@@ -172,10 +182,33 @@ function FormularioProducto({
       if (existe) return setError(`Ya existe un producto con el código ${cod}.`)
     }
 
+    let idProveedor = proveedorId || null
+    if (idProveedor === 'nuevo') {
+      const nombre = nuevoProveedor.trim()
+      if (!nombre) return setError('Escribí el nombre del proveedor nuevo.')
+      const existente = await db.proveedores.where('nombre').equalsIgnoreCase(nombre).first()
+      if (existente) {
+        idProveedor = existente.id
+      } else {
+        idProveedor = nuevoId()
+        await db.proveedores.add({
+          id: idProveedor,
+          nombre,
+          contacto: null,
+          notas: null,
+          activo: true,
+        })
+      }
+    }
+    const nombreProveedor = idProveedor
+      ? ((await db.proveedores.get(idProveedor))?.nombre ?? null)
+      : null
+
     const registro: Producto = {
       codigo: cod,
       descripcion: descripcion.trim(),
-      proveedor: proveedor.trim() || null,
+      proveedor: nombreProveedor,
+      proveedorId: idProveedor,
       fechaCompra: fechaCompra || null,
       precioCompra: compraNum,
       rentabilidad: rentNum != null ? rentNum / 100 : null,
@@ -225,12 +258,28 @@ function FormularioProducto({
         </div>
         <div className="campo">
           <label htmlFor="p-prov">Proveedor</label>
-          <input
+          <select
             id="p-prov"
-            value={proveedor}
-            onChange={(e) => setProveedor(e.target.value)}
-            placeholder="Ej: MOHICANO"
-          />
+            value={proveedorId}
+            onChange={(e) => setProveedorId(e.target.value)}
+          >
+            <option value="">Sin proveedor</option>
+            {(proveedores ?? []).map((prov) => (
+              <option key={prov.id} value={prov.id}>
+                {prov.nombre}
+              </option>
+            ))}
+            <option value="nuevo">+ Proveedor nuevo…</option>
+          </select>
+          {proveedorId === 'nuevo' && (
+            <input
+              style={{ marginTop: 8 }}
+              value={nuevoProveedor}
+              onChange={(e) => setNuevoProveedor(e.target.value)}
+              placeholder="Nombre del proveedor nuevo"
+              autoFocus
+            />
+          )}
         </div>
       </div>
 

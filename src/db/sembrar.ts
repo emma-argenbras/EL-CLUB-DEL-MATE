@@ -1,4 +1,14 @@
-import { db, guardarAjuste, leerAjuste, nuevoId, type Jornada, type Movimiento, type Producto, type Venta } from './db'
+import {
+  db,
+  derivarProveedoresDesdeProductos,
+  guardarAjuste,
+  leerAjuste,
+  nuevoId,
+  type Jornada,
+  type Movimiento,
+  type Producto,
+  type Venta,
+} from './db'
 
 const CLAVE_SEMILLA = 'catalogo_sembrado'
 
@@ -30,6 +40,7 @@ export async function sembrarCatalogo(): Promise<number> {
 
   const productos = await bajarJSON<Producto[]>('productos.seed.json')
   await db.productos.bulkPut(productos)
+  await derivarProveedoresDesdeProductos()
   await guardarAjuste(CLAVE_SEMILLA, 'si')
   await guardarAjuste('catalogo_origen', 'JULIO 2026 nueva ECDM - CON BASE DE DATOS')
   return productos.length
@@ -39,6 +50,7 @@ export async function sembrarCatalogo(): Promise<number> {
 export async function resembrarCatalogo(): Promise<number> {
   const productos = await bajarJSON<Producto[]>('productos.seed.json')
   await db.productos.bulkPut(productos)
+  await derivarProveedoresDesdeProductos()
   await guardarAjuste(CLAVE_SEMILLA, 'si')
   return productos.length
 }
