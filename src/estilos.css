@@ -74,6 +74,7 @@ body {
   height: 26px;
   border-radius: 999px;
   border: 1.5px solid rgba(255, 255, 255, 0.7);
+  background: transparent;
   color: #fff;
   font-weight: 800;
   font-size: 0.85rem;
