@@ -354,6 +354,13 @@ textarea:focus {
   gap: 10px;
 }
 
+.grilla > * {
+  /* Sin esto, una columna con contenido "duro" de achicar (como un
+     input de fecha nativo en iOS) empuja a las demás columnas y las
+     deja mas angostas de lo que deberian, aunque tengan width: 100%. */
+  min-width: 0;
+}
+
 .grilla-2 {
   grid-template-columns: 1fr 1fr;
 }
