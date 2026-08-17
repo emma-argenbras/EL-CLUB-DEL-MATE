@@ -4,9 +4,11 @@ import {
   guardarAjuste,
   leerAjuste,
   nuevoId,
+  type Arqueo,
   type Jornada,
   type Movimiento,
   type Producto,
+  type Turno,
   type Venta,
 } from './db'
 
@@ -117,4 +119,47 @@ export async function sembrarHistorico(mes: string): Promise<{
 
   await guardarAjuste(clave, 'si')
   return { jornadas: jornadas.length, ventas: ventas.length, movimientos: movimientos.length }
+}
+
+interface ArqueoHistorico {
+  fecha: string
+  turno: Turno
+  arqueoApertura: Arqueo | null
+  arqueoCierre: Arqueo | null
+}
+
+const MARCA_HISTORICO = 'Importado desde la planilla de Google Sheets.'
+
+/**
+ * Completa el conteo de billetes (apertura y cierre) de las jornadas ya
+ * importadas por sembrarHistorico, que se cargaron sin ese detalle. Es un
+ * parche aparte (no forma parte del seed original) porque llega despues:
+ * solo toca jornadas que siguen marcadas como importadas, para no pisar
+ * un arqueo real que alguien haya cargado a mano desde la app.
+ */
+export async function cargarArqueosHistoricos(mes: string): Promise<number> {
+  const clave = `arqueos_${mes}_cargados`
+  if ((await leerAjuste(clave)) === 'si') return 0
+
+  const datos = await bajarJSON<ArqueoHistorico[]>(`arqueos-${mes}.seed.json`)
+
+  let parcheadas = 0
+  for (const dato of datos) {
+    const jornada = await db.jornadas
+      .where('[fecha+turno]')
+      .equals([dato.fecha, dato.turno])
+      .first()
+    if (!jornada || jornada.notas !== MARCA_HISTORICO) continue
+
+    const cambios: Partial<Jornada> = {}
+    if (dato.arqueoApertura) cambios.arqueoApertura = dato.arqueoApertura
+    if (dato.arqueoCierre) cambios.arqueoCierre = dato.arqueoCierre
+    if (Object.keys(cambios).length === 0) continue
+
+    await db.jornadas.update(jornada.id, cambios)
+    parcheadas++
+  }
+
+  await guardarAjuste(clave, 'si')
+  return parcheadas
 }

@@ -35,32 +35,30 @@ export default function Caja() {
       <h2>Caja</h2>
 
       <div className="tarjeta">
-        <div className="grilla grilla-2">
-          <div>
-            <label htmlFor="fecha">Fecha</label>
-            <input
-              id="fecha"
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-            />
-          </div>
-          <div>
-            <label>Turno</label>
-            <div className="botonera">
-              <button
-                className={turno === 'M' ? 'pestana activa' : 'pestana'}
-                onClick={() => setTurno('M')}
-              >
-                Mañana
-              </button>
-              <button
-                className={turno === 'T' ? 'pestana activa' : 'pestana'}
-                onClick={() => setTurno('T')}
-              >
-                Tarde
-              </button>
-            </div>
+        <div className="campo">
+          <label htmlFor="fecha">Fecha</label>
+          <input
+            id="fecha"
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+          />
+        </div>
+        <div>
+          <label>Turno</label>
+          <div className="botonera">
+            <button
+              className={turno === 'M' ? 'pestana activa' : 'pestana'}
+              onClick={() => setTurno('M')}
+            >
+              Mañana
+            </button>
+            <button
+              className={turno === 'T' ? 'pestana activa' : 'pestana'}
+              onClick={() => setTurno('T')}
+            >
+              Tarde
+            </button>
           </div>
         </div>
       </div>

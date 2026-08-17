@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { sembrarCatalogo, sembrarHistorico } from './db/sembrar'
+import { cargarArqueosHistoricos, sembrarCatalogo, sembrarHistorico } from './db/sembrar'
 import { nubeConfigurada } from './sync/config'
 import { useSesion } from './sync/useSesion'
 import Caja from './paginas/Caja'
@@ -48,6 +48,7 @@ export default function App() {
       await sembrarCatalogo()
       for (const mes of MESES_HISTORICOS) {
         await sembrarHistorico(mes)
+        await cargarArqueosHistoricos(mes)
       }
     })()
       .then(() => setListo(true))
