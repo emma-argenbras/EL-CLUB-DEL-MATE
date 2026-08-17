@@ -1,43 +1,72 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSearchParams } from 'react-router-dom'
-import { db, nuevoId, type Producto } from '../db/db'
+import { db, nuevoId, productoVisible, type HistorialProducto, type Producto } from '../db/db'
 import { costoDesactualizado, margenPorcentual } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
+import { useSesion } from '../sync/useSesion'
 
 export default function Productos() {
   const [parametros] = useSearchParams()
+  const sesion = useSesion()
+  const esOwner = sesion.perfil?.rol === 'owner'
   const [consulta, setConsulta] = useState('')
   const [editando, setEditando] = useState<Producto | null>(null)
   const [creando, setCreando] = useState(false)
   const [soloAlertas, setSoloAlertas] = useState(parametros.get('alertas') === '1')
+  const [verArchivados, setVerArchivados] = useState(false)
 
-  const total = useLiveQuery(() => db.productos.count(), [])
+  const total = useLiveQuery(() => db.productos.filter(productoVisible).count(), [])
   const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
   const nombresProveedor = useMemo(
     () => new Map((proveedores ?? []).map((p) => [p.id, p.nombre])),
     [proveedores],
   )
 
+  const solicitudes = useLiveQuery(
+    () =>
+      esOwner
+        ? db.productos.filter((p) => !!p.solicitudBorrado).toArray()
+        : Promise.resolve<Producto[]>([]),
+    [esOwner],
+  )
+
   const resultados = useLiveQuery(async () => {
+    if (verArchivados) {
+      return db.productos.filter((p) => p.archivado === true).limit(200).toArray()
+    }
     const partes = normalizar(consulta).split(/\s+/).filter(Boolean)
     if (!partes.length && !soloAlertas) {
-      return db.productos.orderBy('descripcion').limit(50).toArray()
+      return db.productos.filter(productoVisible).limit(50).sortBy('descripcion')
     }
     const encontrados = await db.productos
-      .filter((p) => partes.every((parte) => p.busqueda.includes(parte)))
+      .filter(
+        (p) => productoVisible(p) && partes.every((parte) => p.busqueda.includes(parte)),
+      )
       .limit(soloAlertas ? 2000 : 100)
       .toArray()
     if (soloAlertas) {
       return encontrados.filter((p) => costoDesactualizado(p)).slice(0, 100)
     }
     return encontrados
-  }, [consulta, soloAlertas])
+  }, [consulta, soloAlertas, verArchivados])
 
   const desactualizados = useLiveQuery(async () => {
-    const todos = await db.productos.toArray()
+    const todos = await db.productos.filter(productoVisible).toArray()
     return todos.filter((p) => costoDesactualizado(p)).length
   }, [])
+
+  async function aprobarSolicitud(p: Producto) {
+    await db.productos.update(p.codigo, { archivado: true, solicitudBorrado: null })
+  }
+
+  async function rechazarSolicitud(p: Producto) {
+    await db.productos.update(p.codigo, { solicitudBorrado: null })
+  }
+
+  async function reactivar(p: Producto) {
+    await db.productos.update(p.codigo, { archivado: false })
+  }
 
   if (editando || creando) {
     return (
@@ -55,7 +84,40 @@ export default function Productos() {
     <>
       <h2>Productos</h2>
 
-      {desactualizados !== undefined && desactualizados > 0 && (
+      {esOwner && solicitudes && solicitudes.length > 0 && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">
+            {solicitudes.length} {solicitudes.length === 1 ? 'solicitud' : 'solicitudes'} de
+            archivado pendiente{solicitudes.length === 1 ? '' : 's'}
+          </p>
+          <ul className="lista">
+            {solicitudes.map((p) => (
+              <li className="item" key={p.codigo} style={{ alignItems: 'flex-start' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="item-titulo">{p.descripcion}</div>
+                  <div className="item-sub">
+                    Pedido por {p.solicitudBorrado?.porNombre} · {fechaLinda(hoyISO())}
+                    {p.solicitudBorrado?.motivo ? ` · "${p.solicitudBorrado.motivo}"` : ''}
+                  </div>
+                </div>
+                <div className="botonera" style={{ flexShrink: 0 }}>
+                  <button className="boton-chico" onClick={() => rechazarSolicitud(p)}>
+                    Rechazar
+                  </button>
+                  <button
+                    className="boton-chico boton-peligro"
+                    onClick={() => aprobarSolicitud(p)}
+                  >
+                    Archivar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {desactualizados !== undefined && desactualizados > 0 && !verArchivados && (
         <div className="aviso aviso-ojo">
           <strong>{desactualizados}</strong> de {total} productos tienen el precio de compra
           vencido o sin cargar. El margen de contribución les queda inflado, porque el precio de
@@ -76,6 +138,7 @@ export default function Productos() {
           onChange={(e) => setConsulta(e.target.value)}
           placeholder="Buscar por código o nombre…"
           inputMode="search"
+          disabled={verArchivados}
         />
         <div className="botonera" style={{ marginTop: 10 }}>
           <button className="boton-principal" onClick={() => setCreando(true)}>
@@ -83,8 +146,17 @@ export default function Productos() {
           </button>
         </div>
         <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
-          {total ?? '…'} productos en el catálogo
-          {soloAlertas ? ' · mostrando solo los de costo vencido' : ''}
+          {verArchivados
+            ? 'Mostrando productos archivados'
+            : `${total ?? '…'} productos en el catálogo${soloAlertas ? ' · mostrando solo los de costo vencido' : ''}`}
+          {esOwner && (
+            <>
+              {' · '}
+              <button className="boton-chico" onClick={() => setVerArchivados(!verArchivados)}>
+                {verArchivados ? 'Ver catálogo activo' : 'Ver archivados'}
+              </button>
+            </>
+          )}
         </p>
       </div>
 
@@ -92,7 +164,7 @@ export default function Productos() {
         {!resultados ? (
           <p className="vacio">Buscando…</p>
         ) : resultados.length === 0 ? (
-          <p className="vacio">Sin resultados.</p>
+          <p className="vacio">{verArchivados ? 'No hay productos archivados.' : 'Sin resultados.'}</p>
         ) : (
           <ul className="lista">
             {resultados.map((p) => {
@@ -100,7 +172,11 @@ export default function Productos() {
                 ? margenPorcentual(p.precioVenta, p.precioCompra)
                 : null
               return (
-                <li className="item" key={p.codigo} onClick={() => setEditando(p)}>
+                <li
+                  className="item"
+                  key={p.codigo}
+                  onClick={() => !verArchivados && setEditando(p)}
+                >
                   <div style={{ minWidth: 0 }}>
                     <div className="item-titulo">{p.descripcion}</div>
                     <div className="item-sub">
@@ -120,7 +196,13 @@ export default function Productos() {
                       )}
                     </div>
                   </div>
-                  <div className="item-monto">{plata(p.precioVenta)}</div>
+                  {verArchivados ? (
+                    <button className="boton-chico" onClick={() => reactivar(p)}>
+                      Reactivar
+                    </button>
+                  ) : (
+                    <div className="item-monto">{plata(p.precioVenta)}</div>
+                  )}
                 </li>
               )
             })}
@@ -140,6 +222,8 @@ function FormularioProducto({
   producto: Producto | null
   onSalir: () => void
 }) {
+  const sesion = useSesion()
+  const esOwner = sesion.perfil?.rol === 'owner'
   const nuevo = !producto
   const [codigo, setCodigo] = useState(producto?.codigo ?? '')
   const [descripcion, setDescripcion] = useState(producto?.descripcion ?? '')
@@ -159,8 +243,16 @@ function FormularioProducto({
     producto?.stock != null ? String(producto.stock) : '',
   )
   const [error, setError] = useState('')
+  const [mensaje, setMensaje] = useState('')
 
   const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
+  const historial = useLiveQuery(
+    () =>
+      producto
+        ? db.historialProductos.where('codigo').equals(producto.codigo).reverse().sortBy('cuando')
+        : Promise.resolve([] as HistorialProducto[]),
+    [producto?.codigo],
+  )
 
   const compraNum = leerNumero(precioCompra)
   const ventaNum = leerNumero(precioVenta)
@@ -204,6 +296,11 @@ function FormularioProducto({
       ? ((await db.proveedores.get(idProveedor))?.nombre ?? null)
       : null
 
+    // Un empleado no puede cambiar el precio de venta: si lo intenta (el
+    // campo esta deshabilitado en la UI, esto es el resguardo del lado
+    // de los datos) se conserva el que ya tenia el producto.
+    const ventaFinal = esOwner ? ventaNum : (producto?.precioVenta ?? ventaNum)
+
     const registro: Producto = {
       codigo: cod,
       descripcion: descripcion.trim(),
@@ -212,22 +309,37 @@ function FormularioProducto({
       fechaCompra: fechaCompra || null,
       precioCompra: compraNum,
       rentabilidad: rentNum != null ? rentNum / 100 : null,
-      precioVenta: ventaNum,
+      precioVenta: ventaFinal,
       fechaPrecioVenta:
-        ventaNum !== producto?.precioVenta ? hoyISO() : (producto?.fechaPrecioVenta ?? null),
+        ventaFinal !== producto?.precioVenta ? hoyISO() : (producto?.fechaPrecioVenta ?? null),
       busqueda: normalizar(`${cod} ${descripcion}`),
       stock: stock.trim() === '' ? null : Number(stock),
       activo: true,
+      archivado: producto?.archivado ?? false,
     }
     await db.productos.put(registro)
     onSalir()
   }
 
-  async function borrar() {
+  async function archivar() {
     if (!producto) return
-    if (!confirm(`¿Borrar ${producto.descripcion} del catálogo?`)) return
-    await db.productos.delete(producto.codigo)
+    if (!confirm(`¿Archivar "${producto.descripcion}"? Deja de verse en el catálogo y en Caja, pero se conserva su historial de ventas y ediciones para siempre.`)) return
+    await db.productos.update(producto.codigo, { archivado: true, solicitudBorrado: null })
     onSalir()
+  }
+
+  async function solicitarArchivado() {
+    if (!producto || !sesion.email || !sesion.perfil) return
+    const motivo = prompt('¿Por qué querés archivar este producto? (opcional)') ?? ''
+    await db.productos.update(producto.codigo, {
+      solicitudBorrado: {
+        por: sesion.email,
+        porNombre: sesion.perfil.nombre,
+        cuando: Date.now(),
+        motivo: motivo.trim() || null,
+      },
+    })
+    setMensaje('Listo, le queda avisado al dueño para que lo autorice.')
   }
 
   return (
@@ -235,6 +347,14 @@ function FormularioProducto({
       <h2>{nuevo ? 'Producto nuevo' : 'Editar producto'}</h2>
 
       {error && <div className="aviso aviso-error">{error}</div>}
+      {mensaje && <div className="aviso aviso-ok">{mensaje}</div>}
+      {producto?.solicitudBorrado && (
+        <div className="aviso aviso-ojo">
+          {producto.solicitudBorrado.porNombre} pidió archivar este producto
+          {producto.solicitudBorrado.motivo ? `: "${producto.solicitudBorrado.motivo}"` : '.'}
+          {esOwner ? ' Podés autorizarlo o rechazarlo desde el listado de Productos.' : ' Está a la espera de que un dueño lo autorice.'}
+        </div>
+      )}
 
       <div className="tarjeta">
         <div className="campo">
@@ -326,11 +446,17 @@ function FormularioProducto({
               value={precioVenta}
               onChange={(e) => setPrecioVenta(e.target.value)}
               placeholder="0"
+              disabled={!nuevo && !esOwner}
             />
+            {!nuevo && !esOwner && (
+              <p className="silencio" style={{ marginTop: 4 }}>
+                Solo un dueño puede cambiar el precio de venta.
+              </p>
+            )}
           </div>
         </div>
 
-        {sugerido !== null && (
+        {sugerido !== null && (esOwner || nuevo) && (
           <div className="fila">
             <span className="fila-etiqueta">Precio sugerido según rentabilidad</span>
             <span className="fila-valor">
@@ -379,15 +505,37 @@ function FormularioProducto({
         </p>
       </div>
 
+      {historial && historial.length > 0 && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Historial de ediciones</p>
+          <ul className="lista">
+            {historial.slice(0, 10).map((h) => (
+              <li className="item-ayuda" key={h.id} style={{ padding: '8px 0' }}>
+                <div className="item-sub">
+                  <strong>{h.quienNombre}</strong> cambió <strong>{h.campo}</strong>:{' '}
+                  {String(h.valorAnterior ?? '—')} → {String(h.valorNuevo ?? '—')}
+                  <br />
+                  {fechaLinda(new Date(h.cuando).toISOString().slice(0, 10))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="botonera">
         <button onClick={onSalir}>Cancelar</button>
         <button className="boton-principal" onClick={guardar}>
           Guardar
         </button>
       </div>
-      {!nuevo && (
-        <button className="boton-peligro" style={{ width: '100%', marginTop: 8 }} onClick={borrar}>
-          Borrar producto
+      {!nuevo && !producto?.solicitudBorrado && (
+        <button
+          className="boton-peligro"
+          style={{ width: '100%', marginTop: 8 }}
+          onClick={esOwner ? archivar : solicitarArchivado}
+        >
+          {esOwner ? 'Archivar producto' : 'Solicitar archivado'}
         </button>
       )}
     </>

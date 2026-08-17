@@ -47,6 +47,14 @@ export function nuevoId(): string {
   })
 }
 
+/** Quien pidio borrar un producto, a la espera de que un dueño lo autorice. */
+export interface SolicitudBorrado {
+  por: string
+  porNombre: string
+  cuando: number
+  motivo: string | null
+}
+
 export interface Producto {
   codigo: string
   descripcion: string
@@ -65,7 +73,29 @@ export interface Producto {
   busqueda: string
   stock: number | null
   activo: boolean
+  /**
+   * Nunca se borra un producto de verdad: se archiva. Asi el historial
+   * de ventas y de ediciones queda intacto para siempre.
+   */
+  archivado?: boolean
+  /** Un empleado pidio archivarlo; espera que un dueño lo autorice. */
+  solicitudBorrado?: SolicitudBorrado | null
+  creadoPor?: string | null
+  actualizadoPor?: string | null
+  creadoEn?: number
   actualizadoEn?: number
+}
+
+/** Una edicion de un producto, para poder ver quien cambio que y cuando. */
+export interface HistorialProducto {
+  id: string
+  codigo: string
+  campo: string
+  valorAnterior: unknown
+  valorNuevo: unknown
+  quien: string
+  quienNombre: string
+  cuando: number
 }
 
 export interface Proveedor {
@@ -172,8 +202,33 @@ export interface Ajuste {
   valor: string
 }
 
+/**
+ * "owner" ve y maneja todo el negocio. "empleado" (Gabriela) opera la caja
+ * del dia a dia y mantiene los costos al dia, pero no ve numeros de
+ * ganancia ni puede borrar cosas sin autorizacion.
+ */
+export type Rol = 'owner' | 'empleado'
+
+/** Una persona con su propio login. El id es el uid de Firebase Auth. */
+export interface Usuario {
+  id: string
+  email: string
+  nombre: string
+  rol: Rol
+  activo: boolean
+  creadoEn?: number
+  actualizadoEn?: number
+}
+
 /** Nombre de tabla tal como se usa en Firestore y en los ganchos de sync. */
-export type NombreTabla = 'productos' | 'jornadas' | 'ventas' | 'movimientos' | 'proveedores'
+export type NombreTabla =
+  | 'productos'
+  | 'jornadas'
+  | 'ventas'
+  | 'movimientos'
+  | 'proveedores'
+  | 'usuarios'
+  | 'historialProductos'
 
 export type AccionCambio = 'guardar' | 'borrar'
 
@@ -189,6 +244,24 @@ export function engancharSync(
   callback: (tabla: NombreTabla, accion: AccionCambio, clave: string, doc: unknown) => void,
 ): void {
   alCambiar = callback
+}
+
+/** Quien esta usando la app ahora mismo, segun el modulo de sesion (src/auth). */
+export interface Autor {
+  email: string
+  nombre: string
+}
+
+let obtenerAutor: (() => Autor | null) | null = null
+
+/**
+ * El modulo de sesion se engancha aca (igual que engancharSync) para que
+ * db.ts pueda anotar quien crea/edita cada producto sin depender de
+ * Firebase Auth directamente. Sin sesion iniciada (o sin nube configurada),
+ * obtenerAutor() no esta enganchado y esos campos quedan sin anotar.
+ */
+export function engancharAutor(callback: () => Autor | null): void {
+  obtenerAutor = callback
 }
 
 /**
@@ -212,6 +285,8 @@ class BaseECDM extends Dexie {
   movimientos!: Table<Movimiento, string>
   ajustes!: Table<Ajuste, string>
   proveedores!: Table<Proveedor, string>
+  usuarios!: Table<Usuario, string>
+  historialProductos!: Table<HistorialProducto, string>
 
   constructor() {
     super('el-club-del-mate')
@@ -316,13 +391,47 @@ class BaseECDM extends Dexie {
         await tx.table('proveedores').bulkAdd([...porNombre.values()])
       })
 
+    // v4 agrega usuarios (roles) e historial de productos, para el reparto
+    // de permisos entre dueños y empleados.
+    this.version(4).stores({
+      productos: 'codigo, descripcion, proveedor, proveedorId, busqueda, activo, archivado',
+      jornadas: 'id, [fecha+turno], fecha, estado',
+      ventas: 'id, jornadaId, fecha, codigo, medioPago',
+      movimientos: 'id, fecha, tipo, categoria, jornadaId',
+      ajustes: 'clave',
+      proveedores: 'id, nombre, activo',
+      usuarios: 'id, email, rol',
+      historialProductos: 'id, codigo, cuando',
+    })
+
+    // Campos de Producto que interesa dejar anotados en el historial cuando
+    // cambian: el resto (busqueda, actualizadoEn, etc.) son derivados o
+    // ya se ven en otro lado.
+    const CAMPOS_HISTORIAL_PRODUCTO = [
+      'descripcion',
+      'precioCompra',
+      'fechaCompra',
+      'precioVenta',
+      'proveedorId',
+      'stock',
+      'archivado',
+    ] as const
+
     // Estos ganchos son el corazon de la sincronizacion: cada vez que se
-    // crea, edita o borra un producto/jornada/venta/movimiento/proveedor en
-    // CUALQUIER parte de la app, quedan registrados aca una sola vez, sin
-    // tener que acordarse de llamar a nada especial desde cada pantalla.
-    // Usamos this.onsuccess (no el cuerpo del hook) para que el aviso de
-    // sync salga recien cuando la escritura local ya se confirmo.
-    for (const nombre of ['productos', 'jornadas', 'ventas', 'movimientos', 'proveedores'] as const) {
+    // crea, edita o borra un producto/jornada/venta/movimiento/proveedor/
+    // usuario en CUALQUIER parte de la app, quedan registrados aca una sola
+    // vez, sin tener que acordarse de llamar a nada especial desde cada
+    // pantalla. Usamos this.onsuccess (no el cuerpo del hook) para que el
+    // aviso de sync salga recien cuando la escritura local ya se confirmo.
+    for (const nombre of [
+      'productos',
+      'jornadas',
+      'ventas',
+      'movimientos',
+      'proveedores',
+      'usuarios',
+      'historialProductos',
+    ] as const) {
       const tabla: Table<Record<string, unknown>, string> = this.table(nombre)
 
       tabla.hook('creating', function (
@@ -334,6 +443,10 @@ class BaseECDM extends Dexie {
         const ahora = Date.now()
         if (!registro.creadoEn) registro.creadoEn = ahora
         registro.actualizadoEn = ahora
+        if (nombre === 'productos' && !aplicandoCambioRemoto) {
+          const autor = obtenerAutor?.()
+          if (autor && !registro.creadoPor) registro.creadoPor = autor.email
+        }
         if (!aplicandoCambioRemoto && alCambiar) {
           this.onsuccess = (claveFinal) => alCambiar!(nombre, 'guardar', String(claveFinal), registro)
         }
@@ -345,10 +458,50 @@ class BaseECDM extends Dexie {
         clave,
         obj,
       ) {
-        const combinados = { ...(mods as Record<string, unknown>), actualizadoEn: Date.now() }
-        if (!aplicandoCambioRemoto && alCambiar) {
+        const combinados: Record<string, unknown> = {
+          ...(mods as Record<string, unknown>),
+          actualizadoEn: Date.now(),
+        }
+
+        // Anotamos quien edito y guardamos un renglon de historial por cada
+        // campo que cambio, para poder responder "quien tocó esto y cuándo"
+        // sin ambigüedad.
+        const entradasHistorial: HistorialProducto[] = []
+        if (nombre === 'productos' && !aplicandoCambioRemoto) {
+          const autor = obtenerAutor?.()
+          if (autor) {
+            combinados.actualizadoPor = autor.email
+            const modsProducto = mods as Partial<Producto>
+            for (const campo of CAMPOS_HISTORIAL_PRODUCTO) {
+              if (!(campo in modsProducto)) continue
+              const antes = (obj as unknown as Producto)[campo]
+              const despues = modsProducto[campo]
+              if (antes === despues) continue
+              entradasHistorial.push({
+                id: nuevoId(),
+                codigo: String(clave),
+                campo,
+                valorAnterior: antes ?? null,
+                valorNuevo: despues ?? null,
+                quien: autor.email,
+                quienNombre: autor.nombre,
+                cuando: Date.now(),
+              })
+            }
+          }
+        }
+
+        const avisarSync = !aplicandoCambioRemoto && Boolean(alCambiar)
+        if (avisarSync || entradasHistorial.length > 0) {
           const final = { ...obj, ...combinados }
-          this.onsuccess = () => alCambiar!(nombre, 'guardar', String(clave), final)
+          this.onsuccess = () => {
+            if (entradasHistorial.length > 0) {
+              db.historialProductos.bulkAdd(entradasHistorial).catch((e) =>
+                console.warn('No se pudo guardar el historial del producto:', e),
+              )
+            }
+            if (avisarSync) alCambiar!(nombre, 'guardar', String(clave), final)
+          }
         }
         return combinados
       })
@@ -406,6 +559,11 @@ export async function derivarProveedoresDesdeProductos(): Promise<number> {
 
   if (porNombre.size > 0) await db.proveedores.bulkAdd([...porNombre.values()])
   return porNombre.size
+}
+
+/** Un producto archivado no deberia aparecer en listados ni en la busqueda de Caja. */
+export function productoVisible(p: Producto): boolean {
+  return p.archivado !== true
 }
 
 export async function leerAjuste(clave: string, porDefecto = ''): Promise<string> {

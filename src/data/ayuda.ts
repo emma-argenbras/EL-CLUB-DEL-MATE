@@ -12,6 +12,7 @@ export interface EntradaAyuda {
 
 export const CATEGORIAS_AYUDA = [
   'Primeros pasos',
+  'Usuarios y roles',
   'Caja',
   'Productos',
   'Proveedores',
@@ -27,7 +28,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Primeros pasos',
     pregunta: '¿Para qué sirve esta app?',
     respuesta:
-      'Reemplaza la planilla de Google Sheets del local. Sirve para cargar la caja de cada turno, mantener el catálogo de productos y proveedores, anotar los gastos, y ver mes a mes si el negocio dio a favor o en contra. Funciona sin internet: todo lo que cargás queda guardado en el dispositivo, y si vinculás la nube (en Ajustes) se comparte con los demás celulares.',
+      'Reemplaza la planilla de Google Sheets del local. Sirve para cargar la caja de cada turno, mantener el catálogo de productos y proveedores, anotar los gastos, y ver mes a mes si el negocio dio a favor o en contra. Funciona sin internet: todo lo que cargás queda guardado en el dispositivo, y si el negocio tiene activado el respaldo automático, se comparte con los demás celulares del equipo, cada persona con su propio usuario.',
   },
   {
     id: 'instalar',
@@ -42,7 +43,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Primeros pasos',
     pregunta: '¿Qué es cada sección del menú de abajo?',
     respuesta:
-      '🧉 Caja: abrir el turno, cargar ventas y cerrar la caja. Es lo que se usa todos los días.\n\n🏷️ Productos: el catálogo completo, buscar y editar precios y costos.\n\n🚚 Proveedores: quién provee cada producto, para actualizar costos en bloque.\n\n💸 Gastos: alquiler, sueldos, proveedores pagados con la caja grande.\n\n📊 Reportes: el margen de contribución del mes, si dio a favor o en contra.\n\n⚙️ Ajustes: respaldo de los datos y sincronización entre dispositivos.',
+      '🧉 Caja: abrir el turno, cargar ventas y cerrar la caja. Es lo que se usa todos los días.\n\n🏷️ Productos: el catálogo completo, buscar y editar precios y costos.\n\n🚚 Proveedores: quién provee cada producto, para actualizar costos en bloque.\n\n💸 Gastos: alquiler, sueldos, proveedores pagados con la caja grande.\n\n📊 Reportes (dueños): el margen de contribución del mes, si dio a favor o en contra.\n\n⭐ Mi día (empleados): en vez de Reportes, un resumen del propio trabajo — costos pendientes, cuánto cargaste este mes, lo más vendido.\n\n⚙️ Ajustes (dueños): respaldo de los datos y usuarios del equipo.',
   },
   {
     id: 'sin-internet',
@@ -67,6 +68,48 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Avisa sola de cosas para revisar: productos con el costo de compra vencido, ventas del mes sin costo cargado, una diferencia de caja en el último cierre, o problemas de sincronización. Tocando cada aviso te lleva directo a la pantalla donde se soluciona.',
     palabrasClave: ['campana', 'avisos', 'alertas'],
+  },
+
+  // ---------- Usuarios y roles ----------
+  {
+    id: 'por-que-loguearse',
+    categoria: 'Usuarios y roles',
+    pregunta: '¿Por qué tengo que iniciar sesión para usar la app?',
+    respuesta:
+      'Solo pasa si el negocio ya activó el respaldo automático (ver la categoría "Sincronización y respaldo"). En ese caso, cada persona entra con su propio mail y contraseña, para que la app sepa quién es quién: eso es lo que permite que un dueño vea todo y un empleado vea solo lo que le corresponde, y que quede anotado quién cargó o cambió cada cosa. Si el negocio todavía no activó el respaldo, no hace falta loguearse: la app anda igual que siempre.',
+    palabrasClave: ['iniciar sesion', 'login', 'obligatorio'],
+  },
+  {
+    id: 'diferencia-dueno-empleado',
+    categoria: 'Usuarios y roles',
+    pregunta: '¿Qué diferencia hay entre un dueño y un empleado?',
+    respuesta:
+      'Un dueño ve y maneja todo: Caja, Productos, Proveedores, Gastos, Reportes con el margen de ganancia, y Ajustes (respaldo y usuarios del equipo).\n\nUn empleado usa Caja, Productos, Proveedores y Gastos igual que un dueño, y mantiene los costos de compra actualizados — pero no ve el margen de ganancia del negocio (en vez de Reportes tiene "Mi día", con su propio resumen de trabajo), no puede cambiar el precio de venta de un producto, y para archivar un producto tiene que pedirle autorización a un dueño en vez de hacerlo directo.',
+    palabrasClave: ['rol', 'permisos', 'empleada', 'gabriela'],
+  },
+  {
+    id: 'crear-usuario',
+    categoria: 'Usuarios y roles',
+    pregunta: '¿Cómo doy de alta a alguien nuevo del equipo?',
+    respuesta:
+      'Solo un dueño puede hacerlo. En Ajustes → "Usuarios del equipo" → "+ Usuario nuevo", cargá su nombre, su mail y una contraseña inicial, y elegí el rol (Dueño/a o Empleado/a). Con eso ya puede entrar a la app desde cualquier dispositivo. Después esa persona puede cambiar su contraseña con "Olvidé mi contraseña" en la pantalla de inicio de sesión.',
+    palabrasClave: ['alta', 'nuevo empleado', 'agregar usuario', 'sumar'],
+  },
+  {
+    id: 'empleado-borrar-producto',
+    categoria: 'Usuarios y roles',
+    pregunta: 'Soy empleado/a, ¿por qué no puedo borrar un producto directamente?',
+    respuesta:
+      'Porque en vez de borrarse, un producto se "archiva" (deja de verse en el catálogo y en Caja, pero su historial de ventas y ediciones queda guardado para siempre). Un empleado puede pedir que se archive tocando "Solicitar archivado": eso le manda un aviso a los dueños en la campana 🔔, y cuando lo autorizan recién ahí se archiva. Es a propósito, para que nada se pierda por error.',
+    palabrasClave: ['no puedo borrar', 'solicitar', 'autorizacion'],
+  },
+  {
+    id: 'olvide-contrasena',
+    categoria: 'Usuarios y roles',
+    pregunta: 'Me olvidé mi contraseña, ¿qué hago?',
+    respuesta:
+      'En la pantalla de inicio de sesión, escribí tu mail y tocá "Olvidé mi contraseña". Te va a llegar un mail para elegir una nueva. Si ese mail no lo revisás seguido, pedile a un dueño que te ayude.',
+    palabrasClave: ['recuperar', 'reset', 'no puedo entrar'],
   },
 
   // ---------- Caja ----------
@@ -186,7 +229,8 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Puedo borrar un producto del catálogo?',
     respuesta:
-      'Sí, abriendo el producto y tocando "Borrar producto" al final. Ojo: si el producto ya tuvo ventas cargadas, esas ventas quedan igual en el historial (no se borran), solo desaparece del catálogo para no venderlo más.',
+      'No se borra de verdad: se "archiva" (abriendo el producto y tocando "Archivar producto" al final). Deja de verse en el catálogo y en Caja, pero las ventas que ya tuvo y su historial de ediciones quedan guardados para siempre. Un dueño lo puede archivar directo; un empleado tiene que solicitarlo y esperar que un dueño lo autorice (ver la categoría "Usuarios y roles"). Un producto archivado se puede reactivar desde Productos → "Ver archivados".',
+    palabrasClave: ['archivar', 'reactivar'],
   },
 
   // ---------- Proveedores ----------
@@ -266,9 +310,10 @@ export const AYUDA: EntradaAyuda[] = [
   {
     id: 'vincular-dispositivo',
     categoria: 'Sincronización y respaldo',
-    pregunta: '¿Cómo vinculo un dispositivo nuevo?',
+    pregunta: '¿Cómo entro en un dispositivo nuevo?',
     respuesta:
-      'En Ajustes → "Respaldo automático", cargá el mismo mail y contraseña que usaste en el primer dispositivo. No hace falta que sea un mail real: funciona como usuario y contraseña del negocio, compartido entre todos los celulares.',
+      'Abrí la app en ese dispositivo y iniciá sesión con tu propio mail y contraseña (los mismos que usás en los demás celulares). No hay que vincular nada aparte: apenas entrás, tus datos y los del resto del equipo aparecen solos.',
+    palabrasClave: ['nuevo celular', 'otro dispositivo', 'iniciar sesion'],
   },
   {
     id: 'hacer-respaldo',
@@ -283,7 +328,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Sincronización y respaldo',
     pregunta: 'Se me rompió o perdió el celular, ¿pierdo los datos?',
     respuesta:
-      'Si tenías el respaldo automático vinculado, no: los datos siguen en el servidor y en los demás dispositivos vinculados, así que un celular nuevo los puede volver a tener vinculándose con el mismo mail y contraseña. Si no lo tenías activado, dependés de la última copia manual descargada desde Ajustes — por eso conviene activar el respaldo automático o hacer copias manuales seguido.',
+      'Si el negocio tiene el respaldo automático activado, no: los datos siguen en el servidor, así que en un celular nuevo alcanza con iniciar sesión con tu mismo mail y contraseña para volver a tenerlos. Si no lo tenías activado, dependés de la última copia manual descargada desde Ajustes — por eso conviene activar el respaldo automático o hacer copias manuales seguido.',
     palabrasClave: ['se rompio', 'se perdio', 'recuperar datos'],
   },
 ]

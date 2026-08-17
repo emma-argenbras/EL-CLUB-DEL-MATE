@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   type User,
@@ -16,15 +17,34 @@ import {
 import {
   comoRemoto,
   db,
+  engancharAutor,
   engancharSync,
   type AccionCambio,
   type NombreTabla,
+  type Rol,
 } from '../db/db'
 import { ID_NEGOCIO } from './config'
 import { fijarEstadoNube } from './estado'
-import { obtenerAuth, obtenerFirestore } from './firebase'
+import { crearAuthSecundario, obtenerAuth, obtenerFirestore } from './firebase'
+import { fijarSesion, obtenerSesion } from './sesion'
 
-const TABLAS: NombreTabla[] = ['productos', 'jornadas', 'ventas', 'movimientos', 'proveedores']
+const TABLAS: NombreTabla[] = [
+  'productos',
+  'jornadas',
+  'ventas',
+  'movimientos',
+  'proveedores',
+  'usuarios',
+  'historialProductos',
+]
+
+/**
+ * Los unicos dos mails que pueden auto-asignarse el rol "owner" la primera
+ * vez que se loguean (arranque de la cuenta). Tiene que ser exactamente
+ * la misma lista que en firestore.rules: si se suma un socio nuevo hay
+ * que agregarlo en los dos lugares.
+ */
+export const EMAILS_FUNDADORES = ['emmanuel@elclubdelmate.com', 'sebastian@elclubdelmate.com']
 
 let desuscribirColecciones: Unsubscribe[] = []
 let motorIniciado = false
@@ -53,7 +73,7 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
   }
 }
 
-/** Sube todo lo que ya hay en el dispositivo. Se usa una vez, al vincular la cuenta. */
+/** Sube todo lo que ya hay en el dispositivo. Se usa una vez, al iniciar sesion. */
 async function empujarTodoLocal() {
   for (const tabla of TABLAS) {
     const filas = await db.table(tabla).toArray()
@@ -62,6 +82,20 @@ async function empujarTodoLocal() {
         tabla === 'productos' ? (fila as { codigo: string }).codigo : (fila as { id: string }).id
       pushCambio(tabla, 'guardar', clave, fila)
     }
+  }
+}
+
+/** Si el perfil propio (usuarios/{uid}) cambio en la nube, actualiza la sesion. */
+async function actualizarPerfilPropio(): Promise<void> {
+  const uid = obtenerAuth().currentUser?.uid
+  if (!uid) return
+  const fila = await db.usuarios.get(uid)
+  if (fila) {
+    fijarSesion({
+      cargando: false,
+      perfil: { nombre: fila.nombre, rol: fila.rol },
+      sinPerfil: false,
+    })
   }
 }
 
@@ -82,6 +116,7 @@ function escucharColecciones() {
               await db.table(tabla).put({ ...cambio.doc.data() })
             }
           }
+          if (tabla === 'usuarios') await actualizarPerfilPropio()
         }).catch((e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e))
         fijarEstadoNube({ estado: 'sincronizado', error: null, ultimaRecepcion: Date.now() })
       },
@@ -99,6 +134,25 @@ function dejarDeEscuchar() {
 }
 
 /**
+ * Si es un mail fundador y todavia no tiene perfil, se lo crea el mismo
+ * como owner (arranque de la cuenta). Para cualquier otra persona el
+ * perfil lo tiene que crear un owner ya existente, desde Ajustes.
+ */
+async function intentarArrancarFundador(usuario: User): Promise<void> {
+  const correo = (usuario.email ?? '').toLowerCase()
+  if (!EMAILS_FUNDADORES.includes(correo)) return
+  const existente = await db.usuarios.get(usuario.uid)
+  if (existente) return
+  await db.usuarios.add({
+    id: usuario.uid,
+    email: correo,
+    nombre: correo.split('@')[0],
+    rol: 'owner',
+    activo: true,
+  })
+}
+
+/**
  * Arranca el motor de sincronizacion. Se llama solo despues de confirmar
  * que la nube esta configurada (ver App.tsx), asi que aca ya se puede
  * usar Firebase sin chequear de nuevo.
@@ -108,34 +162,84 @@ export function iniciarMotor(): void {
   motorIniciado = true
 
   engancharSync(pushCambio)
+  engancharAutor(() => {
+    const s = obtenerSesion()
+    return s.email && s.perfil ? { email: s.email, nombre: s.perfil.nombre } : null
+  })
 
   onAuthStateChanged(obtenerAuth(), (usuario: User | null) => {
     if (usuario) {
       fijarEstadoNube({ estado: 'conectando', email: usuario.email, error: null })
+      fijarSesion({ cargando: true, uid: usuario.uid, email: usuario.email, sinPerfil: false })
       escucharColecciones()
       empujarTodoLocal().catch((e) => console.warn('No se pudo subir el estado inicial:', e))
+      ;(async () => {
+        await intentarArrancarFundador(usuario)
+        await actualizarPerfilPropio()
+        if (!(await db.usuarios.get(usuario.uid))) {
+          // Ni tiene perfil en la nube ni es fundador: alguien con acceso
+          // a Firebase creo la cuenta pero nadie le asigno rol todavia.
+          fijarSesion({ cargando: false, sinPerfil: true })
+        }
+      })()
     } else {
       dejarDeEscuchar()
       fijarEstadoNube({ estado: 'desconectado', email: null })
+      fijarSesion({ cargando: false, uid: null, email: null, perfil: null, sinPerfil: false })
     }
   })
 }
 
-export async function vincularDispositivo(email: string, contrasena: string): Promise<void> {
+export async function iniciarSesion(email: string, contrasena: string): Promise<void> {
   const auth = obtenerAuth()
+  const correo = email.trim().toLowerCase()
   try {
-    await signInWithEmailAndPassword(auth, email, contrasena)
+    await signInWithEmailAndPassword(auth, correo, contrasena)
   } catch (e) {
     const codigo = (e as { code?: string }).code
-    if (codigo === 'auth/user-not-found' || codigo === 'auth/invalid-credential') {
-      // El primer dispositivo en vincularse crea la cuenta compartida del negocio.
-      await createUserWithEmailAndPassword(auth, email, contrasena)
+    const puedeArrancarCuenta =
+      EMAILS_FUNDADORES.includes(correo) &&
+      (codigo === 'auth/user-not-found' || codigo === 'auth/invalid-credential')
+    if (puedeArrancarCuenta) {
+      await createUserWithEmailAndPassword(auth, correo, contrasena)
     } else {
       throw e
     }
   }
 }
 
-export async function desvincularDispositivo(): Promise<void> {
+export async function cerrarSesion(): Promise<void> {
   await signOut(obtenerAuth())
+}
+
+/** Manda un mail para elegir una contraseña nueva, si ese mail tiene cuenta. */
+export async function recuperarContrasena(email: string): Promise<void> {
+  await sendPasswordResetEmail(obtenerAuth(), email.trim().toLowerCase())
+}
+
+/**
+ * Da de alta a una persona nueva (Gabriela, otro socio, etc.): crea su
+ * login y su perfil con el rol elegido. Solo tiene efecto real si quien
+ * llama a esto ya es un owner (lo valida Firestore, no esta funcion).
+ */
+export async function crearUsuario(
+  email: string,
+  contrasena: string,
+  nombre: string,
+  rol: Rol,
+): Promise<void> {
+  const correo = email.trim().toLowerCase()
+  const { auth: authSecundaria, limpiar } = crearAuthSecundario()
+  try {
+    const credencial = await createUserWithEmailAndPassword(authSecundaria, correo, contrasena)
+    await db.usuarios.add({
+      id: credencial.user.uid,
+      email: correo,
+      nombre: nombre.trim(),
+      rol,
+      activo: true,
+    })
+  } finally {
+    await limpiar()
+  }
 }

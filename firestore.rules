@@ -5,14 +5,84 @@ rules_version = '2';
 // Como pegarlas: Firebase Console > Firestore Database > Reglas >
 // pegar este contenido entero > Publicar.
 //
-// Todos los dispositivos del negocio comparten UNA sola cuenta (mail +
-// contraseña), asi que alcanza con pedir "estar logueado" para poder
-// leer y escribir. No hay datos de otros negocios en el mismo proyecto,
-// asi que no hace falta separar por usuario.
+// Roles: cada persona se loguea con su propio mail. "owner" ve y maneja
+// todo el negocio. "empleado" opera el dia a dia pero no ve numeros de
+// ganancia ni puede archivar productos sin autorizacion de un owner.
+//
+// Fundadores: los unicos mails que pueden auto-asignarse el rol "owner"
+// la primera vez que se loguean (arranque de la cuenta, sin depender de
+// que ya exista otro owner). Despues de ese primer login, cualquier owner
+// puede crear o promover otros usuarios desde la app (Ajustes > Usuarios
+// del equipo), sin volver a tocar este archivo nunca mas.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function estaLogueado() {
+      return request.auth != null;
+    }
+
+    function esFundador() {
+      return estaLogueado() && request.auth.token.email in [
+        'emmanuel@elclubdelmate.com',
+        'sebastian@elclubdelmate.com'
+      ];
+    }
+
+    function miPerfil() {
+      return get(/databases/$(database)/documents/negocios/el-club-del-mate/usuarios/$(request.auth.uid)).data;
+    }
+
+    function soyOwner() {
+      return estaLogueado() &&
+        exists(/databases/$(database)/documents/negocios/el-club-del-mate/usuarios/$(request.auth.uid)) &&
+        miPerfil().rol == 'owner';
+    }
+
+    // Perfiles de usuario: quien es cada quien y que rol tiene. Un
+    // fundador puede crear SU PROPIO perfil como owner (arranque de la
+    // cuenta); despues de eso, solo un owner ya existente puede crear,
+    // editar o borrar perfiles (para sumar a Gabriela, por ejemplo).
+    match /negocios/el-club-del-mate/usuarios/{uid} {
+      allow read: if estaLogueado();
+      allow create: if estaLogueado() && (
+        (request.auth.uid == uid && esFundador() && request.resource.data.rol == 'owner') ||
+        soyOwner()
+      );
+      allow update, delete: if soyOwner();
+    }
+
+    // Historial de ediciones de productos: es un registro, no se edita ni
+    // se borra, solo se agregan renglones nuevos, y siempre a nombre de
+    // quien esta logueado (no se puede firmar en nombre de otra persona).
+    match /negocios/el-club-del-mate/historialProductos/{entradaId} {
+      allow read: if estaLogueado();
+      allow create: if estaLogueado() && request.resource.data.quien == request.auth.token.email;
+      allow update, delete: if false;
+    }
+
+    // Productos: cualquiera logueado puede crear y editar (cargar costos,
+    // stock, etc.), pero cambiar el precio de venta o archivar un producto
+    // queda reservado a un owner. Nunca se borran de verdad: la unica
+    // forma de sacar un producto de circulacion es archivarlo.
+    match /negocios/el-club-del-mate/productos/{codigo} {
+      allow read: if estaLogueado();
+      allow create: if estaLogueado();
+      allow update: if estaLogueado() && (
+        soyOwner() ||
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['archivado', 'precioVenta'])
+      );
+      allow delete: if false;
+    }
+
+    // Todo lo demas del negocio (caja, ventas, gastos, proveedores):
+    // alcanza con estar logueado. La separacion de que ve cada rol en
+    // pantalla (por ejemplo, ocultar Reportes a un empleado) se maneja
+    // en la app, no aca.
     match /negocios/el-club-del-mate/{coleccion}/{documento} {
-      allow read, write: if request.auth != null;
+      allow read, write: if estaLogueado() &&
+        coleccion != 'usuarios' &&
+        coleccion != 'historialProductos' &&
+        coleccion != 'productos';
     }
   }
 }
