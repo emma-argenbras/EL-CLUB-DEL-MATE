@@ -37,7 +37,7 @@ export default function Productos() {
     }
     const partes = normalizar(consulta).split(/\s+/).filter(Boolean)
     if (!partes.length && !soloAlertas) {
-      return db.productos.filter(productoVisible).limit(50).sortBy('descripcion')
+      return db.productos.orderBy('descripcion').filter(productoVisible).limit(50).toArray()
     }
     const encontrados = await db.productos
       .filter(

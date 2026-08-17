@@ -12,6 +12,7 @@ import {
   doc,
   onSnapshot,
   setDoc,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore'
 import {
@@ -73,15 +74,33 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
   }
 }
 
-/** Sube todo lo que ya hay en el dispositivo. Se usa una vez, al iniciar sesion. */
+/**
+ * Sube todo lo que ya hay en el dispositivo. Se usa una vez, al iniciar
+ * sesion — puede ser el primer catalogo entero (miles de productos), asi
+ * que va en lotes (limite de Firestore: 500 operaciones por lote) en vez
+ * de un pedido de red por cada fila, que en el primer login real se
+ * volvia lentisimo y saturaba la base local con el eco de cada escritura.
+ */
 async function empujarTodoLocal() {
+  const firestore = obtenerFirestore()
+  const operaciones: { tabla: NombreTabla; clave: string; datos: Record<string, unknown> }[] = []
+
   for (const tabla of TABLAS) {
     const filas = await db.table(tabla).toArray()
     for (const fila of filas) {
       const clave =
         tabla === 'productos' ? (fila as { codigo: string }).codigo : (fila as { id: string }).id
-      pushCambio(tabla, 'guardar', clave, fila)
+      operaciones.push({ tabla, clave, datos: limpiar(fila as Record<string, unknown>) })
     }
+  }
+
+  const TAMANO_LOTE = 400
+  for (let i = 0; i < operaciones.length; i += TAMANO_LOTE) {
+    const lote = writeBatch(firestore)
+    for (const { tabla, clave, datos } of operaciones.slice(i, i + TAMANO_LOTE)) {
+      lote.set(doc(firestore, 'negocios', ID_NEGOCIO, tabla, clave), datos)
+    }
+    await lote.commit().catch((e) => console.warn('No se pudo subir un lote de datos:', e))
   }
 }
 
@@ -110,6 +129,12 @@ function escucharColecciones() {
       (instantanea) => {
         comoRemoto(async () => {
           for (const cambio of instantanea.docChanges()) {
+            // Un cambio "pendiente" es el eco de una escritura que salio de
+            // este mismo dispositivo: el dato ya esta en la base local
+            // (de ahi salio), asi que reescribirlo de nuevo es trabajo de
+            // mas — y con miles de filas, es lo que saturaba la app en el
+            // primer login real.
+            if (cambio.doc.metadata.hasPendingWrites) continue
             if (cambio.type === 'removed') {
               await db.table(tabla).delete(cambio.doc.id)
             } else {
