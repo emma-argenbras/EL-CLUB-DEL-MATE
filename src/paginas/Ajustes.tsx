@@ -279,7 +279,10 @@ function TarjetaUsuarios() {
   const [creando, setCreando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const usuarios = useLiveQuery(
-    () => (nubeConfigurada ? db.usuarios.orderBy('nombre').toArray() : Promise.resolve<Usuario[]>([])),
+    () =>
+      nubeConfigurada
+        ? db.usuarios.toArray().then((filas) => filas.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+        : Promise.resolve<Usuario[]>([]),
     [],
   )
 
