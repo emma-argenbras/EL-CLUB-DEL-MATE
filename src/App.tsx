@@ -13,7 +13,7 @@ import Ajustes from './paginas/Ajustes'
 import Ayuda from './paginas/Ayuda'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp from './componentes/ActualizarApp'
-import PantallaLogin, { PantallaSinPerfil } from './componentes/PantallaLogin'
+import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
 
 const SECCIONES_OWNER = [
   { ruta: '/caja', icono: '🧉', texto: 'Caja' },
@@ -66,6 +66,10 @@ export default function App() {
         <p>{!listo ? 'Preparando El Club del Mate…' : 'Verificando tu sesión…'}</p>
       </div>
     )
+  }
+
+  if (nubeConfigurada && sesion.desactivada) {
+    return <PantallaDesactivada />
   }
 
   if (nubeConfigurada && !sesion.uid) {

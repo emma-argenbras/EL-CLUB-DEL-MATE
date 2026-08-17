@@ -139,6 +139,13 @@ contraseña** — ya no hay un login compartido entre dispositivos.
   ve el margen de ganancia del negocio (tiene "Mi día" en vez de Reportes),
   no puede cambiar el precio de venta, y para archivar un producto necesita
   que un dueño lo autorice.
+- Un dueño puede **desactivar** a cualquiera (incluso a otro dueño) desde
+  **Ajustes → Usuarios del equipo → Desactivar**, sin borrar nada de lo que
+  esa persona cargó. Si estaba usando la app en ese momento se le cierra la
+  sesión sola; Firestore también le rechaza cualquier escritura mientras
+  esté desactivado, así que no alcanza con seguir con la app abierta para
+  esquivarlo. Un dueño no se puede desactivar a sí mismo desde la app (para
+  eso está el otro fundador, o Firebase Console como último recurso).
 
 Una vez logueado, todo lo que se carga en cualquier dispositivo (ventas,
 cierres de caja, gastos, cambios de precio) se sube solo y aparece en los

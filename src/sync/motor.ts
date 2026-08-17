@@ -104,18 +104,31 @@ async function empujarTodoLocal() {
   }
 }
 
-/** Si el perfil propio (usuarios/{uid}) cambio en la nube, actualiza la sesion. */
+/**
+ * Si el perfil propio (usuarios/{uid}) cambio en la nube, actualiza la
+ * sesion. Se llama tanto al loguearse como cada vez que llega un cambio
+ * remoto de la coleccion "usuarios" — asi, si un owner desactiva a
+ * alguien mientras esta usando la app, se entera al toque (no hace
+ * falta esperar a que cierre y vuelva a abrir).
+ */
 async function actualizarPerfilPropio(): Promise<void> {
   const uid = obtenerAuth().currentUser?.uid
   if (!uid) return
   const fila = await db.usuarios.get(uid)
-  if (fila) {
-    fijarSesion({
-      cargando: false,
-      perfil: { nombre: fila.nombre, rol: fila.rol },
-      sinPerfil: false,
-    })
+  if (!fila) return
+
+  if (fila.activo === false) {
+    fijarSesion({ cargando: false, perfil: null, sinPerfil: false, desactivada: true })
+    await signOut(obtenerAuth())
+    return
   }
+
+  fijarSesion({
+    cargando: false,
+    perfil: { nombre: fila.nombre, rol: fila.rol },
+    sinPerfil: false,
+    desactivada: false,
+  })
 }
 
 function escucharColecciones() {
@@ -195,7 +208,13 @@ export function iniciarMotor(): void {
   onAuthStateChanged(obtenerAuth(), (usuario: User | null) => {
     if (usuario) {
       fijarEstadoNube({ estado: 'conectando', email: usuario.email, error: null })
-      fijarSesion({ cargando: true, uid: usuario.uid, email: usuario.email, sinPerfil: false })
+      fijarSesion({
+        cargando: true,
+        uid: usuario.uid,
+        email: usuario.email,
+        sinPerfil: false,
+        desactivada: false,
+      })
       escucharColecciones()
       empujarTodoLocal().catch((e) => console.warn('No se pudo subir el estado inicial:', e))
       ;(async () => {

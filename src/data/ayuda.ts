@@ -111,6 +111,14 @@ export const AYUDA: EntradaAyuda[] = [
       'En la pantalla de inicio de sesión, escribí tu mail y tocá "Olvidé mi contraseña". Te va a llegar un mail para elegir una nueva. Si ese mail no lo revisás seguido, pedile a un dueño que te ayude.',
     palabrasClave: ['recuperar', 'reset', 'no puedo entrar'],
   },
+  {
+    id: 'desactivar-usuario',
+    categoria: 'Usuarios y roles',
+    pregunta: '¿Cómo le saco el acceso a alguien del equipo?',
+    respuesta:
+      'Un dueño puede hacerlo desde Ajustes → "Usuarios del equipo", tocando "Desactivar" al lado de esa persona. Si estaba usando la app en ese momento, se le cierra la sesión sola y no puede volver a entrar hasta que un dueño la reactive con el mismo botón. No borra nada de lo que esa persona cargó: solo le corta el acceso.',
+    palabrasClave: ['desactivar', 'sacar acceso', 'echar', 'baja', 'bloquear'],
+  },
 
   // ---------- Caja ----------
   {

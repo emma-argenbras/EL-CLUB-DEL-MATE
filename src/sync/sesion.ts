@@ -19,11 +19,20 @@ export interface Sesion {
   perfil: Perfil | null
   /** Logueado, pero nadie le creo un perfil todavia (cuenta huerfana). */
   sinPerfil: boolean
+  /** Un owner le apago el acceso desde Ajustes: se lo saca y no puede volver a entrar. */
+  desactivada: boolean
 }
 
 let sesion: Sesion = nubeConfigurada
-  ? { cargando: true, uid: null, email: null, perfil: null, sinPerfil: false }
-  : { cargando: false, uid: null, email: null, perfil: { nombre: 'Vos', rol: 'owner' }, sinPerfil: false }
+  ? { cargando: true, uid: null, email: null, perfil: null, sinPerfil: false, desactivada: false }
+  : {
+      cargando: false,
+      uid: null,
+      email: null,
+      perfil: { nombre: 'Vos', rol: 'owner' },
+      sinPerfil: false,
+      desactivada: false,
+    }
 
 const oyentes = new Set<() => void>()
 

@@ -5,6 +5,7 @@ import { resembrarCatalogo } from '../db/sembrar'
 import { hoyISO, numero } from '../lib/formato'
 import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
+import { useSesion } from '../sync/useSesion'
 
 interface Respaldo {
   app: string
@@ -278,6 +279,7 @@ const ETIQUETA_ROL: Record<Rol, string> = {
 function TarjetaUsuarios() {
   const [creando, setCreando] = useState(false)
   const [mensaje, setMensaje] = useState('')
+  const sesion = useSesion()
   const usuarios = useLiveQuery(
     () =>
       nubeConfigurada
@@ -287,6 +289,17 @@ function TarjetaUsuarios() {
   )
 
   if (!nubeConfigurada) return null
+
+  async function cambiarActivo(u: Usuario) {
+    const verbo = u.activo === false ? 'reactivar' : 'desactivar'
+    if (!confirm(`¿Seguro que querés ${verbo} a ${u.nombre}?`)) return
+    await db.usuarios.update(u.id, { activo: u.activo === false })
+    setMensaje(
+      u.activo === false
+        ? `${u.nombre} vuelve a tener acceso.`
+        : `Se desactivó el acceso de ${u.nombre}. Si estaba usando la app, se le cierra la sesión sola.`,
+    )
+  }
 
   return (
     <div className="tarjeta">
@@ -301,12 +314,20 @@ function TarjetaUsuarios() {
           {usuarios.map((u) => (
             <li className="item" key={u.id}>
               <div style={{ minWidth: 0 }}>
-                <div className="item-titulo">{u.nombre}</div>
+                <div className="item-titulo">
+                  {u.nombre}
+                  {u.activo === false && <span className="chip" style={{ marginLeft: 6 }}>Desactivado</span>}
+                </div>
                 <div className="item-sub">{u.email}</div>
               </div>
               <span className={u.rol === 'owner' ? 'chip chip-banco' : 'chip'}>
                 {ETIQUETA_ROL[u.rol]}
               </span>
+              {u.id !== sesion.uid && (
+                <button className="boton-chico" onClick={() => cambiarActivo(u)}>
+                  {u.activo === false ? 'Reactivar' : 'Desactivar'}
+                </button>
+              )}
             </li>
           ))}
         </ul>
