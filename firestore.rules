@@ -14,6 +14,11 @@ rules_version = '2';
 // que ya exista otro owner). Despues de ese primer login, cualquier owner
 // puede crear o promover otros usuarios desde la app (Ajustes > Usuarios
 // del equipo), sin volver a tocar este archivo nunca mas.
+//
+// Desactivar a alguien: un owner puede apagarle el acceso a cualquiera
+// desde Ajustes (incluso a otro owner). Mientras este desactivado, sus
+// lecturas se mantienen (asi la app le puede seguir mostrando la pantalla
+// de "acceso desactivado"), pero no puede escribir nada en el negocio.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -32,16 +37,26 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/negocios/el-club-del-mate/usuarios/$(request.auth.uid)).data;
     }
 
-    function soyOwner() {
+    function tengoPerfil() {
       return estaLogueado() &&
-        exists(/databases/$(database)/documents/negocios/el-club-del-mate/usuarios/$(request.auth.uid)) &&
-        miPerfil().rol == 'owner';
+        exists(/databases/$(database)/documents/negocios/el-club-del-mate/usuarios/$(request.auth.uid));
+    }
+
+    function estoyActivo() {
+      return tengoPerfil() && miPerfil().activo != false;
+    }
+
+    function soyOwner() {
+      return estoyActivo() && miPerfil().rol == 'owner';
     }
 
     // Perfiles de usuario: quien es cada quien y que rol tiene. Un
     // fundador puede crear SU PROPIO perfil como owner (arranque de la
     // cuenta); despues de eso, solo un owner ya existente puede crear,
-    // editar o borrar perfiles (para sumar a Gabriela, por ejemplo).
+    // editar, desactivar o borrar perfiles (para sumar a Gabriela, o para
+    // cortarle el acceso a alguien). La lectura queda abierta a cualquiera
+    // logueado (incluso desactivado) para que la app pueda mostrarle por
+    // que se quedo afuera.
     match /negocios/el-club-del-mate/usuarios/{uid} {
       allow read: if estaLogueado();
       allow create: if estaLogueado() && (
@@ -56,30 +71,38 @@ service cloud.firestore {
     // quien esta logueado (no se puede firmar en nombre de otra persona).
     match /negocios/el-club-del-mate/historialProductos/{entradaId} {
       allow read: if estaLogueado();
-      allow create: if estaLogueado() && request.resource.data.quien == request.auth.token.email;
+      allow create: if estoyActivo() && request.resource.data.quien == request.auth.token.email;
       allow update, delete: if false;
     }
 
-    // Productos: cualquiera logueado puede crear y editar (cargar costos,
+    // Productos: cualquiera activo puede crear y editar (cargar costos,
     // stock, etc.), pero cambiar el precio de venta o archivar un producto
     // queda reservado a un owner. Nunca se borran de verdad: la unica
-    // forma de sacar un producto de circulacion es archivarlo.
+    // forma de sacar un producto de circulacion es archivarlo. La lectura
+    // queda abierta a cualquiera logueado (aunque este desactivado, para
+    // no cortar la primera sincronizacion de un fundador recien creado,
+    // que todavia no tiene perfil propio en el instante en que arranca).
     match /negocios/el-club-del-mate/productos/{codigo} {
       allow read: if estaLogueado();
-      allow create: if estaLogueado();
-      allow update: if estaLogueado() && (
+      allow create: if estoyActivo();
+      allow update: if estoyActivo() && (
         soyOwner() ||
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['archivado', 'precioVenta'])
       );
       allow delete: if false;
     }
 
-    // Todo lo demas del negocio (caja, ventas, gastos, proveedores):
-    // alcanza con estar logueado. La separacion de que ve cada rol en
-    // pantalla (por ejemplo, ocultar Reportes a un empleado) se maneja
-    // en la app, no aca.
+    // Todo lo demas del negocio (caja, ventas, gastos, proveedores): la
+    // lectura alcanza con estar logueado (mismo motivo que en productos),
+    // pero escribir requiere estar activo. La separacion de que ve cada
+    // rol en pantalla (por ejemplo, ocultar Reportes a un empleado) se
+    // maneja en la app, no aca.
     match /negocios/el-club-del-mate/{coleccion}/{documento} {
-      allow read, write: if estaLogueado() &&
+      allow read: if estaLogueado() &&
+        coleccion != 'usuarios' &&
+        coleccion != 'historialProductos' &&
+        coleccion != 'productos';
+      allow write: if estoyActivo() &&
         coleccion != 'usuarios' &&
         coleccion != 'historialProductos' &&
         coleccion != 'productos';

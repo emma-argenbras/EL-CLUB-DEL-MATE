@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { fijarSesion } from '../sync/sesion'
 
 export default function PantallaLogin() {
   const [email, setEmail] = useState('')
@@ -123,6 +124,24 @@ export function PantallaSinPerfil({ email }: { email: string | null }) {
           }}
         >
           Cerrar sesión
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export function PantallaDesactivada() {
+  return (
+    <div className="pantalla-carga">
+      <div className="logo-carga">🧉</div>
+      <div className="tarjeta" style={{ width: 'min(360px, 90vw)', textAlign: 'left' }}>
+        <p className="tarjeta-titulo">Acceso desactivado</p>
+        <p className="silencio">
+          Un dueño del local desactivó tu acceso a la app. Si te parece un error, hablalo con
+          quien administra el negocio.
+        </p>
+        <button style={{ width: '100%', marginTop: 10 }} onClick={() => fijarSesion({ desactivada: false })}>
+          Volver a intentar
         </button>
       </div>
     </div>

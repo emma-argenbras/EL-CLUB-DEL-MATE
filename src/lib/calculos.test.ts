@@ -1,0 +1,190 @@
+import { describe, expect, it } from 'vitest'
+import type { Movimiento, Producto, Venta } from '../db/db'
+import {
+  arqueoVacio,
+  costoDesactualizado,
+  margenPorcentual,
+  margenUnitario,
+  precioSugerido,
+  resumirJornada,
+  resumirMes,
+  totalArqueo,
+} from './calculos'
+
+function venta(parcial: Partial<Venta>): Venta {
+  return {
+    id: 'v1',
+    jornadaId: 'j1',
+    fecha: '2026-07-01',
+    hora: '10:00',
+    codigo: 'COD1',
+    descripcion: 'Producto',
+    cantidad: 1,
+    precioUnitario: 1000,
+    costoUnitario: 500,
+    medioPago: 'EFECTIVO',
+    total: 1000,
+    vendedor: null,
+    ...parcial,
+  }
+}
+
+function movimiento(parcial: Partial<Movimiento>): Movimiento {
+  return {
+    id: 'm1',
+    fecha: '2026-07-01',
+    tipo: 'EGRESO_CAJA',
+    concepto: 'Gasto',
+    monto: 100,
+    categoria: null,
+    jornadaId: 'j1',
+    esVariable: true,
+    ...parcial,
+  }
+}
+
+function producto(parcial: Partial<Producto>): Producto {
+  return {
+    codigo: 'COD1',
+    descripcion: 'Producto',
+    proveedor: null,
+    proveedorId: null,
+    fechaCompra: null,
+    precioCompra: null,
+    rentabilidad: null,
+    precioVenta: null,
+    fechaPrecioVenta: null,
+    busqueda: 'producto',
+    stock: null,
+    activo: true,
+    ...parcial,
+  }
+}
+
+describe('totalArqueo', () => {
+  it('suma billetes por denominacion mas monedas', () => {
+    const total = totalArqueo({ billetes: { '2000': 3, '500': 2 }, monedas: 150 })
+    expect(total).toBe(2000 * 3 + 500 * 2 + 150)
+  })
+
+  it('un arqueo vacio da cero', () => {
+    expect(totalArqueo(arqueoVacio())).toBe(0)
+  })
+
+  it('null o undefined dan cero, no explotan', () => {
+    expect(totalArqueo(null)).toBe(0)
+    expect(totalArqueo(undefined)).toBe(0)
+  })
+})
+
+describe('precioSugerido', () => {
+  it('aplica el markup sobre el costo', () => {
+    expect(precioSugerido(producto({ precioCompra: 1000, rentabilidad: 0.3 }))).toBe(1300)
+  })
+
+  it('sin costo o sin rentabilidad cargados, no sugiere nada', () => {
+    expect(precioSugerido(producto({ precioCompra: null, rentabilidad: 0.3 }))).toBeNull()
+    expect(precioSugerido(producto({ precioCompra: 1000, rentabilidad: null }))).toBeNull()
+  })
+})
+
+describe('margenUnitario y margenPorcentual', () => {
+  it('calculan la diferencia y el porcentaje sobre la venta', () => {
+    expect(margenUnitario(1000, 600)).toBe(400)
+    expect(margenPorcentual(1000, 600)).toBeCloseTo(40)
+  })
+
+  it('sin costo cargado, no hay margen calculable', () => {
+    expect(margenUnitario(1000, null)).toBeNull()
+    expect(margenPorcentual(1000, null)).toBeNull()
+  })
+})
+
+describe('resumirJornada', () => {
+  it('separa efectivo de banco y calcula el cierre esperado', () => {
+    const resumen = resumirJornada(
+      10000,
+      [
+        venta({ id: 'v1', medioPago: 'EFECTIVO', total: 1000, cantidad: 1, costoUnitario: 600 }),
+        venta({ id: 'v2', medioPago: 'TRANSFERENCIA', total: 2000, cantidad: 1, costoUnitario: 1200 }),
+      ],
+      [
+        movimiento({ id: 'm1', tipo: 'EGRESO_CAJA', monto: 300 }),
+        movimiento({ id: 'm2', tipo: 'A_CAJA_GRANDE', monto: 5000 }),
+      ],
+    )
+
+    expect(resumen.efectivo).toBe(1000)
+    expect(resumen.banco).toBe(2000)
+    expect(resumen.totalVentas).toBe(3000)
+    expect(resumen.costoMercaderia).toBe(1800)
+    expect(resumen.margenBruto).toBe(1200)
+    expect(resumen.egresosCaja).toBe(300)
+    expect(resumen.aCajaGrande).toBe(5000)
+    // Caja inicial + efectivo vendido - egresos - lo pasado a caja grande.
+    expect(resumen.cierreEsperado).toBe(10000 + 1000 - 300 - 5000)
+  })
+
+  it('cuenta las ventas sin costo cargado, para poder avisar', () => {
+    const resumen = resumirJornada(0, [venta({ costoUnitario: null })], [])
+    expect(resumen.ventasSinCosto).toBe(1)
+    expect(resumen.costoMercaderia).toBe(0)
+  })
+})
+
+describe('resumirMes', () => {
+  it('separa gastos fijos de variables para el margen de contribucion', () => {
+    const resumen = resumirMes(
+      [venta({ fecha: '2026-07-01', total: 1000, cantidad: 1, costoUnitario: 400, medioPago: 'EFECTIVO' })],
+      [
+        movimiento({ tipo: 'GASTO_CAJA_GRANDE', monto: 200, esVariable: true }),
+        movimiento({ tipo: 'GASTO_CAJA_GRANDE', monto: 300, esVariable: false }),
+      ],
+    )
+
+    // Ventas (1000) - costo mercaderia (400) - gastos variables (200).
+    expect(resumen.margenContribucion).toBe(400)
+    expect(resumen.gastosVariables).toBe(200)
+    expect(resumen.gastosFijos).toBe(300)
+    // Margen de contribucion (400) - gastos fijos (300).
+    expect(resumen.resultado).toBe(100)
+  })
+
+  it('cuenta dias distintos con ventas, no ventas', () => {
+    const resumen = resumirMes(
+      [
+        venta({ id: 'v1', fecha: '2026-07-01' }),
+        venta({ id: 'v2', fecha: '2026-07-01' }),
+        venta({ id: 'v3', fecha: '2026-07-02' }),
+      ],
+      [],
+    )
+    expect(resumen.diasConVentas).toBe(2)
+    expect(resumen.operaciones).toBe(3)
+  })
+
+  it('sin ventas, el porcentaje de margen no divide por cero', () => {
+    const resumen = resumirMes([], [])
+    expect(resumen.margenContribucionPorcentual).toBe(0)
+  })
+})
+
+describe('costoDesactualizado', () => {
+  it('sin precio de compra o sin fecha, se considera desactualizado', () => {
+    expect(costoDesactualizado(producto({ precioCompra: null, fechaCompra: '2026-07-01' }))).toBe(true)
+    expect(costoDesactualizado(producto({ precioCompra: 100, fechaCompra: null }))).toBe(true)
+  })
+
+  it('una compra reciente no esta desactualizada', () => {
+    const hoy = new Date().toISOString().slice(0, 10)
+    expect(costoDesactualizado(producto({ precioCompra: 100, fechaCompra: hoy }))).toBe(false)
+  })
+
+  it('una compra de hace mas de 6 meses si esta desactualizada', () => {
+    const vieja = new Date()
+    vieja.setMonth(vieja.getMonth() - 7)
+    expect(
+      costoDesactualizado(producto({ precioCompra: 100, fechaCompra: vieja.toISOString().slice(0, 10) })),
+    ).toBe(true)
+  })
+})

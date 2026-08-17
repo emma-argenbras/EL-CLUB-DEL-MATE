@@ -1,0 +1,24 @@
+name: Verificar
+
+# Corre en cada pull request antes de mezclar a main, para no depender
+# solo del build en el deploy (que recien avisa un error DESPUES de
+# publicado). No toca Firebase: no hace falta ningun secret para esto.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
