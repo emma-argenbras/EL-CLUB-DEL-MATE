@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/db'
+import { db, type Rol, type Usuario } from '../db/db'
 import { resembrarCatalogo } from '../db/sembrar'
 import { hoyISO, numero } from '../lib/formato'
 import { nubeConfigurada } from '../sync/config'
@@ -148,6 +148,7 @@ export default function Ajustes() {
       )}
 
       <TarjetaRespaldo />
+      <TarjetaUsuarios />
 
       <div className="tarjeta">
         <p className="tarjeta-titulo">Qué hay guardado</p>
@@ -228,10 +229,6 @@ const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
 
 function TarjetaRespaldo() {
   const estado = useEstadoNube()
-  const [email, setEmail] = useState('')
-  const [contrasena, setContrasena] = useState('')
-  const [trabajando, setTrabajando] = useState(false)
-  const [error, setError] = useState('')
 
   if (!nubeConfigurada) {
     return (
@@ -250,29 +247,6 @@ function TarjetaRespaldo() {
 
   const info = ETIQUETA_ESTADO[estado.estado]
 
-  async function vincular() {
-    setError('')
-    if (!email.trim() || contrasena.length < 6) {
-      setError('Cargá el mail y una contraseña de al menos 6 caracteres.')
-      return
-    }
-    setTrabajando(true)
-    try {
-      const { vincularDispositivo } = await import('../sync/motor')
-      await vincularDispositivo(email.trim(), contrasena)
-      setContrasena('')
-    } catch (e) {
-      const codigo = (e as { code?: string }).code
-      setError(
-        codigo === 'auth/wrong-password' || codigo === 'auth/invalid-credential'
-          ? 'La contraseña no coincide con la de los demás dispositivos.'
-          : `No se pudo vincular: ${e}`,
-      )
-    } finally {
-      setTrabajando(false)
-    }
-  }
-
   return (
     <div className="tarjeta">
       <p className="tarjeta-titulo">Respaldo automático</p>
@@ -280,58 +254,164 @@ function TarjetaRespaldo() {
         <span className="fila-etiqueta">Estado</span>
         <span className={info.clase}>{info.texto}</span>
       </div>
-
-      {estado.email ? (
-        <>
-          <p className="silencio" style={{ marginBottom: 10 }}>
-            Vinculado como <strong>{estado.email}</strong>. Todo lo que cargás se guarda solo en
-            el servidor (no solo en este celular) y se ve en los demás dispositivos vinculados en
-            cuanto haya internet. Sin conexión la app sigue funcionando exactamente igual: nada se
-            pierde, se sube solo apenas vuelve la señal.
-          </p>
-          {estado.error && <div className="aviso aviso-error">{estado.error}</div>}
-          <button
-            style={{ width: '100%' }}
-            onClick={() => import('../sync/motor').then((m) => m.desvincularDispositivo())}
-          >
-            Desvincular este dispositivo
-          </button>
-        </>
-      ) : (
-        <>
-          <p className="silencio" style={{ marginBottom: 10 }}>
-            Usá el mismo mail y contraseña en todos los dispositivos del negocio: el primero crea
-            la cuenta compartida, los demás se suman con las mismas claves. Una vez vinculado,
-            el respaldo en el servidor queda automático y la app sigue andando sin internet.
-          </p>
-          {error && <div className="aviso aviso-error">{error}</div>}
-          <div className="campo">
-            <label htmlFor="sync-email">Mail del negocio</label>
-            <input
-              id="sync-email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="elclubdelmate@gmail.com"
-            />
-          </div>
-          <div className="campo">
-            <label htmlFor="sync-pass">Contraseña</label>
-            <input
-              id="sync-pass"
-              type="password"
-              autoComplete="current-password"
-              value={contrasena}
-              onChange={(e) => setContrasena(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
-            />
-          </div>
-          <button className="boton-principal" onClick={vincular} disabled={trabajando}>
-            Vincular este dispositivo
-          </button>
-        </>
+      <p className="silencio" style={{ marginBottom: 0 }}>
+        Todo lo que se carga en cualquier dispositivo se guarda en el servidor (no solo en el
+        celular) y se ve en los demás en cuanto haya internet. Sin conexión la app sigue
+        funcionando exactamente igual: nada se pierde, se sube solo apenas vuelve la señal.
+      </p>
+      {estado.error && (
+        <div className="aviso aviso-error" style={{ marginTop: 10 }}>
+          {estado.error}
+        </div>
       )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+const ETIQUETA_ROL: Record<Rol, string> = {
+  owner: 'Dueño/a',
+  empleado: 'Empleado/a',
+}
+
+function TarjetaUsuarios() {
+  const [creando, setCreando] = useState(false)
+  const [mensaje, setMensaje] = useState('')
+  const usuarios = useLiveQuery(
+    () => (nubeConfigurada ? db.usuarios.orderBy('nombre').toArray() : Promise.resolve<Usuario[]>([])),
+    [],
+  )
+
+  if (!nubeConfigurada) return null
+
+  return (
+    <div className="tarjeta">
+      <p className="tarjeta-titulo">Usuarios del equipo</p>
+      {mensaje && <div className="aviso aviso-ok">{mensaje}</div>}
+      {!usuarios ? (
+        <p className="vacio">Cargando…</p>
+      ) : usuarios.length === 0 ? (
+        <p className="vacio">Todavía no hay nadie más cargado.</p>
+      ) : (
+        <ul className="lista">
+          {usuarios.map((u) => (
+            <li className="item" key={u.id}>
+              <div style={{ minWidth: 0 }}>
+                <div className="item-titulo">{u.nombre}</div>
+                <div className="item-sub">{u.email}</div>
+              </div>
+              <span className={u.rol === 'owner' ? 'chip chip-banco' : 'chip'}>
+                {ETIQUETA_ROL[u.rol]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {creando ? (
+        <FormularioUsuario
+          onSalir={() => setCreando(false)}
+          onCreado={(nombre) => {
+            setMensaje(`Se creó el usuario de ${nombre}. Ya puede iniciar sesión con su mail.`)
+            setCreando(false)
+          }}
+        />
+      ) : (
+        <button
+          className="boton-principal"
+          style={{ width: '100%', marginTop: 10 }}
+          onClick={() => setCreando(true)}
+        >
+          + Usuario nuevo
+        </button>
+      )}
+    </div>
+  )
+}
+
+function FormularioUsuario({
+  onSalir,
+  onCreado,
+}: {
+  onSalir: () => void
+  onCreado: (nombre: string) => void
+}) {
+  const [nombre, setNombre] = useState('')
+  const [email, setEmail] = useState('')
+  const [contrasena, setContrasena] = useState('')
+  const [rol, setRol] = useState<Rol>('empleado')
+  const [error, setError] = useState('')
+  const [trabajando, setTrabajando] = useState(false)
+
+  async function guardar() {
+    setError('')
+    if (!nombre.trim()) return setError('Ponele un nombre.')
+    if (!email.trim()) return setError('Cargá el mail.')
+    if (contrasena.length < 6) return setError('La contraseña tiene que tener al menos 6 caracteres.')
+    setTrabajando(true)
+    try {
+      const { crearUsuario } = await import('../sync/motor')
+      await crearUsuario(email, contrasena, nombre, rol)
+      onCreado(nombre.trim())
+    } catch (e) {
+      const codigo = (e as { code?: string }).code
+      setError(
+        codigo === 'auth/email-already-in-use'
+          ? 'Ya existe una cuenta con ese mail.'
+          : `No se pudo crear: ${e}`,
+      )
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta" style={{ marginTop: 10, marginBottom: 0, background: 'var(--crema)' }}>
+      {error && <div className="aviso aviso-error">{error}</div>}
+      <div className="campo">
+        <label htmlFor="u-nombre">Nombre</label>
+        <input
+          id="u-nombre"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Ej: Gabriela"
+          autoFocus
+        />
+      </div>
+      <div className="campo">
+        <label htmlFor="u-email">Mail</label>
+        <input
+          id="u-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="gabriela@elclubdelmate.com"
+        />
+      </div>
+      <div className="campo">
+        <label htmlFor="u-pass">Contraseña inicial</label>
+        <input
+          id="u-pass"
+          type="password"
+          value={contrasena}
+          onChange={(e) => setContrasena(e.target.value)}
+          placeholder="Mínimo 6 caracteres"
+        />
+      </div>
+      <div className="campo">
+        <label htmlFor="u-rol">Rol</label>
+        <select id="u-rol" value={rol} onChange={(e) => setRol(e.target.value as Rol)}>
+          <option value="empleado">Empleado/a — opera la caja, no ve ganancias</option>
+          <option value="owner">Dueño/a — ve y maneja todo</option>
+        </select>
+      </div>
+      <div className="botonera">
+        <button onClick={onSalir}>Cancelar</button>
+        <button className="boton-principal" onClick={guardar} disabled={trabajando}>
+          {trabajando ? 'Creando…' : 'Crear usuario'}
+        </button>
+      </div>
     </div>
   )
 }

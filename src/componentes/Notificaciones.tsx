@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
-import { db } from '../db/db'
+import { db, productoVisible } from '../db/db'
 import { costoDesactualizado, resumirJornada, totalArqueo } from '../lib/calculos'
 import { plata } from '../lib/formato'
 import { useEstadoNube } from '../sync/useEstadoNube'
+import { useSesion } from '../sync/useSesion'
 import { nubeConfigurada } from '../sync/config'
 
 interface Alerta {
@@ -26,6 +27,8 @@ export default function Notificaciones() {
   const contenedor = useRef<HTMLDivElement>(null)
   const navegar = useNavigate()
   const nube = useEstadoNube()
+  const sesion = useSesion()
+  const esOwner = sesion.perfil?.rol === 'owner'
 
   useEffect(() => {
     function afuera(evento: MouseEvent) {
@@ -38,7 +41,7 @@ export default function Notificaciones() {
   }, [])
 
   const desactualizados = useLiveQuery(async () => {
-    const todos = await db.productos.toArray()
+    const todos = await db.productos.filter(productoVisible).toArray()
     return todos.filter((p) => p.activo !== false && costoDesactualizado(p)).length
   }, [])
 
@@ -68,7 +71,25 @@ export default function Notificaciones() {
     return { jornada: ultima, diferencia: contado - resumen.cierreEsperado }
   }, [])
 
+  const solicitudesBorrado = useLiveQuery(
+    () =>
+      esOwner
+        ? db.productos.filter((p) => !!p.solicitudBorrado).count()
+        : Promise.resolve(0),
+    [esOwner],
+  )
+
   const alertas: Alerta[] = []
+
+  if (esOwner && solicitudesBorrado && solicitudesBorrado > 0) {
+    alertas.push({
+      clave: 'solicitudes-borrado',
+      texto: `${solicitudesBorrado} ${solicitudesBorrado === 1 ? 'solicitud' : 'solicitudes'} de archivado de producto`,
+      detalle: 'Alguien del equipo pidió archivar un producto y espera tu autorización.',
+      nivel: 'aviso',
+      ir: () => navegar('/productos'),
+    })
+  }
 
   if (desactualizados && desactualizados > 0) {
     alertas.push({

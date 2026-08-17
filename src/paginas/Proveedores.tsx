@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, nuevoId, type Producto, type Proveedor } from '../db/db'
+import { db, nuevoId, productoVisible, type Producto, type Proveedor } from '../db/db'
 import { costoDesactualizado } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
 
@@ -10,7 +10,10 @@ export default function Proveedores() {
   const [creando, setCreando] = useState(false)
 
   const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
-  const productos = useLiveQuery(() => db.productos.toArray(), [])
+  const productos = useLiveQuery(
+    () => db.productos.filter(productoVisible).toArray(),
+    [],
+  )
 
   const resumen = useMemo(() => {
     const mapa = new Map<string, { cantidad: number; vencidos: number }>()

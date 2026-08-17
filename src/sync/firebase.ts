@@ -1,4 +1,4 @@
-import { initializeApp, type FirebaseApp } from 'firebase/app'
+import { deleteApp, initializeApp, type FirebaseApp } from 'firebase/app'
 import { browserLocalPersistence, getAuth, setPersistence, type Auth } from 'firebase/auth'
 import {
   initializeFirestore,
@@ -47,4 +47,20 @@ export function obtenerAuth(): Auth {
 export function obtenerFirestore(): Firestore {
   iniciar()
   return firestore!
+}
+
+/**
+ * Crea un usuario nuevo requiere llamar a createUserWithEmailAndPassword,
+ * pero eso deja logueado como ESE usuario nuevo en vez del que lo esta
+ * creando (es como funciona el SDK de Firebase Auth). Para que un dueño
+ * pueda dar de alta a un empleado sin perder su propia sesion, se usa una
+ * instancia secundaria y desechable de la app, solo para ese momento.
+ */
+export function crearAuthSecundario(): { auth: Auth; limpiar: () => Promise<void> } {
+  const appSecundaria = initializeApp(config, `alta-${Date.now()}`)
+  const authSecundaria = getAuth(appSecundaria)
+  return {
+    auth: authSecundaria,
+    limpiar: () => deleteApp(appSecundaria),
+  }
 }

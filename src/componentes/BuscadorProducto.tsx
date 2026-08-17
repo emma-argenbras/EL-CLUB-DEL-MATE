@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { db, type Producto } from '../db/db'
+import { db, productoVisible, type Producto } from '../db/db'
 import { normalizar, plata } from '../lib/formato'
 
 interface Props {
@@ -34,7 +34,12 @@ export default function BuscadorProducto({ onElegir, autoFoco }: Props) {
     const partes = consulta.split(/\s+/).filter(Boolean)
 
     db.productos
-      .filter((p) => p.activo !== false && partes.every((parte) => p.busqueda.includes(parte)))
+      .filter(
+        (p) =>
+          p.activo !== false &&
+          productoVisible(p) &&
+          partes.every((parte) => p.busqueda.includes(parte)),
+      )
       .limit(25)
       .toArray()
       .then((encontrados) => {

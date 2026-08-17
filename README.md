@@ -85,13 +85,14 @@ actualizando los precios de compra de lo que más se vende.
 
 ---
 
-## Sincronizar entre dispositivos
+## Sincronizar entre dispositivos (respaldo automático + usuarios)
 
 Por defecto cada celular guarda sus datos por separado (funciona perfecto así,
-pero no comparten información entre sí). Para que el celular del mostrador, el de
-Emma y una computadora vean **los mismos datos en tiempo real**, hay que crear una
-cuenta gratuita de Firebase — es un trámite de 5 minutos que **solo lo puede hacer
-alguien con acceso al mail del negocio**, así que quedó pendiente de tu lado:
+pero no comparten información entre sí, y no hay usuarios ni roles). Para que
+el celular del mostrador, el de Emma y una computadora vean **los mismos datos
+en tiempo real** —y para que cada persona tenga su propio login con su rol—
+hay que crear una cuenta gratuita de Firebase — es un trámite de 5 minutos que
+**solo lo puede hacer alguien con acceso al mail del negocio**:
 
 1. Entrar a **[console.firebase.google.com](https://console.firebase.google.com)**
    con la cuenta de Google del negocio → **"Crear un proyecto"** → ponerle un
@@ -113,18 +114,36 @@ alguien con acceso al mail del negocio**, así que quedó pendiente de tu lado:
    `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`,
    `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`.
 7. Volver a correr el deploy (un push a `main`, o "Run workflow" manual en
-   Actions). A partir de ahí, en **Ajustes → Respaldo automático**
-   de la app va a aparecer el formulario para vincular cada celular.
+   Actions). A partir de ahí, la app va a pedir iniciar sesión.
 
-En cada dispositivo: cargar el mismo mail y contraseña (el primero que vincula
-**crea** esa cuenta compartida, los demás simplemente se suman con las mismas
-claves). No hace falta que sea un mail real que exista — funciona como usuario y
-contraseña del negocio, no como casilla de correo.
+### Usuarios y roles
 
-Una vez vinculado, todo lo que se carga en cualquier dispositivo (ventas, cierres
-de caja, gastos, cambios de precio) se sube solo y aparece en los demás en
-segundos. Si se corta internet, sigue funcionando exactamente igual y sincroniza
-apenas vuelve la señal.
+Con esto activado, **cada persona inicia sesión con su propio mail y
+contraseña** — ya no hay un login compartido entre dispositivos.
+
+- **Fundadores** (los dueños que arrancan la cuenta): sus mails están
+  escritos a mano en [`firestore.rules`](./firestore.rules) y en
+  [`src/sync/motor.ts`](./src/sync/motor.ts) (constante `EMAILS_FUNDADORES`)
+  — hoy son `emmanuel@elclubdelmate.com` y `sebastian@elclubdelmate.com`. La
+  primera vez que uno de esos mails inicia sesión, la cuenta se crea sola con
+  rol de **dueño**. Para sumar un fundador nuevo hay que agregar su mail en
+  los **dos** archivos y volver a publicar la app.
+- **Todos los demás** (empleados, u otros dueños que no sean fundadores) se
+  dan de alta **desde la app**, no desde Firebase: un dueño ya logueado va a
+  **Ajustes → Usuarios del equipo → + Usuario nuevo**, carga su nombre, mail,
+  una contraseña inicial y el rol, y con eso esa persona ya puede iniciar
+  sesión en cualquier dispositivo. No hace falta volver a tocar Firebase ni
+  este repositorio para eso.
+- Un **dueño** ve y maneja todo. Un **empleado** opera Caja, Productos,
+  Proveedores y Gastos igual, mantiene los costos de compra al día, pero no
+  ve el margen de ganancia del negocio (tiene "Mi día" en vez de Reportes),
+  no puede cambiar el precio de venta, y para archivar un producto necesita
+  que un dueño lo autorice.
+
+Una vez logueado, todo lo que se carga en cualquier dispositivo (ventas,
+cierres de caja, gastos, cambios de precio) se sube solo y aparece en los
+demás en segundos. Si se corta internet, sigue funcionando exactamente igual
+y sincroniza apenas vuelve la señal.
 
 ---
 
