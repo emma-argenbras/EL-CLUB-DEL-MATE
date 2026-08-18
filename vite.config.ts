@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// El repo se publica en GitHub Pages bajo /EL-CLUB-DEL-MATE/.
-// En desarrollo la base es "/".
+// La app se publica en la raiz de app.elclubdelmate.com (ver public/CNAME
+// y .github/workflows/deploy.yml). En desarrollo la base tambien es "/".
 const base = process.env.BASE_PATH ?? '/'
 
 export default defineConfig({
