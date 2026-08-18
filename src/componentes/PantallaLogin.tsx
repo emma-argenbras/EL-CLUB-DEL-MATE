@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { fijarSesion } from '../sync/sesion'
+import CampoContrasena from './CampoContrasena'
 
 export default function PantallaLogin() {
   const [email, setEmail] = useState('')
@@ -72,14 +73,13 @@ export default function PantallaLogin() {
         </div>
         <div className="campo">
           <label htmlFor="login-pass">Contraseña</label>
-          <input
+          <CampoContrasena
             id="login-pass"
-            type="password"
             autoComplete="current-password"
             value={contrasena}
-            onChange={(e) => setContrasena(e.target.value)}
+            onChange={setContrasena}
             placeholder="Mínimo 6 caracteres"
-            onKeyDown={(e) => e.key === 'Enter' && entrar()}
+            onEnter={entrar}
           />
         </div>
         <button

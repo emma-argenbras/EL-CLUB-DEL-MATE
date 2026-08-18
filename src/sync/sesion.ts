@@ -1,4 +1,9 @@
-import type { Rol } from '../db/db'
+import {
+  SECCIONES_CONFIGURABLES,
+  SECCIONES_POR_DEFECTO_EMPLEADO,
+  type Rol,
+  type SeccionId,
+} from '../db/db'
 import { nubeConfigurada } from './config'
 
 /**
@@ -10,6 +15,8 @@ import { nubeConfigurada } from './config'
 export interface Perfil {
   nombre: string
   rol: Rol
+  /** Solo importa si rol es "empleado"; ver Usuario.secciones en db.ts. */
+  secciones?: SeccionId[] | null
 }
 
 export interface Sesion {
@@ -52,4 +59,12 @@ export function obtenerSesion(): Sesion {
 
 export function esOwner(s: Sesion = sesion): boolean {
   return s.perfil?.rol === 'owner'
+}
+
+/** Que secciones puede ver el perfil actual: un owner las ve todas. */
+export function seccionesVisibles(perfil: Perfil | null): SeccionId[] {
+  if (!perfil || perfil.rol === 'owner') {
+    return [...SECCIONES_CONFIGURABLES]
+  }
+  return perfil.secciones ?? SECCIONES_POR_DEFECTO_EMPLEADO
 }

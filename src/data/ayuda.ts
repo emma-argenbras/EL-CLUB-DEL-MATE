@@ -84,7 +84,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Usuarios y roles',
     pregunta: '¿Qué diferencia hay entre un dueño y un empleado?',
     respuesta:
-      'Un dueño ve y maneja todo: Caja, Productos, Proveedores, Gastos, Reportes con el margen de ganancia, y Ajustes (respaldo y usuarios del equipo).\n\nUn empleado usa Caja, Productos, Proveedores y Gastos igual que un dueño, y mantiene los costos de compra actualizados — pero no ve el margen de ganancia del negocio (en vez de Reportes tiene "Mi día", con su propio resumen de trabajo), no puede cambiar el precio de venta de un producto, y para archivar un producto tiene que pedirle autorización a un dueño en vez de hacerlo directo.',
+      'Un dueño ve y maneja todo: Caja, Productos, Proveedores, Gastos, Reportes con el margen de ganancia, y Ajustes (respaldo y usuarios del equipo).\n\nUn empleado, por defecto, usa Caja, Productos, Proveedores y Gastos igual que un dueño, y mantiene los costos de compra actualizados — pero no ve el margen de ganancia del negocio (en vez de Reportes tiene "Mi día", con su propio resumen de trabajo), no puede cambiar el precio de venta de un producto, y para archivar un producto tiene que pedirle autorización a un dueño en vez de hacerlo directo. Un dueño puede ajustar cuáles de esas secciones ve cada empleado en particular (ver "¿Puedo elegir qué secciones ve cada empleado?").',
     palabrasClave: ['rol', 'permisos', 'empleada', 'gabriela'],
   },
   {
@@ -118,6 +118,14 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Un dueño puede hacerlo desde Ajustes → "Usuarios del equipo", tocando "Desactivar" al lado de esa persona. Si estaba usando la app en ese momento, se le cierra la sesión sola y no puede volver a entrar hasta que un dueño la reactive con el mismo botón. No borra nada de lo que esa persona cargó: solo le corta el acceso.',
     palabrasClave: ['desactivar', 'sacar acceso', 'echar', 'baja', 'bloquear'],
+  },
+  {
+    id: 'personalizar-secciones-empleado',
+    categoria: 'Usuarios y roles',
+    pregunta: '¿Puedo elegir qué secciones ve cada empleado?',
+    respuesta:
+      'Sí. En Ajustes → "Usuarios del equipo", al lado de cada empleado/a hay un botón "Qué ve": ahí podés tildar o destildar Caja, Productos, Proveedores, Gastos y Reportes, sección por sección y persona por persona. Por ejemplo, podés dejarle ver Reportes puntualmente a alguien de mucha confianza sin cambiarle el rol. Si no tocás nada, un empleado nuevo arranca viendo Caja, Productos, Proveedores y Gastos (lo de siempre), y sin Reportes.',
+    palabrasClave: ['permisos', 'que ve', 'personalizar', 'secciones', 'ocultar', 'mostrar'],
   },
 
   // ---------- Caja ----------
