@@ -1,8 +1,16 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Rol, type Usuario } from '../db/db'
+import {
+  db,
+  SECCIONES_CONFIGURABLES,
+  SECCIONES_POR_DEFECTO_EMPLEADO,
+  type Rol,
+  type SeccionId,
+  type Usuario,
+} from '../db/db'
 import { resembrarCatalogo } from '../db/sembrar'
 import { hoyISO, numero } from '../lib/formato'
+import CampoContrasena from '../componentes/CampoContrasena'
 import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { useSesion } from '../sync/useSesion'
@@ -276,8 +284,57 @@ const ETIQUETA_ROL: Record<Rol, string> = {
   empleado: 'Empleado/a',
 }
 
+const ETIQUETA_SECCION: Record<SeccionId, string> = {
+  caja: '🧉 Caja',
+  productos: '🏷️ Productos',
+  proveedores: '🚚 Proveedores',
+  gastos: '💸 Gastos',
+  reportes: '📊 Reportes (margen de ganancia)',
+}
+
+/** Casillas para elegir que secciones ve un empleado. Se usa al crear y al editar. */
+function SelectorSecciones({
+  value,
+  onChange,
+}: {
+  value: SeccionId[]
+  onChange: (secciones: SeccionId[]) => void
+}) {
+  function alternar(s: SeccionId) {
+    onChange(value.includes(s) ? value.filter((x) => x !== s) : [...value, s])
+  }
+
+  return (
+    <div className="campo">
+      <label>Qué puede ver</label>
+      {SECCIONES_CONFIGURABLES.map((s) => (
+        <label
+          key={s}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '6px 0',
+            fontWeight: 400,
+            fontSize: '0.92rem',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={value.includes(s)}
+            onChange={() => alternar(s)}
+            style={{ width: 'auto' }}
+          />
+          {ETIQUETA_SECCION[s]}
+        </label>
+      ))}
+    </div>
+  )
+}
+
 function TarjetaUsuarios() {
   const [creando, setCreando] = useState(false)
+  const [editando, setEditando] = useState<string | null>(null)
   const [mensaje, setMensaje] = useState('')
   const sesion = useSesion()
   const usuarios = useLiveQuery(
@@ -312,21 +369,44 @@ function TarjetaUsuarios() {
       ) : (
         <ul className="lista">
           {usuarios.map((u) => (
-            <li className="item" key={u.id}>
-              <div style={{ minWidth: 0 }}>
-                <div className="item-titulo">
-                  {u.nombre}
-                  {u.activo === false && <span className="chip" style={{ marginLeft: 6 }}>Desactivado</span>}
+            <li className="item" key={u.id} style={{ display: 'block' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="item-titulo">
+                    {u.nombre}
+                    {u.activo === false && (
+                      <span className="chip" style={{ marginLeft: 6 }}>
+                        Desactivado
+                      </span>
+                    )}
+                  </div>
+                  <div className="item-sub">{u.email}</div>
                 </div>
-                <div className="item-sub">{u.email}</div>
+                <span className={u.rol === 'owner' ? 'chip chip-banco' : 'chip'}>
+                  {ETIQUETA_ROL[u.rol]}
+                </span>
+                {u.rol === 'empleado' && (
+                  <button
+                    className="boton-chico"
+                    onClick={() => setEditando(editando === u.id ? null : u.id)}
+                  >
+                    {editando === u.id ? 'Cerrar' : 'Qué ve'}
+                  </button>
+                )}
+                {u.id !== sesion.uid && (
+                  <button className="boton-chico" onClick={() => cambiarActivo(u)}>
+                    {u.activo === false ? 'Reactivar' : 'Desactivar'}
+                  </button>
+                )}
               </div>
-              <span className={u.rol === 'owner' ? 'chip chip-banco' : 'chip'}>
-                {ETIQUETA_ROL[u.rol]}
-              </span>
-              {u.id !== sesion.uid && (
-                <button className="boton-chico" onClick={() => cambiarActivo(u)}>
-                  {u.activo === false ? 'Reactivar' : 'Desactivar'}
-                </button>
+              {editando === u.id && (
+                <EditorSecciones
+                  usuario={u}
+                  onGuardado={() => {
+                    setMensaje(`Se actualizó qué puede ver ${u.nombre}.`)
+                    setEditando(null)
+                  }}
+                />
               )}
             </li>
           ))}
@@ -354,6 +434,39 @@ function TarjetaUsuarios() {
   )
 }
 
+/** Deja tocar que secciones ve un empleado que ya existe. */
+function EditorSecciones({
+  usuario,
+  onGuardado,
+}: {
+  usuario: Usuario
+  onGuardado: () => void
+}) {
+  const [secciones, setSecciones] = useState<SeccionId[]>(
+    usuario.secciones ?? SECCIONES_POR_DEFECTO_EMPLEADO,
+  )
+  const [trabajando, setTrabajando] = useState(false)
+
+  async function guardar() {
+    setTrabajando(true)
+    try {
+      await db.usuarios.update(usuario.id, { secciones })
+      onGuardado()
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta" style={{ marginTop: 10, marginBottom: 0, background: 'var(--crema)' }}>
+      <SelectorSecciones value={secciones} onChange={setSecciones} />
+      <button className="boton-principal" style={{ width: '100%' }} onClick={guardar} disabled={trabajando}>
+        {trabajando ? 'Guardando…' : 'Guardar'}
+      </button>
+    </div>
+  )
+}
+
 function FormularioUsuario({
   onSalir,
   onCreado,
@@ -365,6 +478,7 @@ function FormularioUsuario({
   const [email, setEmail] = useState('')
   const [contrasena, setContrasena] = useState('')
   const [rol, setRol] = useState<Rol>('empleado')
+  const [secciones, setSecciones] = useState<SeccionId[]>(SECCIONES_POR_DEFECTO_EMPLEADO)
   const [error, setError] = useState('')
   const [trabajando, setTrabajando] = useState(false)
 
@@ -376,7 +490,7 @@ function FormularioUsuario({
     setTrabajando(true)
     try {
       const { crearUsuario } = await import('../sync/motor')
-      await crearUsuario(email, contrasena, nombre, rol)
+      await crearUsuario(email, contrasena, nombre, rol, secciones)
       onCreado(nombre.trim())
     } catch (e) {
       const codigo = (e as { code?: string }).code
@@ -415,11 +529,10 @@ function FormularioUsuario({
       </div>
       <div className="campo">
         <label htmlFor="u-pass">Contraseña inicial</label>
-        <input
+        <CampoContrasena
           id="u-pass"
-          type="password"
           value={contrasena}
-          onChange={(e) => setContrasena(e.target.value)}
+          onChange={setContrasena}
           placeholder="Mínimo 6 caracteres"
         />
       </div>
@@ -430,6 +543,7 @@ function FormularioUsuario({
           <option value="owner">Dueño/a — ve y maneja todo</option>
         </select>
       </div>
+      {rol === 'empleado' && <SelectorSecciones value={secciones} onChange={setSecciones} />}
       <div className="botonera">
         <button onClick={onSalir}>Cancelar</button>
         <button className="boton-principal" onClick={guardar} disabled={trabajando}>

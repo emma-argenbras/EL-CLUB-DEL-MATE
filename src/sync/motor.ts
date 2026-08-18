@@ -23,6 +23,7 @@ import {
   type AccionCambio,
   type NombreTabla,
   type Rol,
+  type SeccionId,
 } from '../db/db'
 import { ID_NEGOCIO } from './config'
 import { fijarEstadoNube } from './estado'
@@ -125,7 +126,7 @@ async function actualizarPerfilPropio(): Promise<void> {
 
   fijarSesion({
     cargando: false,
-    perfil: { nombre: fila.nombre, rol: fila.rol },
+    perfil: { nombre: fila.nombre, rol: fila.rol, secciones: fila.secciones },
     sinPerfil: false,
     desactivada: false,
   })
@@ -271,6 +272,7 @@ export async function crearUsuario(
   contrasena: string,
   nombre: string,
   rol: Rol,
+  secciones?: SeccionId[] | null,
 ): Promise<void> {
   const correo = email.trim().toLowerCase()
   const { auth: authSecundaria, limpiar } = crearAuthSecundario()
@@ -282,6 +284,7 @@ export async function crearUsuario(
       nombre: nombre.trim(),
       rol,
       activo: true,
+      secciones: rol === 'empleado' ? (secciones ?? null) : null,
     })
   } finally {
     await limpiar()

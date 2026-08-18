@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { cargarArqueosHistoricos, sembrarCatalogo, sembrarHistorico } from './db/sembrar'
+import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { nubeConfigurada } from './sync/config'
+import { seccionesVisibles } from './sync/sesion'
 import { useSesion } from './sync/useSesion'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
@@ -15,22 +17,16 @@ import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
 
-const SECCIONES_OWNER = [
-  { ruta: '/caja', icono: '🧉', texto: 'Caja' },
-  { ruta: '/productos', icono: '🏷️', texto: 'Productos' },
-  { ruta: '/proveedores', icono: '🚚', texto: 'Provee.' },
-  { ruta: '/gastos', icono: '💸', texto: 'Gastos' },
-  { ruta: '/reportes', icono: '📊', texto: 'Reportes' },
-  { ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes' },
-]
-
-const SECCIONES_EMPLEADO = [
-  { ruta: '/caja', icono: '🧉', texto: 'Caja' },
-  { ruta: '/productos', icono: '🏷️', texto: 'Productos' },
-  { ruta: '/proveedores', icono: '🚚', texto: 'Provee.' },
-  { ruta: '/gastos', icono: '💸', texto: 'Gastos' },
-  { ruta: '/mi-actividad', icono: '⭐', texto: 'Mi día' },
-]
+// Cada seccion configurable (ver SECCIONES_CONFIGURABLES en db.ts) mas su
+// ruta e icono de menu. Un owner las ve todas siempre; a un empleado un
+// owner le puede prender o apagar cada una desde Ajustes.
+const NAV_POR_SECCION: Record<SeccionId, { ruta: string; icono: string; texto: string }> = {
+  caja: { ruta: '/caja', icono: '🧉', texto: 'Caja' },
+  productos: { ruta: '/productos', icono: '🏷️', texto: 'Productos' },
+  proveedores: { ruta: '/proveedores', icono: '🚚', texto: 'Provee.' },
+  gastos: { ruta: '/gastos', icono: '💸', texto: 'Gastos' },
+  reportes: { ruta: '/reportes', icono: '📊', texto: 'Reportes' },
+}
 
 // Meses de la planilla vieja ya extraidos y listos para sembrar solos.
 const MESES_HISTORICOS = ['2026-07']
@@ -81,7 +77,15 @@ export default function App() {
   }
 
   const esEmpleado = sesion.perfil?.rol === 'empleado'
-  const secciones = esEmpleado ? SECCIONES_EMPLEADO : SECCIONES_OWNER
+  const visibles = seccionesVisibles(sesion.perfil)
+  const puedeVer = (s: SeccionId) => visibles.includes(s)
+
+  const secciones = [
+    ...SECCIONES_CONFIGURABLES.filter(puedeVer).map((s) => NAV_POR_SECCION[s]),
+    ...(esEmpleado
+      ? [{ ruta: '/mi-actividad', icono: '⭐', texto: 'Mi día' }]
+      : [{ ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes' }]),
+  ]
 
   return (
     <div className="app">
@@ -116,18 +120,30 @@ export default function App() {
       <main className="contenido">
         <Routes>
           <Route path="/" element={<Navigate to="/caja" replace />} />
-          <Route path="/caja" element={<Caja />} />
-          <Route path="/productos" element={<Productos />} />
-          <Route path="/proveedores" element={<Proveedores />} />
-          <Route path="/gastos" element={<Gastos />} />
+          <Route
+            path="/caja"
+            element={puedeVer('caja') ? <Caja /> : <Navigate to="/mi-actividad" replace />}
+          />
+          <Route
+            path="/productos"
+            element={puedeVer('productos') ? <Productos /> : <Navigate to="/mi-actividad" replace />}
+          />
+          <Route
+            path="/proveedores"
+            element={puedeVer('proveedores') ? <Proveedores /> : <Navigate to="/mi-actividad" replace />}
+          />
+          <Route
+            path="/gastos"
+            element={puedeVer('gastos') ? <Gastos /> : <Navigate to="/mi-actividad" replace />}
+          />
           <Route
             path="/reportes"
-            element={esEmpleado ? <Navigate to="/mi-actividad" replace /> : <Reportes />}
+            element={puedeVer('reportes') ? <Reportes /> : <Navigate to="/mi-actividad" replace />}
           />
           <Route path="/mi-actividad" element={<MiActividad />} />
           <Route
             path="/ajustes"
-            element={esEmpleado ? <Navigate to="/caja" replace /> : <Ajustes />}
+            element={esEmpleado ? <Navigate to="/mi-actividad" replace /> : <Ajustes />}
           />
           <Route path="/ayuda" element={<Ayuda />} />
           <Route path="*" element={<Navigate to="/caja" replace />} />

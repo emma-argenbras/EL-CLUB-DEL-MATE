@@ -209,6 +209,30 @@ export interface Ajuste {
  */
 export type Rol = 'owner' | 'empleado'
 
+/**
+ * Secciones que un owner puede prender o apagar para un empleado en
+ * particular (ademas de Caja/Productos/Proveedores/Gastos, que trae
+ * habilitadas por defecto). "Mi dia" y "Ajustes" no entran aca: la
+ * primera siempre esta disponible para un empleado, la segunda nunca.
+ */
+export const SECCIONES_CONFIGURABLES = [
+  'caja',
+  'productos',
+  'proveedores',
+  'gastos',
+  'reportes',
+] as const
+
+export type SeccionId = (typeof SECCIONES_CONFIGURABLES)[number]
+
+/** Lo que ve un empleado si nadie le toco nunca las secciones (comportamiento de siempre). */
+export const SECCIONES_POR_DEFECTO_EMPLEADO: SeccionId[] = [
+  'caja',
+  'productos',
+  'proveedores',
+  'gastos',
+]
+
 /** Una persona con su propio login. El id es el uid de Firebase Auth. */
 export interface Usuario {
   id: string
@@ -216,6 +240,12 @@ export interface Usuario {
   nombre: string
   rol: Rol
   activo: boolean
+  /**
+   * Solo se usa si rol es "empleado". null/undefined = todavia nadie
+   * los toco: se usan las secciones por defecto (asi una cuenta ya
+   * creada antes de que existiera esto no pierde acceso a nada).
+   */
+  secciones?: SeccionId[] | null
   creadoEn?: number
   actualizadoEn?: number
 }
