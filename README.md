@@ -156,9 +156,29 @@ y sincroniza apenas vuelve la señal.
 
 ## Cómo instalarla en el celular
 
-1. Abrir la dirección de la app en Chrome (Android) o Safari (iPhone).
+1. Abrir **https://app.elclubdelmate.com/** en Chrome (Android) o Safari (iPhone).
 2. Menú del navegador → **"Agregar a pantalla de inicio"** / **"Instalar app"**.
 3. Listo: queda como una app más y anda sin internet.
+
+---
+
+## Dominio propio (app.elclubdelmate.com)
+
+La app se publica en GitHub Pages pero se sirve bajo el dominio propio del
+negocio, no bajo `github.io`. Esto se arma con dos partes:
+
+1. **DNS**: un registro `CNAME` en el proveedor de DNS de `elclubdelmate.com`
+   — nombre `app`, valor `emma-argenbras.github.io` — así el subdominio
+   apunta a GitHub Pages sin tocar el resto del sitio (`www.elclubdelmate.com`
+   sigue funcionando exactamente igual, en su propio hosting).
+2. **GitHub**: el archivo [`public/CNAME`](./public/CNAME) le dice a GitHub
+   Pages qué dominio propio tiene que servir (se copia solo a `dist/` en
+   cada build), y en **Settings → Pages → Custom domain** del repositorio
+   hay que cargar el mismo dominio una vez para que GitHub emita el
+   certificado HTTPS.
+
+Si el dominio cambia alguna vez, hay que actualizar **ambas** partes (el DNS
+y `public/CNAME`) — no alcanza con una sola.
 
 ---
 

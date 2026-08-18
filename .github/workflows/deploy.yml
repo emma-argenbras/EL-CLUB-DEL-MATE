@@ -31,8 +31,9 @@ jobs:
 
       - run: npm run build
         env:
-          # La app queda servida en https://<usuario>.github.io/EL-CLUB-DEL-MATE/
-          BASE_PATH: /${{ github.event.repository.name }}/
+          # La app queda servida en la raiz del dominio propio
+          # (https://app.elclubdelmate.com/), ver public/CNAME.
+          BASE_PATH: /
           # Si estos secrets no estan cargados en el repo (Settings > Secrets
           # and variables > Actions), quedan vacios y la app compila igual,
           # solo que sin sincronizacion entre dispositivos.
