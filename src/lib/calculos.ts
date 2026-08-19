@@ -183,6 +183,9 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
  * de lo que es. Marcamos los productos con costo desactualizado.
  */
 export function costoDesactualizado(producto: Producto, mesesLimite = 6): boolean {
+  // Descontinuado a proposito: nadie va a actualizar el costo de algo
+  // que no se vuelve a comprar, asi que no tiene sentido seguir avisando.
+  if (producto.descontinuado) return false
   if (!producto.precioCompra) return true
   if (!producto.fechaCompra) return true
   const compra = new Date(producto.fechaCompra)
