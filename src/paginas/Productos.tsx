@@ -189,10 +189,16 @@ export default function Productos() {
                     <div className="item-sub">
                       Costo {plata(p.precioCompra)} · Margen{' '}
                       {margen === null ? '—' : porcentaje(margen)}
-                      {costoDesactualizado(p) && (
-                        <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
-                          COSTO VIEJO
+                      {p.descontinuado ? (
+                        <span className="chip" style={{ marginLeft: 6 }}>
+                          Descontinuado
                         </span>
+                      ) : (
+                        costoDesactualizado(p) && (
+                          <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
+                            COSTO VIEJO
+                          </span>
+                        )
                       )}
                     </div>
                   </div>
@@ -242,6 +248,7 @@ function FormularioProducto({
   const [stock, setStock] = useState(
     producto?.stock != null ? String(producto.stock) : '',
   )
+  const [descontinuado, setDescontinuado] = useState(producto?.descontinuado ?? false)
   const [error, setError] = useState('')
   const [mensaje, setMensaje] = useState('')
 
@@ -316,6 +323,7 @@ function FormularioProducto({
       stock: stock.trim() === '' ? null : Number(stock),
       activo: true,
       archivado: producto?.archivado ?? false,
+      descontinuado,
     }
     await db.productos.put(registro)
     onSalir()
@@ -384,11 +392,14 @@ function FormularioProducto({
             onChange={(e) => setProveedorId(e.target.value)}
           >
             <option value="">Sin proveedor</option>
-            {(proveedores ?? []).map((prov) => (
-              <option key={prov.id} value={prov.id}>
-                {prov.nombre}
-              </option>
-            ))}
+            {(proveedores ?? [])
+              .filter((prov) => prov.activo !== false || prov.id === producto?.proveedorId)
+              .map((prov) => (
+                <option key={prov.id} value={prov.id}>
+                  {prov.nombre}
+                  {prov.activo === false ? ' (inactivo)' : ''}
+                </option>
+              ))}
             <option value="nuevo">+ Proveedor nuevo…</option>
           </select>
           {proveedorId === 'nuevo' && (
@@ -502,6 +513,31 @@ function FormularioProducto({
         </div>
         <p className="silencio">
           Si cargás un número, cada venta lo descuenta sola.
+        </p>
+      </div>
+
+      <div className="tarjeta">
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontWeight: 600,
+            fontSize: '0.92rem',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={descontinuado}
+            onChange={(e) => setDescontinuado(e.target.checked)}
+            style={{ width: 'auto' }}
+          />
+          Ya no se fabrica / no se repone
+        </label>
+        <p className="silencio" style={{ marginTop: 6, marginBottom: 0 }}>
+          Sigue viéndose en el catálogo y se puede seguir vendiendo (por si queda stock), pero
+          deja de figurar como "costo desactualizado" — nadie va a actualizar el costo de algo
+          que no se vuelve a comprar.
         </p>
       </div>
 

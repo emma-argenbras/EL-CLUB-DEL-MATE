@@ -92,6 +92,7 @@ export default function Proveedores() {
                       {p.contacto ? ` · ${p.contacto}` : ''}
                     </div>
                   </div>
+                  {p.activo === false && <span className="chip">Inactivo</span>}
                   {datos.vencidos > 0 && (
                     <span className="chip chip-alerta">{datos.vencidos} costo vencido</span>
                   )}
@@ -209,6 +210,30 @@ function DetalleProveedor({
     onVolver()
   }
 
+  async function alternarActivo() {
+    if (proveedor.activo === false) {
+      await db.proveedores.update(proveedor.id, { activo: true })
+      return
+    }
+    const sinMarcar = productos.filter((p) => !p.descontinuado)
+    const avisoProductos =
+      sinMarcar.length > 0
+        ? ` Sus ${sinMarcar.length} productos van a dejar de figurar como "costo desactualizado" (siguen viéndose en el catálogo igual que siempre, solo se apaga el aviso).`
+        : ''
+    if (!confirm(`¿Marcar "${proveedor.nombre}" como inactivo?${avisoProductos}`)) return
+    await db.transaction('rw', db.proveedores, db.productos, async () => {
+      await db.proveedores.update(proveedor.id, { activo: false })
+      for (const p of sinMarcar) {
+        await db.productos.update(p.codigo, { descontinuado: true })
+      }
+    })
+    setMensaje(
+      sinMarcar.length > 0
+        ? `"${proveedor.nombre}" queda inactivo y se marcaron ${sinMarcar.length} productos como descontinuados.`
+        : `"${proveedor.nombre}" queda inactivo.`,
+    )
+  }
+
   async function actualizarCosto(codigo: string, valor: string) {
     const numero = leerNumero(valor)
     await db.productos.update(codigo, {
@@ -266,15 +291,30 @@ function DetalleProveedor({
             <span className="fila-etiqueta">
               <strong style={{ color: 'var(--tinta)', fontSize: '1.05rem' }}>{proveedor.nombre}</strong>
               {proveedor.contacto ? ` · ${proveedor.contacto}` : ''}
+              {proveedor.activo === false && (
+                <span className="chip" style={{ marginLeft: 6 }}>
+                  Inactivo
+                </span>
+              )}
             </span>
-            <button className="boton-chico" onClick={() => setEditando(true)}>
-              Editar
-            </button>
+            <div className="botonera" style={{ flexShrink: 0 }}>
+              <button className="boton-chico" onClick={() => setEditando(true)}>
+                Editar
+              </button>
+              <button className="boton-chico" onClick={alternarActivo}>
+                {proveedor.activo === false ? 'Reactivar' : 'Marcar inactivo'}
+              </button>
+            </div>
           </div>
           <p className="silencio" style={{ marginTop: 6, marginBottom: 0 }}>
             {productos.length} productos
             {vencidos > 0 ? ` · ${vencidos} con costo vencido` : ''}
           </p>
+          {proveedor.activo === false && (
+            <p className="silencio" style={{ marginTop: 6, marginBottom: 0 }}>
+              Ya no trabajamos con este proveedor. No aparece para elegir en productos nuevos.
+            </p>
+          )}
         </div>
       )}
 

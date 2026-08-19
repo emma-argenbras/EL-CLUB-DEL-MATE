@@ -78,6 +78,14 @@ export interface Producto {
    * de ventas y de ediciones queda intacto para siempre.
    */
   archivado?: boolean
+  /**
+   * Ya no se fabrica / no se va a reponer, pero todavia puede quedar
+   * stock para vender: a diferencia de archivado, sigue viendose en el
+   * catalogo y en Caja. Sirve para que deje de aparecer como "costo
+   * desactualizado", ya que nadie va a actualizar el costo de algo que
+   * no se vuelve a comprar.
+   */
+  descontinuado?: boolean
   /** Un empleado pidio archivarlo; espera que un dueño lo autorice. */
   solicitudBorrado?: SolicitudBorrado | null
   creadoPor?: string | null
@@ -445,6 +453,7 @@ class BaseECDM extends Dexie {
       'proveedorId',
       'stock',
       'archivado',
+      'descontinuado',
     ] as const
 
     // Estos ganchos son el corazon de la sincronizacion: cada vez que se

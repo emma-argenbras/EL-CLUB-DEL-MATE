@@ -187,4 +187,23 @@ describe('costoDesactualizado', () => {
       costoDesactualizado(producto({ precioCompra: 100, fechaCompra: vieja.toISOString().slice(0, 10) })),
     ).toBe(true)
   })
+
+  it('un producto descontinuado nunca se marca como desactualizado, aunque le falte todo', () => {
+    expect(
+      costoDesactualizado(
+        producto({ precioCompra: null, fechaCompra: null, descontinuado: true }),
+      ),
+    ).toBe(false)
+    const vieja = new Date()
+    vieja.setMonth(vieja.getMonth() - 24)
+    expect(
+      costoDesactualizado(
+        producto({
+          precioCompra: 100,
+          fechaCompra: vieja.toISOString().slice(0, 10),
+          descontinuado: true,
+        }),
+      ),
+    ).toBe(false)
+  })
 })

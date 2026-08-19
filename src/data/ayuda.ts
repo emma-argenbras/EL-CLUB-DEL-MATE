@@ -230,8 +230,16 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Por qué dice "COSTO VIEJO" al lado de un producto?',
     respuesta:
-      'Porque el precio de compra cargado tiene más de 6 meses, o directamente no tiene precio de compra cargado. Mientras el precio de venta se actualiza seguido por la inflación, si el costo queda atrás el margen calculado va a parecer más alto de lo que es en realidad. Conviene actualizar esos costos seguido — el módulo de Proveedores ayuda a hacerlo en bloque.',
+      'Porque el precio de compra cargado tiene más de 6 meses, o directamente no tiene precio de compra cargado. Mientras el precio de venta se actualiza seguido por la inflación, si el costo queda atrás el margen calculado va a parecer más alto de lo que es en realidad. Conviene actualizar esos costos seguido — el módulo de Proveedores ayuda a hacerlo en bloque. Si es un producto que ya no se fabrica más, mejor que actualizarlo es marcarlo como descontinuado (ver la pregunta siguiente): así deja de avisar para siempre, en vez de seguir apareciendo cada 6 meses.',
     palabrasClave: ['vencido', 'desactualizado', 'inflado'],
+  },
+  {
+    id: 'producto-descontinuado',
+    categoria: 'Productos',
+    pregunta: 'Un producto ya no se fabrica más, ¿cómo hago para que deje de avisarme que actualice el costo?',
+    respuesta:
+      'Abrí el producto y tildá "Ya no se fabrica / no se repone", más abajo del stock. Con eso deja de contar como "costo desactualizado" en todos lados (la campana, el listado de Productos, Mi día y los reportes), pero sigue viéndose en el catálogo y se puede seguir vendiendo por si queda stock — no es lo mismo que archivarlo. Lo puede hacer cualquiera, dueño o empleado.',
+    palabrasClave: ['descontinuado', 'no se fabrica', 'no se repone', 'costo viejo'],
   },
   {
     id: 'stock',
@@ -271,6 +279,14 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: 'Un producto no tiene proveedor asignado, ¿es grave?',
     respuesta:
       'No es grave, la app sigue funcionando igual. Solo que ese producto no va a aparecer agrupado en ningún proveedor, así que no se va a beneficiar del aumento en bloque. Conviene asignarle uno cuando tengas un rato, editándolo desde Productos.',
+  },
+  {
+    id: 'proveedor-inactivo',
+    categoria: 'Proveedores',
+    pregunta: 'Ya no trabajamos más con un proveedor, ¿qué hago?',
+    respuesta:
+      'Entrá al proveedor y tocá "Marcar inactivo". Te va a preguntar si querés que sus productos dejen de figurar como "costo desactualizado" — decile que sí y se marcan todos de una: no tiene sentido seguir pidiendo que se actualice el costo de algo que no se va a volver a comprar. El proveedor queda marcado como inactivo (no se borra, sigue viéndose en la lista) y deja de aparecer para elegir en productos nuevos, aunque los productos que ya tenía asignados siguen funcionando exactamente igual. Se puede reactivar en cualquier momento con el mismo botón.',
+    palabrasClave: ['inactivo', 'ya no trabajamos', 'baja de proveedor'],
   },
 
   // ---------- Gastos ----------
