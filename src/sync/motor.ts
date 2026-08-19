@@ -38,6 +38,7 @@ const TABLAS: NombreTabla[] = [
   'proveedores',
   'usuarios',
   'historialProductos',
+  'movimientosProveedor',
 ]
 
 /**

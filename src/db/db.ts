@@ -116,6 +116,40 @@ export interface Proveedor {
   actualizadoEn?: number
 }
 
+/** Una linea de producto dentro de una compra: lo que se lleva a stock. */
+export interface ItemCompra {
+  codigo: string
+  descripcion: string
+  cantidad: number
+  costoUnitario: number
+}
+
+export type TipoMovimientoProveedor = 'compra' | 'pago'
+
+/**
+ * Cuenta corriente con un proveedor: una "compra" suma a lo que se le
+ * debe (y ademas actualiza stock y costo de cada producto), un "pago"
+ * lo descuenta (y ademas genera un gasto de caja grande, categoria
+ * PROVEEDORES, para que aparezca en Gastos y en el margen del mes).
+ */
+export interface MovimientoProveedor {
+  id: string
+  proveedorId: string
+  tipo: TipoMovimientoProveedor
+  /** Fecha en formato yyyy-mm-dd. */
+  fecha: string
+  /** Total de la compra, o monto del pago. */
+  monto: number
+  /** Solo en pagos. */
+  medioPago: MedioPago | null
+  /** Solo en compras: que productos y cuanto de cada uno. */
+  items: ItemCompra[] | null
+  notas: string | null
+  creadoPor?: string | null
+  creadoEn?: number
+  actualizadoEn?: number
+}
+
 export interface Jornada {
   id: string
   /** Fecha en formato yyyy-mm-dd. */
@@ -267,6 +301,7 @@ export type NombreTabla =
   | 'proveedores'
   | 'usuarios'
   | 'historialProductos'
+  | 'movimientosProveedor'
 
 export type AccionCambio = 'guardar' | 'borrar'
 
@@ -325,6 +360,7 @@ class BaseECDM extends Dexie {
   proveedores!: Table<Proveedor, string>
   usuarios!: Table<Usuario, string>
   historialProductos!: Table<HistorialProducto, string>
+  movimientosProveedor!: Table<MovimientoProveedor, string>
 
   constructor() {
     super('el-club-del-mate')
@@ -442,6 +478,20 @@ class BaseECDM extends Dexie {
       historialProductos: 'id, codigo, cuando',
     })
 
+    // v5 agrega el modulo de compras: cuenta corriente por proveedor
+    // (compras que suman deuda + pagos que la descuentan).
+    this.version(5).stores({
+      productos: 'codigo, descripcion, proveedor, proveedorId, busqueda, activo, archivado',
+      jornadas: 'id, [fecha+turno], fecha, estado',
+      ventas: 'id, jornadaId, fecha, codigo, medioPago',
+      movimientos: 'id, fecha, tipo, categoria, jornadaId',
+      ajustes: 'clave',
+      proveedores: 'id, nombre, activo',
+      usuarios: 'id, email, rol',
+      historialProductos: 'id, codigo, cuando',
+      movimientosProveedor: 'id, proveedorId, fecha, tipo',
+    })
+
     // Campos de Producto que interesa dejar anotados en el historial cuando
     // cambian: el resto (busqueda, actualizadoEn, etc.) son derivados o
     // ya se ven en otro lado.
@@ -470,6 +520,7 @@ class BaseECDM extends Dexie {
       'proveedores',
       'usuarios',
       'historialProductos',
+      'movimientosProveedor',
     ] as const) {
       const tabla: Table<Record<string, unknown>, string> = this.table(nombre)
 
