@@ -145,6 +145,12 @@ export interface MovimientoProveedor {
   /** Solo en compras: que productos y cuanto de cada uno. */
   items: ItemCompra[] | null
   notas: string | null
+  /**
+   * Solo en pagos: el gasto que se genero en Gastos por este pago. Se
+   * guarda para poder borrar los dos juntos si el pago se cargo mal, y
+   * que no quede un gasto huerfano inflando el mes.
+   */
+  movimientoGastoId?: string | null
   creadoPor?: string | null
   creadoEn?: number
   actualizadoEn?: number

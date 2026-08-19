@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { db, productoVisible } from '../db/db'
-import { costoDesactualizado, resumirJornada, totalArqueo } from '../lib/calculos'
+import { costoDesactualizado, resumirJornada, sinStock, totalArqueo } from '../lib/calculos'
 import { plata } from '../lib/formato'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { useSesion } from '../sync/useSesion'
@@ -43,6 +43,11 @@ export default function Notificaciones() {
   const desactualizados = useLiveQuery(async () => {
     const todos = await db.productos.filter(productoVisible).toArray()
     return todos.filter((p) => p.activo !== false && costoDesactualizado(p)).length
+  }, [])
+
+  const agotados = useLiveQuery(async () => {
+    const todos = await db.productos.filter(productoVisible).toArray()
+    return todos.filter(sinStock).length
   }, [])
 
   const mesActual = new Date().toISOString().slice(0, 7)
@@ -88,6 +93,16 @@ export default function Notificaciones() {
       detalle: 'Alguien del equipo pidió archivar un producto y espera tu autorización.',
       nivel: 'aviso',
       ir: () => navegar('/productos'),
+    })
+  }
+
+  if (agotados && agotados > 0) {
+    alertas.push({
+      clave: 'sin-stock',
+      texto: `${agotados} ${agotados === 1 ? 'producto se quedó' : 'productos se quedaron'} sin stock`,
+      detalle: 'Registrando la compra al proveedor, el stock se actualiza solo.',
+      nivel: 'error',
+      ir: () => navegar('/productos?sinStock=1'),
     })
   }
 

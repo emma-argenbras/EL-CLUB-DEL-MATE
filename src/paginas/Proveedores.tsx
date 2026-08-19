@@ -454,6 +454,39 @@ function CuentaCorriente({
     [movimientos],
   )
 
+  /**
+   * Deshace un movimiento cargado por error. Un pago se lleva tambien el
+   * gasto que genero en Gastos; una compra devuelve el stock que habia
+   * sumado. El costo que la compra dejo cargado en cada producto NO se
+   * revierte: no sabemos cual era el anterior, y avisamos de eso.
+   */
+  async function borrarMovimiento(m: MovimientoProveedor) {
+    if (m.tipo === 'pago') {
+      if (!confirm(`¿Borrar el pago de ${plata(m.monto)}? También se borra el gasto que generó en Gastos.`)) return
+      await db.transaction('rw', db.movimientosProveedor, db.movimientos, async () => {
+        await db.movimientosProveedor.delete(m.id)
+        if (m.movimientoGastoId) await db.movimientos.delete(m.movimientoGastoId)
+      })
+      return
+    }
+
+    const items = m.items ?? []
+    const conStock = items.filter((it) => productos.some((p) => p.codigo === it.codigo && p.stock != null))
+    const aviso = conStock.length > 0
+      ? ` Se va a descontar del stock lo que esta compra había sumado (${conStock.length} ${conStock.length === 1 ? 'producto' : 'productos'}).`
+      : ''
+    if (!confirm(`¿Borrar la compra de ${plata(m.monto)}?${aviso} El costo que quedó cargado en los productos no se revierte solo: si hace falta, corregilo a mano.`)) return
+
+    await db.transaction('rw', db.movimientosProveedor, db.productos, async () => {
+      await db.movimientosProveedor.delete(m.id)
+      for (const it of items) {
+        const producto = await db.productos.get(it.codigo)
+        if (!producto || producto.stock == null) continue
+        await db.productos.update(it.codigo, { stock: producto.stock - it.cantidad })
+      }
+    })
+  }
+
   return (
     <div className="tarjeta">
       <p className="tarjeta-titulo">Cuenta corriente</p>
@@ -500,9 +533,18 @@ function CuentaCorriente({
                     {m.notas ? ` · ${m.notas}` : ''}
                   </div>
                 </div>
-                <div className={`item-monto ${m.tipo === 'compra' ? 'negativo' : 'positivo'}`}>
-                  {m.tipo === 'compra' ? '+' : '−'}
-                  {plata(m.monto)}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div className={`item-monto ${m.tipo === 'compra' ? 'negativo' : 'positivo'}`}>
+                    {m.tipo === 'compra' ? '+' : '−'}
+                    {plata(m.monto)}
+                  </div>
+                  <button
+                    className="boton-chico"
+                    style={{ marginTop: 4 }}
+                    onClick={() => borrarMovimiento(m)}
+                  >
+                    Borrar
+                  </button>
                 </div>
               </li>
             ))}
@@ -721,6 +763,7 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
       return
     }
 
+    const idGasto = nuevoId()
     await db.transaction('rw', db.movimientosProveedor, db.movimientos, async () => {
       const registro: MovimientoProveedor = {
         id: nuevoId(),
@@ -731,11 +774,12 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
         medioPago,
         items: null,
         notas: notas.trim() || null,
+        movimientoGastoId: idGasto,
         creadoPor: sesion.email,
       }
       await db.movimientosProveedor.add(registro)
       await db.movimientos.add({
-        id: nuevoId(),
+        id: idGasto,
         fecha,
         tipo: 'GASTO_CAJA_GRANDE',
         concepto: `Pago a ${proveedor.nombre}${notas.trim() ? ` (${notas.trim()})` : ''}`,

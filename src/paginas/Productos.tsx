@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSearchParams } from 'react-router-dom'
 import { db, nuevoId, productoVisible, type HistorialProducto, type Producto } from '../db/db'
-import { costoDesactualizado, margenPorcentual, redondearPrecio } from '../lib/calculos'
+import { costoDesactualizado, margenPorcentual, redondearPrecio, sinStock } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
 
@@ -14,6 +14,7 @@ export default function Productos() {
   const [editando, setEditando] = useState<Producto | null>(null)
   const [creando, setCreando] = useState(false)
   const [soloAlertas, setSoloAlertas] = useState(parametros.get('alertas') === '1')
+  const [soloSinStock, setSoloSinStock] = useState(parametros.get('sinStock') === '1')
   const [verArchivados, setVerArchivados] = useState(false)
 
   const total = useLiveQuery(() => db.productos.filter(productoVisible).count(), [])
@@ -31,30 +32,36 @@ export default function Productos() {
     [esOwner],
   )
 
+  const filtrando = soloAlertas || soloSinStock
+
   const resultados = useLiveQuery(async () => {
     if (verArchivados) {
       return db.productos.filter((p) => p.archivado === true).limit(200).toArray()
     }
     const partes = normalizar(consulta).split(/\s+/).filter(Boolean)
-    if (!partes.length && !soloAlertas) {
+    if (!partes.length && !filtrando) {
       return db.productos.orderBy('descripcion').filter(productoVisible).limit(50).toArray()
     }
     const encontrados = await db.productos
       .filter(
         (p) => productoVisible(p) && partes.every((parte) => p.busqueda.includes(parte)),
       )
-      .limit(soloAlertas ? 2000 : 100)
+      .limit(filtrando ? 2000 : 100)
       .toArray()
-    if (soloAlertas) {
-      return encontrados.filter((p) => costoDesactualizado(p)).slice(0, 100)
-    }
+    if (soloSinStock) return encontrados.filter(sinStock).slice(0, 100)
+    if (soloAlertas) return encontrados.filter((p) => costoDesactualizado(p)).slice(0, 100)
     return encontrados
-  }, [consulta, soloAlertas, verArchivados])
+  }, [consulta, soloAlertas, soloSinStock, verArchivados, filtrando])
 
-  const desactualizados = useLiveQuery(async () => {
+  const conteoAlertas = useLiveQuery(async () => {
     const todos = await db.productos.filter(productoVisible).toArray()
-    return todos.filter((p) => costoDesactualizado(p)).length
+    return {
+      desactualizados: todos.filter((p) => costoDesactualizado(p)).length,
+      agotados: todos.filter(sinStock).length,
+    }
   }, [])
+  const desactualizados = conteoAlertas?.desactualizados
+  const agotados = conteoAlertas?.agotados
 
   async function aprobarSolicitud(p: Producto) {
     await db.productos.update(p.codigo, { archivado: true, solicitudBorrado: null })
@@ -117,6 +124,24 @@ export default function Productos() {
         </div>
       )}
 
+      {agotados !== undefined && agotados > 0 && !verArchivados && (
+        <div className="aviso aviso-error">
+          <strong>{agotados}</strong> {agotados === 1 ? 'producto se quedó' : 'productos se quedaron'}{' '}
+          sin stock. Conviene reponerlos: registrando la compra al proveedor, el stock se actualiza
+          solo.{' '}
+          <button
+            className="boton-chico"
+            style={{ marginTop: 6 }}
+            onClick={() => {
+              setSoloSinStock(!soloSinStock)
+              setSoloAlertas(false)
+            }}
+          >
+            {soloSinStock ? 'Ver todos' : 'Ver esos productos'}
+          </button>
+        </div>
+      )}
+
       {desactualizados !== undefined && desactualizados > 0 && !verArchivados && (
         <div className="aviso aviso-ojo">
           <strong>{desactualizados}</strong> de {total} productos tienen el precio de compra
@@ -125,7 +150,10 @@ export default function Productos() {
           <button
             className="boton-chico"
             style={{ marginTop: 6 }}
-            onClick={() => setSoloAlertas(!soloAlertas)}
+            onClick={() => {
+              setSoloAlertas(!soloAlertas)
+              setSoloSinStock(false)
+            }}
           >
             {soloAlertas ? 'Ver todos' : 'Ver esos productos'}
           </button>
@@ -148,7 +176,7 @@ export default function Productos() {
         <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
           {verArchivados
             ? 'Mostrando productos archivados'
-            : `${total ?? '…'} productos en el catálogo${soloAlertas ? ' · mostrando solo los de costo vencido' : ''}`}
+            : `${total ?? '…'} productos en el catálogo${soloAlertas ? ' · mostrando solo los de costo vencido' : soloSinStock ? ' · mostrando solo los que están sin stock' : ''}`}
           {esOwner && (
             <>
               {' · '}
@@ -185,6 +213,11 @@ export default function Productos() {
                         ? ` · ${nombresProveedor.get(p.proveedorId)}`
                         : ''}
                       {p.stock !== null && p.stock !== undefined ? ` · stock ${p.stock}` : ''}
+                      {sinStock(p) && (
+                        <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
+                          SIN STOCK
+                        </span>
+                      )}
                     </div>
                     <div className="item-sub">
                       Costo {plata(p.precioCompra)} · Margen{' '}

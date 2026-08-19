@@ -9,6 +9,7 @@ import {
   redondearPrecio,
   resumirJornada,
   resumirMes,
+  sinStock,
   totalArqueo,
 } from './calculos'
 
@@ -219,5 +220,27 @@ describe('costoDesactualizado', () => {
         }),
       ),
     ).toBe(false)
+  })
+})
+
+describe('sinStock', () => {
+  it('un producto sin control de stock nunca esta agotado', () => {
+    expect(sinStock(producto({ stock: null }))).toBe(false)
+  })
+
+  it('con stock disponible no esta agotado', () => {
+    expect(sinStock(producto({ stock: 3 }))).toBe(false)
+  })
+
+  it('en cero esta agotado', () => {
+    expect(sinStock(producto({ stock: 0 }))).toBe(true)
+  })
+
+  it('en negativo tambien avisa: se vendio mas de lo que habia cargado', () => {
+    expect(sinStock(producto({ stock: -2 }))).toBe(true)
+  })
+
+  it('un producto archivado no molesta con avisos de stock', () => {
+    expect(sinStock(producto({ stock: 0, archivado: true }))).toBe(false)
   })
 })

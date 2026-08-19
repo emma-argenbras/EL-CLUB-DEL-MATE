@@ -1,11 +1,27 @@
 import { useMemo, useState } from 'react'
-import { AYUDA, CATEGORIAS_AYUDA, buscarAyuda, type EntradaAyuda } from '../data/ayuda'
+import {
+  AYUDA,
+  CATEGORIAS_AYUDA,
+  ayudaParaPerfil,
+  buscarAyuda,
+  type EntradaAyuda,
+} from '../data/ayuda'
+import { seccionesVisibles } from '../sync/sesion'
+import { useSesion } from '../sync/useSesion'
 
 export default function Ayuda() {
   const [consulta, setConsulta] = useState('')
   const [abierta, setAbierta] = useState<string | null>(null)
+  const sesion = useSesion()
 
-  const resultados = useMemo(() => buscarAyuda(consulta), [consulta])
+  // Un empleado ve solo lo que le compete: sin preguntas de dueño ni de
+  // secciones que tiene apagadas.
+  const disponibles = useMemo(() => {
+    const esOwner = !sesion.perfil || sesion.perfil.rol === 'owner'
+    return ayudaParaPerfil(AYUDA, esOwner, seccionesVisibles(sesion.perfil))
+  }, [sesion.perfil])
+
+  const resultados = useMemo(() => buscarAyuda(consulta, disponibles), [consulta, disponibles])
   const buscando = consulta.trim().length > 0
 
   function alternar(id: string) {
@@ -25,8 +41,8 @@ export default function Ayuda() {
           autoFocus
         />
         <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
-          Busca en las {AYUDA.length} preguntas de esta guía. No hace falta escribir la pregunta
-          entera, alcanza con un par de palabras.
+          Busca en las {disponibles.length} preguntas de esta guía. No hace falta escribir la
+          pregunta entera, alcanza con un par de palabras.
         </p>
       </div>
 
@@ -53,11 +69,11 @@ export default function Ayuda() {
       ) : (
         <>
           <div className="aviso aviso-ok">
-            🧉 Esta guía tiene respuestas para todo lo que hace la app: caja, productos,
-            proveedores, gastos, reportes y respaldo. Buscá arriba o mirá por tema acá abajo.
+            🧉 Esta guía tiene respuestas para todo lo que podés hacer en la app. Buscá arriba, o
+            mirá por tema acá abajo.
           </div>
           {CATEGORIAS_AYUDA.map((categoria) => {
-            const entradas = AYUDA.filter((e) => e.categoria === categoria)
+            const entradas = disponibles.filter((e) => e.categoria === categoria)
             if (entradas.length === 0) return null
             return (
               <div className="tarjeta" key={categoria}>
