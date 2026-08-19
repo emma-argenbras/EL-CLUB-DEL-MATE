@@ -12,8 +12,9 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | Sección | Para qué sirve |
 |---|---|
 | **Caja** | Abrir el turno (mañana / tarde) contando la caja, cargar ventas buscando por código o por nombre, registrar egresos, y cerrar el turno viendo la diferencia de caja. |
-| **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock. |
-| **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. |
+| **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock. El precio de venta sugerido siempre redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos. |
+| **Proveedores** | Aumento de costos en bloque, marcar un proveedor como inactivo, y una **cuenta corriente**: registrar compras (que suman stock y actualizan costo solas) y pagos (efectivo, transferencia, etc.), con el saldo que se le debe a cada uno siempre a la vista. |
+| **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. Un pago registrado desde la cuenta corriente de un proveedor aparece acá solo, sin cargarlo dos veces. |
 | **Reportes** | El número que importa: margen de contribución del mes, cómo se arma, y si el mes dio a favor o en contra. |
 | **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
 
@@ -23,6 +24,8 @@ problemas de sincronización.
 
 Cuando se publica una versión nueva de la app, aparece un botón **"Actualizar"**
 arriba de todo — no se actualiza sola de golpe para no cortar una venta a la mitad.
+Al lado del botón de ayuda (?) también hay un botón manual **🔄** para buscar una
+versión nueva en cualquier momento, sin esperar a que avise sola.
 
 ---
 
@@ -256,7 +259,7 @@ src/
   lib/calculos.ts   Arqueo, margen de contribución, resúmenes
   lib/formato.ts    Pesos argentinos, fechas, lectura de números
   sync/             Motor de sincronización con Firebase (opt-in)
-  paginas/          Caja, Productos, Gastos, Reportes, Ajustes
+  paginas/          Caja, Productos, Proveedores, Gastos, Reportes, Ajustes
   componentes/      Buscador de productos, arqueo de caja, notificaciones, update
 ```
 

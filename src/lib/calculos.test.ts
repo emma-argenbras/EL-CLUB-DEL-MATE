@@ -6,6 +6,7 @@ import {
   margenPorcentual,
   margenUnitario,
   precioSugerido,
+  redondearPrecio,
   resumirJornada,
   resumirMes,
   totalArqueo,
@@ -77,9 +78,22 @@ describe('totalArqueo', () => {
   })
 })
 
+describe('redondearPrecio', () => {
+  it('redondea siempre para arriba, al multiplo de 100 mas cercano', () => {
+    expect(redondearPrecio(8819.2)).toBe(8900)
+    expect(redondearPrecio(8801)).toBe(8900)
+    expect(redondearPrecio(8800)).toBe(8800)
+  })
+})
+
 describe('precioSugerido', () => {
   it('aplica el markup sobre el costo', () => {
     expect(precioSugerido(producto({ precioCompra: 1000, rentabilidad: 0.3 }))).toBe(1300)
+  })
+
+  it('redondea para arriba a un numero facil de cobrar, sin decimales', () => {
+    // 3328 * 2.65 = 8819.2 -> nunca se cobra de menos, y sin sueltos.
+    expect(precioSugerido(producto({ precioCompra: 3328, rentabilidad: 1.65 }))).toBe(8900)
   })
 
   it('sin costo o sin rentabilidad cargados, no sugiere nada', () => {

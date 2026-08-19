@@ -62,6 +62,14 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['version nueva', 'cartel', 'aviso', 'actualizacion'],
   },
   {
+    id: 'buscar-actualizacion',
+    categoria: 'Primeros pasos',
+    pregunta: '¿Cómo busco si hay una versión nueva, sin esperar a que avise sola?',
+    respuesta:
+      'Arriba de todo, al lado del signo de pregunta, hay un botón 🔄. Tocalo en cualquier momento: si hay una versión nueva esperando, se aplica directo; si no hay ninguna, el botón se pone ✅ un instante y listo, ya estás al día. Es el mismo mecanismo que el cartel naranja automático, solo que lo podés disparar vos cuando quieras en vez de esperarlo.',
+    palabrasClave: ['boton actualizar', 'chequear version', 'buscar version', 'refrescar'],
+  },
+  {
     id: 'notificaciones',
     categoria: 'Primeros pasos',
     pregunta: '¿Para qué sirve la campana 🔔 de arriba?',
@@ -222,8 +230,8 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Qué es la "rentabilidad objetivo"?',
     respuesta:
-      'Es el porcentaje que se le quiere ganar a un producto sobre su costo. Por ejemplo, 130% significa que el precio de venta sugerido es el costo multiplicado por 2,3. Cargando el costo y la rentabilidad, la app calcula sola un precio de venta sugerido que podés usar con un toque, o cambiar a mano.',
-    palabrasClave: ['markup', 'ganancia', 'porcentaje'],
+      'Es el porcentaje que se le quiere ganar a un producto sobre su costo. Por ejemplo, 130% significa que el precio de venta sugerido es el costo multiplicado por 2,3. Cargando el costo y la rentabilidad, la app calcula sola un precio de venta sugerido que podés usar con un toque, o cambiar a mano. Ese precio sugerido siempre se redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos ni un centavo de menos, para que sea fácil de cobrar.',
+    palabrasClave: ['markup', 'ganancia', 'porcentaje', 'redondeo', 'redondear', 'numero facil de cobrar'],
   },
   {
     id: 'costo-viejo',
@@ -287,6 +295,30 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Entrá al proveedor y tocá "Marcar inactivo". Te va a preguntar si querés que sus productos dejen de figurar como "costo desactualizado" — decile que sí y se marcan todos de una: no tiene sentido seguir pidiendo que se actualice el costo de algo que no se va a volver a comprar. El proveedor queda marcado como inactivo (no se borra, sigue viéndose en la lista) y deja de aparecer para elegir en productos nuevos, aunque los productos que ya tenía asignados siguen funcionando exactamente igual. Se puede reactivar en cualquier momento con el mismo botón.',
     palabrasClave: ['inactivo', 'ya no trabajamos', 'baja de proveedor'],
+  },
+  {
+    id: 'registrar-compra',
+    categoria: 'Proveedores',
+    pregunta: '¿Cómo registro una compra que le hice a un proveedor?',
+    respuesta:
+      'Entrá al proveedor y tocá "+ Registrar compra", dentro de "Cuenta corriente". Elegí la fecha, y por cada producto que compraste agregá una línea: el producto, la cantidad y el costo unitario (se precarga solo con el último costo cargado, se puede cambiar). Podés agregar todos los productos que necesites con "+ Agregar producto". Al guardar, tres cosas pasan solas: se suma esa cantidad al stock de cada producto, se actualiza su costo y su fecha de compra (deja de figurar como "costo desactualizado"), y el total de la compra queda anotado en la cuenta corriente del proveedor como algo que se le debe.',
+    palabrasClave: ['compra', 'ingreso de mercaderia', 'reponer stock', 'cargar compra'],
+  },
+  {
+    id: 'cuenta-corriente-proveedor',
+    categoria: 'Proveedores',
+    pregunta: '¿Qué es la "cuenta corriente" de un proveedor?',
+    respuesta:
+      'Es cuánto se le debe a ese proveedor en este momento: cada compra que le registrás suma a la deuda, y cada pago que le registrás la descuenta. Se ve arriba de todo en la ficha del proveedor ("Le debemos $X", o "A favor nuestro" si se pagó de más), con el detalle de todos los movimientos abajo. Sirve para saber de un vistazo cuánto falta pagarle, sin tener que llevarlo aparte en un cuaderno.',
+    palabrasClave: ['cuenta corriente', 'deuda', 'le debemos', 'saldo proveedor'],
+  },
+  {
+    id: 'registrar-pago-proveedor',
+    categoria: 'Proveedores',
+    pregunta: '¿Cómo registro un pago a un proveedor?',
+    respuesta:
+      'Entrá al proveedor y tocá "+ Registrar pago", dentro de "Cuenta corriente". Cargá la fecha, el monto, el medio de pago (efectivo, transferencia, etc.) y una nota si hace falta. Al guardar, ese monto descuenta la deuda con el proveedor, y además queda cargado solo como un gasto en Gastos (categoría PROVEEDORES, variable), para no tener que cargarlo dos veces.',
+    palabrasClave: ['pagar proveedor', 'pago', 'cancelar deuda', 'efectivo', 'transferencia'],
   },
 
   // ---------- Gastos ----------

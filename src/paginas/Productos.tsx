@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSearchParams } from 'react-router-dom'
 import { db, nuevoId, productoVisible, type HistorialProducto, type Producto } from '../db/db'
-import { costoDesactualizado, margenPorcentual } from '../lib/calculos'
+import { costoDesactualizado, margenPorcentual, redondearPrecio } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
 
@@ -267,7 +267,7 @@ function FormularioProducto({
 
   const sugerido = useMemo(() => {
     if (!compraNum || !rentNum) return null
-    return Math.round(compraNum * (1 + rentNum / 100))
+    return redondearPrecio(compraNum * (1 + rentNum / 100))
   }, [compraNum, rentNum])
 
   const margen = ventaNum && compraNum ? margenPorcentual(ventaNum, compraNum) : null

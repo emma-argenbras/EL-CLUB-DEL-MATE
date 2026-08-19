@@ -14,7 +14,7 @@ import MiActividad from './paginas/MiActividad'
 import Ajustes from './paginas/Ajustes'
 import Ayuda from './paginas/Ayuda'
 import Notificaciones from './componentes/Notificaciones'
-import ActualizarApp from './componentes/ActualizarApp'
+import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
 
 // Cada seccion configurable (ver SECCIONES_CONFIGURABLES en db.ts) mas su
@@ -108,6 +108,7 @@ export default function App() {
               {sesion.perfil.nombre}
             </button>
           )}
+          <BotonActualizarApp />
           <NavLink to="/ayuda" className="boton-ayuda" aria-label="Ayuda">
             ?
           </NavLink>

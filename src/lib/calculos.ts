@@ -28,10 +28,19 @@ export function totalArqueo(arqueo: Arqueo | null | undefined): number {
   return total
 }
 
+/**
+ * Redondea siempre para arriba, a un multiplo de 100: nunca a favor
+ * nuestro por error de redondeo, y un numero facil de cobrar en el
+ * momento (sin decimales sueltos).
+ */
+export function redondearPrecio(monto: number): number {
+  return Math.ceil(monto / 100) * 100
+}
+
 /** Precio de venta sugerido segun el markup objetivo del producto. */
 export function precioSugerido(producto: Producto): number | null {
   if (!producto.precioCompra || !producto.rentabilidad) return null
-  return Math.round(producto.precioCompra * (1 + producto.rentabilidad))
+  return redondearPrecio(producto.precioCompra * (1 + producto.rentabilidad))
 }
 
 /** Margen unitario en pesos: lo que deja el producto por unidad. */

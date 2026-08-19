@@ -1,8 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, nuevoId, productoVisible, type Producto, type Proveedor } from '../db/db'
+import {
+  db,
+  nuevoId,
+  productoVisible,
+  MEDIOS_PAGO,
+  type ItemCompra,
+  type MedioPago,
+  type MovimientoProveedor,
+  type Producto,
+  type Proveedor,
+} from '../db/db'
 import { costoDesactualizado } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
+import { useSesion } from '../sync/useSesion'
 
 export default function Proveedores() {
   const [consulta, setConsulta] = useState('')
@@ -320,6 +331,8 @@ function DetalleProveedor({
 
       {mensaje && <div className="aviso aviso-ok">{mensaje}</div>}
 
+      <CuentaCorriente proveedor={proveedor} productos={productos} />
+
       {conCosto.length > 0 && (
         <div className="tarjeta">
           <p className="tarjeta-titulo">Aumentar todos los costos de este proveedor</p>
@@ -405,5 +418,390 @@ function DetalleProveedor({
         Borrar proveedor
       </button>
     </>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cuenta corriente con el proveedor: cada compra suma a lo que se le
+ * debe (y ademas suma stock y actualiza el costo de cada producto),
+ * cada pago lo descuenta (y ademas genera un gasto de caja grande,
+ * categoria PROVEEDORES, para que aparezca solo en Gastos y en el
+ * margen del mes sin cargarlo dos veces).
+ */
+function CuentaCorriente({
+  proveedor,
+  productos,
+}: {
+  proveedor: Proveedor
+  productos: Producto[]
+}) {
+  const [accion, setAccion] = useState<'compra' | 'pago' | null>(null)
+
+  const movimientos = useLiveQuery(
+    () =>
+      db.movimientosProveedor
+        .where('proveedorId')
+        .equals(proveedor.id)
+        .reverse()
+        .sortBy('fecha'),
+    [proveedor.id],
+  )
+
+  const saldo = useMemo(
+    () => (movimientos ?? []).reduce((s, m) => s + (m.tipo === 'compra' ? m.monto : -m.monto), 0),
+    [movimientos],
+  )
+
+  return (
+    <div className="tarjeta">
+      <p className="tarjeta-titulo">Cuenta corriente</p>
+
+      <div className="fila destacada">
+        <span className="fila-etiqueta">
+          {saldo > 0 ? 'Le debemos' : saldo < 0 ? 'A favor nuestro' : 'Saldo'}
+        </span>
+        <span className={saldo > 0 ? 'fila-valor negativo' : 'fila-valor positivo'}>
+          {plata(Math.abs(saldo))}
+        </span>
+      </div>
+
+      {accion === null ? (
+        <div className="botonera" style={{ marginTop: 10 }}>
+          <button className="boton-principal" onClick={() => setAccion('compra')}>
+            + Registrar compra
+          </button>
+          <button onClick={() => setAccion('pago')}>+ Registrar pago</button>
+        </div>
+      ) : accion === 'compra' ? (
+        <FormularioCompra proveedor={proveedor} productos={productos} onSalir={() => setAccion(null)} />
+      ) : (
+        <FormularioPago proveedor={proveedor} onSalir={() => setAccion(null)} />
+      )}
+
+      {movimientos && movimientos.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <p className="tarjeta-titulo" style={{ marginBottom: 6 }}>
+            Movimientos
+          </p>
+          <ul className="lista">
+            {movimientos.map((m) => (
+              <li className="item" key={m.id}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="item-titulo">
+                    {m.tipo === 'compra' ? 'Compra' : `Pago · ${m.medioPago}`}
+                  </div>
+                  <div className="item-sub">
+                    {fechaLinda(m.fecha)}
+                    {m.tipo === 'compra' && m.items
+                      ? ` · ${m.items.length} ${m.items.length === 1 ? 'producto' : 'productos'}`
+                      : ''}
+                    {m.notas ? ` · ${m.notas}` : ''}
+                  </div>
+                </div>
+                <div className={`item-monto ${m.tipo === 'compra' ? 'negativo' : 'positivo'}`}>
+                  {m.tipo === 'compra' ? '+' : '−'}
+                  {plata(m.monto)}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+interface LineaCompra {
+  codigo: string
+  cantidad: string
+  costoUnitario: string
+}
+
+function lineaVacia(): LineaCompra {
+  return { codigo: '', cantidad: '1', costoUnitario: '' }
+}
+
+function FormularioCompra({
+  proveedor,
+  productos,
+  onSalir,
+}: {
+  proveedor: Proveedor
+  productos: Producto[]
+  onSalir: () => void
+}) {
+  const sesion = useSesion()
+  const [fecha, setFecha] = useState(hoyISO())
+  const [lineas, setLineas] = useState<LineaCompra[]>([lineaVacia()])
+  const [notas, setNotas] = useState('')
+  const [error, setError] = useState('')
+
+  const disponibles = productos.filter((p) => p.archivado !== true)
+
+  function actualizarLinea(indice: number, cambios: Partial<LineaCompra>) {
+    setLineas((prev) => prev.map((l, i) => (i === indice ? { ...l, ...cambios } : l)))
+  }
+
+  function elegirProducto(indice: number, codigo: string) {
+    const producto = disponibles.find((p) => p.codigo === codigo)
+    setLineas((prev) =>
+      prev.map((l, i) =>
+        i === indice
+          ? {
+              ...l,
+              codigo,
+              // Precarga el ultimo costo cargado, para no tener que
+              // volver a escribirlo si no cambio.
+              costoUnitario:
+                l.costoUnitario || (producto?.precioCompra != null ? String(producto.precioCompra) : l.costoUnitario),
+            }
+          : l,
+      ),
+    )
+  }
+
+  const total = lineas.reduce((suma, l) => {
+    const cantidad = leerNumero(l.cantidad) ?? 0
+    const costo = leerNumero(l.costoUnitario) ?? 0
+    return suma + cantidad * costo
+  }, 0)
+
+  async function guardar() {
+    const validas = lineas.filter(
+      (l) => l.codigo && (leerNumero(l.cantidad) ?? 0) > 0 && leerNumero(l.costoUnitario) != null,
+    )
+    if (validas.length === 0) {
+      setError('Agregá al menos un producto con cantidad y costo.')
+      return
+    }
+
+    const items: ItemCompra[] = validas.map((l) => {
+      const producto = disponibles.find((p) => p.codigo === l.codigo)!
+      return {
+        codigo: l.codigo,
+        descripcion: producto.descripcion,
+        cantidad: leerNumero(l.cantidad)!,
+        costoUnitario: leerNumero(l.costoUnitario)!,
+      }
+    })
+    const montoTotal = items.reduce((s, it) => s + it.cantidad * it.costoUnitario, 0)
+
+    await db.transaction('rw', db.movimientosProveedor, db.productos, async () => {
+      const registro: MovimientoProveedor = {
+        id: nuevoId(),
+        proveedorId: proveedor.id,
+        tipo: 'compra',
+        fecha,
+        monto: montoTotal,
+        medioPago: null,
+        items,
+        notas: notas.trim() || null,
+        creadoPor: sesion.email,
+      }
+      await db.movimientosProveedor.add(registro)
+      for (const it of items) {
+        const producto = disponibles.find((p) => p.codigo === it.codigo)!
+        const stockNuevo = producto.stock != null ? producto.stock + it.cantidad : it.cantidad
+        await db.productos.update(it.codigo, {
+          stock: stockNuevo,
+          precioCompra: it.costoUnitario,
+          fechaCompra: fecha,
+        })
+      }
+    })
+    onSalir()
+  }
+
+  return (
+    <div className="tarjeta" style={{ marginTop: 10, background: 'var(--crema)' }}>
+      <p className="tarjeta-titulo">Registrar compra</p>
+      {error && <div className="aviso aviso-error">{error}</div>}
+
+      <div className="campo">
+        <label htmlFor="c-fecha">Fecha</label>
+        <input id="c-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+      </div>
+
+      {lineas.map((linea, i) => (
+        <div key={i} className="grilla grilla-2" style={{ marginBottom: 6 }}>
+          <div className="campo">
+            <label htmlFor={`c-prod-${i}`}>Producto</label>
+            <select
+              id={`c-prod-${i}`}
+              value={linea.codigo}
+              onChange={(e) => elegirProducto(i, e.target.value)}
+            >
+              <option value="">Elegir…</option>
+              {disponibles.map((p) => (
+                <option key={p.codigo} value={p.codigo}>
+                  {p.descripcion}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div className="campo" style={{ flex: 1 }}>
+              <label htmlFor={`c-cant-${i}`}>Cantidad</label>
+              <input
+                id={`c-cant-${i}`}
+                inputMode="numeric"
+                value={linea.cantidad}
+                onChange={(e) => actualizarLinea(i, { cantidad: e.target.value })}
+              />
+            </div>
+            <div className="campo" style={{ flex: 1 }}>
+              <label htmlFor={`c-costo-${i}`}>Costo c/u</label>
+              <input
+                id={`c-costo-${i}`}
+                inputMode="decimal"
+                value={linea.costoUnitario}
+                onChange={(e) => actualizarLinea(i, { costoUnitario: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            {lineas.length > 1 && (
+              <button
+                className="boton-chico"
+                style={{ alignSelf: 'flex-end', marginBottom: 2 }}
+                onClick={() => setLineas((prev) => prev.filter((_, idx) => idx !== i))}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      <button className="boton-chico" onClick={() => setLineas((prev) => [...prev, lineaVacia()])}>
+        + Agregar producto
+      </button>
+
+      <div className="campo" style={{ marginTop: 10 }}>
+        <label htmlFor="c-notas">Notas (opcional)</label>
+        <input id="c-notas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Remito, factura…" />
+      </div>
+
+      <div className="fila destacada">
+        <span className="fila-etiqueta">Total de la compra</span>
+        <span className="fila-valor">{plata(total)}</span>
+      </div>
+      <p className="silencio" style={{ marginTop: 4 }}>
+        Al guardar se suma al stock de cada producto y se actualiza su costo — así deja de figurar
+        como "costo desactualizado".
+      </p>
+
+      <div className="botonera" style={{ marginTop: 10 }}>
+        <button onClick={onSalir}>Cancelar</button>
+        <button className="boton-principal" onClick={guardar}>
+          Guardar compra
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir: () => void }) {
+  const sesion = useSesion()
+  const [fecha, setFecha] = useState(hoyISO())
+  const [monto, setMonto] = useState('')
+  const [medioPago, setMedioPago] = useState<MedioPago>('EFECTIVO')
+  const [notas, setNotas] = useState('')
+  const [error, setError] = useState('')
+
+  async function guardar() {
+    const numero = leerNumero(monto)
+    if (!numero || numero <= 0) {
+      setError('Cargá un monto válido.')
+      return
+    }
+
+    await db.transaction('rw', db.movimientosProveedor, db.movimientos, async () => {
+      const registro: MovimientoProveedor = {
+        id: nuevoId(),
+        proveedorId: proveedor.id,
+        tipo: 'pago',
+        fecha,
+        monto: numero,
+        medioPago,
+        items: null,
+        notas: notas.trim() || null,
+        creadoPor: sesion.email,
+      }
+      await db.movimientosProveedor.add(registro)
+      await db.movimientos.add({
+        id: nuevoId(),
+        fecha,
+        tipo: 'GASTO_CAJA_GRANDE',
+        concepto: `Pago a ${proveedor.nombre}${notas.trim() ? ` (${notas.trim()})` : ''}`,
+        monto: numero,
+        categoria: 'PROVEEDORES',
+        jornadaId: null,
+        esVariable: true,
+      })
+    })
+    onSalir()
+  }
+
+  return (
+    <div className="tarjeta" style={{ marginTop: 10, background: 'var(--crema)' }}>
+      <p className="tarjeta-titulo">Registrar pago</p>
+      {error && <div className="aviso aviso-error">{error}</div>}
+
+      <div className="grilla grilla-2">
+        <div className="campo">
+          <label htmlFor="p-fecha-pago">Fecha</label>
+          <input
+            id="p-fecha-pago"
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+          />
+        </div>
+        <div className="campo">
+          <label htmlFor="p-monto-pago">Monto</label>
+          <input
+            id="p-monto-pago"
+            inputMode="decimal"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+            placeholder="0"
+          />
+        </div>
+      </div>
+
+      <div className="campo">
+        <label htmlFor="p-medio">Medio de pago</label>
+        <select id="p-medio" value={medioPago} onChange={(e) => setMedioPago(e.target.value as MedioPago)}>
+          {MEDIOS_PAGO.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="campo">
+        <label htmlFor="p-notas-pago">Notas (opcional)</label>
+        <input id="p-notas-pago" value={notas} onChange={(e) => setNotas(e.target.value)} />
+      </div>
+
+      <p className="silencio">
+        Este pago va a descontar la deuda y también va a aparecer en Gastos, como gasto variable de
+        categoría PROVEEDORES.
+      </p>
+
+      <div className="botonera">
+        <button onClick={onSalir}>Cancelar</button>
+        <button className="boton-principal" onClick={guardar}>
+          Guardar pago
+        </button>
+      </div>
+    </div>
   )
 }
