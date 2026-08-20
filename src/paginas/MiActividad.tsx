@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, productoVisible, type HistorialProducto } from '../db/db'
-import { costoDesactualizado } from '../lib/calculos'
+import { costoDesactualizado, sinStock } from '../lib/calculos'
 import { mesActualISO, mesLindo, numero } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
 
@@ -22,6 +22,7 @@ export default function MiActividad() {
     () => (productos ?? []).filter((p) => costoDesactualizado(p)),
     [productos],
   )
+  const agotados = useMemo(() => (productos ?? []).filter(sinStock), [productos])
 
   const creadosEsteMes = useMemo(() => {
     if (!productos || !email) return 0
@@ -64,7 +65,19 @@ export default function MiActividad() {
   }, [ventas])
 
   const cargando = !productos || !ventas
-  const todoAlDia = pendientes.length === 0
+  const todoAlDia = pendientes.length === 0 && agotados.length === 0
+
+  const pendiente: string[] = []
+  if (pendientes.length > 0) {
+    pendiente.push(
+      `${pendientes.length} ${pendientes.length === 1 ? 'producto' : 'productos'} con el costo vencido o sin cargar`,
+    )
+  }
+  if (agotados.length > 0) {
+    pendiente.push(
+      `${agotados.length} sin stock`,
+    )
+  }
 
   return (
     <>
@@ -73,8 +86,8 @@ export default function MiActividad() {
       {!cargando && (
         <div className={todoAlDia ? 'aviso aviso-ok' : 'aviso aviso-ojo'}>
           {todoAlDia
-            ? `¡Todo al día, ${nombre}! No queda ningún costo pendiente de actualizar. 🎉`
-            : `Hola ${nombre}, quedan ${pendientes.length} ${pendientes.length === 1 ? 'producto' : 'productos'} con el costo vencido o sin cargar.`}
+            ? `¡Todo al día, ${nombre}! No queda nada pendiente. 🎉`
+            : `Hola ${nombre}, quedan ${pendiente.join(' y ')}.`}
         </div>
       )}
 
@@ -92,7 +105,32 @@ export default function MiActividad() {
           <span className="fila-etiqueta">Costos pendientes en todo el catálogo</span>
           <span className="fila-valor">{numero(pendientes.length)}</span>
         </div>
+        <div className="fila destacada">
+          <span className="fila-etiqueta">Productos sin stock</span>
+          <span className="fila-valor">{numero(agotados.length)}</span>
+        </div>
       </div>
+
+      {agotados.length > 0 && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Sin stock — hay que reponer</p>
+          <ul className="lista">
+            {agotados.slice(0, 12).map((p) => (
+              <li className="item" key={p.codigo}>
+                <div className="item-titulo">{p.descripcion}</div>
+                <span className="chip chip-alerta">
+                  {p.stock === 0 ? 'SIN STOCK' : `${p.stock}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {agotados.length > 12 && (
+            <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
+              Y {agotados.length - 12} más — buscalos en Productos.
+            </p>
+          )}
+        </div>
+      )}
 
       {pendientes.length > 0 && (
         <div className="tarjeta">

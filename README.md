@@ -12,15 +12,20 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | Sección | Para qué sirve |
 |---|---|
 | **Caja** | Abrir el turno (mañana / tarde) contando la caja, cargar ventas buscando por código o por nombre, registrar egresos, y cerrar el turno viendo la diferencia de caja. |
-| **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock. El precio de venta sugerido siempre redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos. |
+| **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock, con filtros rápidos por costo vencido o sin stock. El precio de venta sugerido siempre redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos. |
 | **Proveedores** | Aumento de costos en bloque, marcar un proveedor como inactivo, y una **cuenta corriente**: registrar compras (que suman stock y actualizan costo solas) y pagos (efectivo, transferencia, etc.), con el saldo que se le debe a cada uno siempre a la vista. |
 | **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. Un pago registrado desde la cuenta corriente de un proveedor aparece acá solo, sin cargarlo dos veces. |
 | **Reportes** | El número que importa: margen de contribución del mes, cómo se arma, y si el mes dio a favor o en contra. |
 | **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
 
 La campana 🔔 de arriba de todo avisa sola cuando hay algo para revisar: productos
-con costo vencido, ventas del mes sin costo cargado, diferencias de caja o
-problemas de sincronización.
+sin stock, productos con costo vencido, ventas del mes sin costo cargado,
+diferencias de caja o problemas de sincronización. Cada aviso lleva a la pantalla
+que lo resuelve, ya filtrada.
+
+La **Ayuda** (❓) se adapta a quién la mira: un empleado ve solo las preguntas de
+lo que efectivamente puede hacer — sin las de dueño (usuarios, respaldos) ni las
+de secciones que tenga apagadas.
 
 Cuando se publica una versión nueva de la app, aparece un botón **"Actualizar"**
 arriba de todo — no se actualiza sola de golpe para no cortar una venta a la mitad.

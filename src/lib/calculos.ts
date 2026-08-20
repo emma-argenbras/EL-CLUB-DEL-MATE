@@ -187,6 +187,18 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
 }
 
 /**
+ * Se quedo sin stock. Solo aplica a los productos que llevan control
+ * (stock null = no se controla, no es que este agotado). Un numero
+ * negativo tambien cuenta: significa que se vendio mas de lo que la app
+ * creia que habia, y hay que revisarlo igual.
+ */
+export function sinStock(producto: Producto): boolean {
+  if (producto.stock === null || producto.stock === undefined) return false
+  if (producto.archivado) return false
+  return producto.stock <= 0
+}
+
+/**
  * Un costo de compra viejo infla el margen: si el precio de venta se
  * actualizo por inflacion y el de compra no, la ganancia parece mayor
  * de lo que es. Marcamos los productos con costo desactualizado.

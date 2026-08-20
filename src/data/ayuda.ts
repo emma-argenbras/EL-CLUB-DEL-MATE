@@ -1,3 +1,4 @@
+import type { SeccionId } from '../db/db'
 import { normalizar } from '../lib/formato'
 
 export interface EntradaAyuda {
@@ -8,6 +9,18 @@ export interface EntradaAyuda {
   respuesta: string
   /** Palabras extra que la gente podria escribir y no estan en la pregunta. */
   palabrasClave?: string[]
+  /**
+   * Solo la ve un dueño: son cosas que un empleado no puede hacer (crear
+   * usuarios, respaldos, borrar datos). Mostrarselas solo genera ruido y
+   * la sensacion de que le falta un boton que en realidad nunca va a tener.
+   */
+  soloOwner?: boolean
+  /**
+   * Solo tiene sentido si la persona tiene esa seccion habilitada. Un
+   * empleado al que le apagaron Proveedores no necesita leer como se
+   * registra una compra.
+   */
+  requiereSeccion?: SeccionId
 }
 
 export const CATEGORIAS_AYUDA = [
@@ -74,7 +87,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Primeros pasos',
     pregunta: '¿Para qué sirve la campana 🔔 de arriba?',
     respuesta:
-      'Avisa sola de cosas para revisar: productos con el costo de compra vencido, ventas del mes sin costo cargado, una diferencia de caja en el último cierre, o problemas de sincronización. Tocando cada aviso te lleva directo a la pantalla donde se soluciona.',
+      'Avisa sola de cosas para revisar: productos que se quedaron sin stock, productos con el costo de compra vencido, ventas del mes sin costo cargado, una diferencia de caja en el último cierre, o problemas de sincronización. Tocando cada aviso te lleva directo a la pantalla donde se soluciona, ya filtrada para mostrarte justo esos productos.',
     palabrasClave: ['campana', 'avisos', 'alertas'],
   },
 
@@ -102,6 +115,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Solo un dueño puede hacerlo. En Ajustes → "Usuarios del equipo" → "+ Usuario nuevo", cargá su nombre, su mail y una contraseña inicial, y elegí el rol (Dueño/a o Empleado/a). Con eso ya puede entrar a la app desde cualquier dispositivo. Después esa persona puede cambiar su contraseña con "Olvidé mi contraseña" en la pantalla de inicio de sesión.',
     palabrasClave: ['alta', 'nuevo empleado', 'agregar usuario', 'sumar'],
+    soloOwner: true,
   },
   {
     id: 'empleado-borrar-producto',
@@ -126,6 +140,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Un dueño puede hacerlo desde Ajustes → "Usuarios del equipo", tocando "Desactivar" al lado de esa persona. Si estaba usando la app en ese momento, se le cierra la sesión sola y no puede volver a entrar hasta que un dueño la reactive con el mismo botón. No borra nada de lo que esa persona cargó: solo le corta el acceso.',
     palabrasClave: ['desactivar', 'sacar acceso', 'echar', 'baja', 'bloquear'],
+    soloOwner: true,
   },
   {
     id: 'personalizar-secciones-empleado',
@@ -134,6 +149,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Sí. En Ajustes → "Usuarios del equipo", al lado de cada empleado/a hay un botón "Qué ve": ahí podés tildar o destildar Caja, Productos, Proveedores, Gastos y Reportes, sección por sección y persona por persona. Por ejemplo, podés dejarle ver Reportes puntualmente a alguien de mucha confianza sin cambiarle el rol. Si no tocás nada, un empleado nuevo arranca viendo Caja, Productos, Proveedores y Gastos (lo de siempre), y sin Reportes.',
     palabrasClave: ['permisos', 'que ve', 'personalizar', 'secciones', 'ocultar', 'mostrar'],
+    soloOwner: true,
   },
 
   // ---------- Caja ----------
@@ -144,6 +160,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Entrá a Caja, elegí la fecha (por defecto es hoy) y el turno (mañana o tarde). Si todavía no está abierto, la app te pide contar la caja: cargá cuántos billetes hay de cada denominación y listo, se calcula solo el total. Tocá "Abrir turno" y ya podés empezar a cargar ventas.',
     palabrasClave: ['arqueo', 'apertura', 'empezar'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'cargar-venta',
@@ -152,6 +169,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Con el turno abierto, en la pestaña "Ventas" escribí el código o el nombre del producto en el buscador. Elegí el que corresponda de la lista, revisá la cantidad y el precio (se completa solo con el precio de venta cargado), elegí el medio de pago, y tocá "Agregar". La venta queda en la lista de abajo, y los totales de arriba se actualizan solos.',
     palabrasClave: ['vender', 'buscar producto', 'cobrar'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'producto-sin-codigo',
@@ -160,6 +178,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Buscalo por nombre en vez de por código: el buscador encuentra igual escribiendo parte de la descripción. Si el producto todavía no está cargado en el catálogo, lo mejor es agregarlo primero desde Productos → "+ Producto nuevo", y recién ahí volver a Caja para venderlo. Así queda con su código, su costo y se puede calcular bien el margen.',
     palabrasClave: ['no aparece', 'no encuentro', 'nuevo producto'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'egreso-caja',
@@ -168,6 +187,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'En Caja, pestaña "Egresos" → elegí "Gasto pagado con la caja" → escribí el concepto (ej: flete, café) y el monto → "Registrar egreso". Se descuenta solo del efectivo esperado en la caja al momento de cerrar.',
     palabrasClave: ['flete', 'gasto chico', 'plata que sale'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'caja-grande',
@@ -176,6 +196,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Es cuando se saca efectivo de la caja del turno para guardarlo en la caja fuerte o caja grande del local (no es un gasto, es plata que cambia de lugar). Se carga igual que un egreso, pero eligiendo "Pase a caja grande" en vez de "Gasto pagado con la caja".',
     palabrasClave: ['caja fuerte', 'guardar plata'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'cerrar-turno',
@@ -184,6 +205,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'En la pestaña "Cierre", contá los billetes que quedan en la caja (igual que en la apertura). La app compara ese total contra lo que "debería haber" (caja inicial + efectivo vendido − egresos − pases a caja grande) y te muestra la diferencia. Tocá "Cerrar turno" para confirmar.',
     palabrasClave: ['arqueo de cierre', 'terminar turno'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'diferencia-caja',
@@ -192,6 +214,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Es la resta entre lo que se contó al cerrar y lo que la app calcula que debería haber, según la plata con la que se abrió más lo vendido en efectivo, menos lo que salió. Si da positiva, sobra plata (puede haber una venta sin cargar). Si da negativa, falta plata (puede haber un egreso sin registrar).',
     palabrasClave: ['falta plata', 'sobra plata', 'no cierra'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'reabrir-turno',
@@ -200,6 +223,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Sí. En la pestaña "Cierre" de ese turno va a aparecer un botón "Reabrir turno". Al reabrirlo podés seguir cargando ventas o egresos normalmente, y cerrarlo de nuevo cuando termines.',
     palabrasClave: ['error', 'deshacer', 'volver a abrir'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'medios-pago',
@@ -208,6 +232,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Porque el efectivo es lo único que hay que contar físicamente al cerrar la caja: las ventas con tarjeta, transferencia o QR no pasan por la caja, van directo al banco. Separarlos hace que el arqueo cierre bien y que el reporte muestre cuánto entró por cada medio.',
     palabrasClave: ['tarjeta', 'transferencia', 'qr', 'debito', 'credito'],
+    requiereSeccion: 'caja',
   },
 
   // ---------- Productos ----------
@@ -217,6 +242,7 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: '¿Cómo busco un producto en el catálogo?',
     respuesta:
       'Entrá a Productos y escribí en el buscador de arriba: podés poner el código o parte del nombre. Tocando un producto de la lista se abre para editarlo.',
+    requiereSeccion: 'productos',
   },
   {
     id: 'producto-nuevo',
@@ -224,6 +250,7 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: '¿Cómo cargo un producto nuevo?',
     respuesta:
       'En Productos, tocá "+ Producto nuevo". Cargá el código, la descripción, el proveedor (o creá uno nuevo ahí mismo), el precio de compra y el precio de venta. El código no se puede repetir.',
+    requiereSeccion: 'productos',
   },
   {
     id: 'rentabilidad',
@@ -232,6 +259,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Es el porcentaje que se le quiere ganar a un producto sobre su costo. Por ejemplo, 130% significa que el precio de venta sugerido es el costo multiplicado por 2,3. Cargando el costo y la rentabilidad, la app calcula sola un precio de venta sugerido que podés usar con un toque, o cambiar a mano. Ese precio sugerido siempre se redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos ni un centavo de menos, para que sea fácil de cobrar.',
     palabrasClave: ['markup', 'ganancia', 'porcentaje', 'redondeo', 'redondear', 'numero facil de cobrar'],
+    requiereSeccion: 'productos',
   },
   {
     id: 'costo-viejo',
@@ -240,6 +268,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Porque el precio de compra cargado tiene más de 6 meses, o directamente no tiene precio de compra cargado. Mientras el precio de venta se actualiza seguido por la inflación, si el costo queda atrás el margen calculado va a parecer más alto de lo que es en realidad. Conviene actualizar esos costos seguido — el módulo de Proveedores ayuda a hacerlo en bloque. Si es un producto que ya no se fabrica más, mejor que actualizarlo es marcarlo como descontinuado (ver la pregunta siguiente): así deja de avisar para siempre, en vez de seguir apareciendo cada 6 meses.',
     palabrasClave: ['vencido', 'desactualizado', 'inflado'],
+    requiereSeccion: 'productos',
   },
   {
     id: 'producto-descontinuado',
@@ -248,13 +277,24 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Abrí el producto y tildá "Ya no se fabrica / no se repone", más abajo del stock. Con eso deja de contar como "costo desactualizado" en todos lados (la campana, el listado de Productos, Mi día y los reportes), pero sigue viéndose en el catálogo y se puede seguir vendiendo por si queda stock — no es lo mismo que archivarlo. Lo puede hacer cualquiera, dueño o empleado.',
     palabrasClave: ['descontinuado', 'no se fabrica', 'no se repone', 'costo viejo'],
+    requiereSeccion: 'productos',
   },
   {
     id: 'stock',
     categoria: 'Productos',
     pregunta: '¿Cómo controlo el stock de un producto?',
     respuesta:
-      'Es opcional. Si en el producto cargás un número en "Stock", cada venta de ese producto lo va a descontar sola. Si lo dejás vacío, ese producto no lleva control de stock (es lo normal para la mayoría del catálogo, salvo que quieras controlar algo puntual).',
+      'Es opcional. Si en el producto cargás un número en "Stock", cada venta de ese producto lo va a descontar sola, y cada compra que registres al proveedor se lo va a sumar sola. Si lo dejás vacío, ese producto no lleva control de stock (es lo normal para la mayoría del catálogo, salvo que quieras controlar algo puntual).',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'sin-stock',
+    categoria: 'Productos',
+    pregunta: 'Un producto dice "SIN STOCK", ¿qué significa y qué hago?',
+    respuesta:
+      'Significa que ese producto lleva control de stock y llegó a cero (o a un número negativo). Aparece con un cartel rojo en Productos, en la campana 🔔 y en "Mi día", y desde ahí podés filtrar para ver todos los que están así de una sola vez.\n\nPara reponerlo: registrá la compra al proveedor desde Proveedores → el proveedor → "+ Registrar compra". El stock se suma solo y el cartel desaparece.\n\nSi el número quedó en negativo, quiere decir que se vendió más de lo que la app creía que había (por ejemplo, llegó mercadería y no se registró la compra). No es un error grave: se acomoda solo en cuanto registres la compra que faltaba.',
+    palabrasClave: ['sin stock', 'agotado', 'se acabo', 'reponer', 'faltante', 'stock negativo'],
+    requiereSeccion: 'productos',
   },
   {
     id: 'borrar-producto',
@@ -263,6 +303,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'No se borra de verdad: se "archiva" (abriendo el producto y tocando "Archivar producto" al final). Deja de verse en el catálogo y en Caja, pero las ventas que ya tuvo y su historial de ediciones quedan guardados para siempre. Un dueño lo puede archivar directo; un empleado tiene que solicitarlo y esperar que un dueño lo autorice (ver la categoría "Usuarios y roles"). Un producto archivado se puede reactivar desde Productos → "Ver archivados".',
     palabrasClave: ['archivar', 'reactivar'],
+    requiereSeccion: 'productos',
   },
 
   // ---------- Proveedores ----------
@@ -272,6 +313,7 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: '¿Cómo asigno un proveedor a un producto?',
     respuesta:
       'Al editar un producto (en Productos), el campo "Proveedor" es una lista para elegir. Si el proveedor no existe todavía, elegí "+ Proveedor nuevo…" y escribí el nombre ahí mismo: se crea y se asigna en el momento, sin salir del formulario.',
+    requiereSeccion: 'proveedores',
   },
   {
     id: 'aumento-bloque',
@@ -280,6 +322,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Entrá a Proveedores, elegí el proveedor y abajo vas a ver "Aumentar todos los costos de este proveedor". Cargá el porcentaje que avisó el proveedor (ej: 8) y tocá "Aplicar": se actualiza el costo de todos los productos que ya tenían costo cargado, y queda anotada la fecha de hoy. Los que no tenían costo cargado quedan igual, para completarlos a mano.',
     palabrasClave: ['aumento', 'lista de precios', 'todos juntos', 'masivo'],
+    requiereSeccion: 'proveedores',
   },
   {
     id: 'producto-sin-proveedor',
@@ -287,6 +330,7 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: 'Un producto no tiene proveedor asignado, ¿es grave?',
     respuesta:
       'No es grave, la app sigue funcionando igual. Solo que ese producto no va a aparecer agrupado en ningún proveedor, así que no se va a beneficiar del aumento en bloque. Conviene asignarle uno cuando tengas un rato, editándolo desde Productos.',
+    requiereSeccion: 'proveedores',
   },
   {
     id: 'proveedor-inactivo',
@@ -295,6 +339,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Entrá al proveedor y tocá "Marcar inactivo". Te va a preguntar si querés que sus productos dejen de figurar como "costo desactualizado" — decile que sí y se marcan todos de una: no tiene sentido seguir pidiendo que se actualice el costo de algo que no se va a volver a comprar. El proveedor queda marcado como inactivo (no se borra, sigue viéndose en la lista) y deja de aparecer para elegir en productos nuevos, aunque los productos que ya tenía asignados siguen funcionando exactamente igual. Se puede reactivar en cualquier momento con el mismo botón.',
     palabrasClave: ['inactivo', 'ya no trabajamos', 'baja de proveedor'],
+    requiereSeccion: 'proveedores',
   },
   {
     id: 'registrar-compra',
@@ -303,6 +348,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Entrá al proveedor y tocá "+ Registrar compra", dentro de "Cuenta corriente". Elegí la fecha, y por cada producto que compraste agregá una línea: el producto, la cantidad y el costo unitario (se precarga solo con el último costo cargado, se puede cambiar). Podés agregar todos los productos que necesites con "+ Agregar producto". Al guardar, tres cosas pasan solas: se suma esa cantidad al stock de cada producto, se actualiza su costo y su fecha de compra (deja de figurar como "costo desactualizado"), y el total de la compra queda anotado en la cuenta corriente del proveedor como algo que se le debe.',
     palabrasClave: ['compra', 'ingreso de mercaderia', 'reponer stock', 'cargar compra'],
+    requiereSeccion: 'proveedores',
   },
   {
     id: 'cuenta-corriente-proveedor',
@@ -311,6 +357,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Es cuánto se le debe a ese proveedor en este momento: cada compra que le registrás suma a la deuda, y cada pago que le registrás la descuenta. Se ve arriba de todo en la ficha del proveedor ("Le debemos $X", o "A favor nuestro" si se pagó de más), con el detalle de todos los movimientos abajo. Sirve para saber de un vistazo cuánto falta pagarle, sin tener que llevarlo aparte en un cuaderno.',
     palabrasClave: ['cuenta corriente', 'deuda', 'le debemos', 'saldo proveedor'],
+    requiereSeccion: 'proveedores',
   },
   {
     id: 'registrar-pago-proveedor',
@@ -319,6 +366,16 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Entrá al proveedor y tocá "+ Registrar pago", dentro de "Cuenta corriente". Cargá la fecha, el monto, el medio de pago (efectivo, transferencia, etc.) y una nota si hace falta. Al guardar, ese monto descuenta la deuda con el proveedor, y además queda cargado solo como un gasto en Gastos (categoría PROVEEDORES, variable), para no tener que cargarlo dos veces.',
     palabrasClave: ['pagar proveedor', 'pago', 'cancelar deuda', 'efectivo', 'transferencia'],
+    requiereSeccion: 'proveedores',
+  },
+  {
+    id: 'borrar-movimiento-proveedor',
+    categoria: 'Proveedores',
+    pregunta: 'Cargué mal una compra o un pago, ¿cómo lo borro?',
+    respuesta:
+      'En la lista de movimientos de la cuenta corriente, cada uno tiene su botón "Borrar". La app deshace también lo que ese movimiento había provocado:\n\nSi borrás un PAGO, se borra además el gasto que había generado en Gastos, así no queda un gasto de más inflando el mes.\n\nSi borrás una COMPRA, se descuenta del stock lo que esa compra había sumado. Lo único que no se revierte solo es el costo que quedó cargado en cada producto (la app no sabe cuál era el anterior): si hace falta, corregilo a mano desde Productos o desde la tabla de costos del mismo proveedor.',
+    palabrasClave: ['borrar compra', 'borrar pago', 'me equivoque', 'deshacer', 'anular'],
+    requiereSeccion: 'proveedores',
   },
 
   // ---------- Gastos ----------
@@ -329,6 +386,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Un gasto fijo se paga todos los meses más o menos igual, vendas mucho o poco (alquiler, sueldos, contador). Un gasto variable depende de cuánto se vende (comisiones de tarjeta, flete, packaging). Esta diferencia importa para el reporte: los variables se restan del margen de contribución, los fijos se restan después, para llegar al resultado final del mes.',
     palabrasClave: ['margen de contribucion', 'resultado del mes'],
+    requiereSeccion: 'gastos',
   },
   {
     id: 'cargar-gasto',
@@ -336,6 +394,7 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: '¿Cómo cargo un gasto?',
     respuesta:
       'En Gastos, tocá "+ Cargar gasto". Elegí si es un gasto pagado con la caja grande o un ingreso a la caja grande, la fecha, el monto, el concepto, la categoría, y si es fijo o variable (la app sugiere una opción según la categoría, pero se puede cambiar).',
+    requiereSeccion: 'gastos',
   },
 
   // ---------- Reportes ----------
@@ -345,6 +404,7 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: '¿Qué es el margen de contribución?',
     respuesta:
       'Es lo que queda de las ventas después de restar el costo de la mercadería vendida y los gastos variables. Ese número tiene que alcanzar para cubrir los gastos fijos (alquiler, sueldos) — si sobra, el mes dio a favor; si no alcanza, dio en contra. Se ve completo en Reportes, con el detalle de cómo se arma.',
+    requiereSeccion: 'reportes',
   },
   {
     id: 'margen-no-cierra',
@@ -353,6 +413,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Lo más probable es que haya productos vendidos con el costo de compra vencido o sin cargar (mirá el aviso "COSTO VIEJO"). Como el margen se calcula con el costo que está cargado en ese momento, si ese costo está desactualizado el número sale más alto de lo real. Reportes muestra, mes a mes, la lista de productos que más afectan este problema — actualizando esos primero, el número se corrige solo.',
     palabrasClave: ['no coincide', 'esta mal', 'no cierra el numero'],
+    requiereSeccion: 'reportes',
   },
   {
     id: 'ver-mes-anterior',
@@ -360,6 +421,7 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: '¿Cómo veo el reporte de un mes anterior?',
     respuesta:
       'En Reportes, arriba de todo hay un selector de mes. Cambialo y todos los números de la pantalla (margen, actividad, ranking de productos, día por día) se recalculan para ese mes.',
+    requiereSeccion: 'reportes',
   },
 
   // ---------- Sincronización y respaldo ----------
@@ -386,6 +448,7 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'En Ajustes → "Copia manual" → "Descargar copia". Se descarga un archivo con todo lo cargado (productos, proveedores, turnos, ventas, gastos). Convenís guardarlo en Google Drive de vez en cuando, sobre todo si todavía no activaste el respaldo automático de arriba.',
     palabrasClave: ['backup', 'copia de seguridad', 'exportar', 'respaldo manual'],
+    soloOwner: true,
   },
   {
     id: 'perdi-celular',
@@ -396,6 +459,24 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['se rompio', 'se perdio', 'recuperar datos'],
   },
 ]
+
+/**
+ * Deja solo las preguntas que le sirven a quien esta mirando: un empleado
+ * no ve las de dueño (usuarios, respaldos) ni las de secciones que tiene
+ * apagadas. Sin perfil (app sin nube) se ve todo, como siempre.
+ */
+export function ayudaParaPerfil(
+  entradas: EntradaAyuda[],
+  esOwner: boolean,
+  secciones: SeccionId[],
+): EntradaAyuda[] {
+  if (esOwner) return entradas
+  return entradas.filter((e) => {
+    if (e.soloOwner) return false
+    if (e.requiereSeccion && !secciones.includes(e.requiereSeccion)) return false
+    return true
+  })
+}
 
 function coincide(entrada: EntradaAyuda, palabras: string[]): number {
   const texto = normalizar(
@@ -413,11 +494,12 @@ function coincide(entrada: EntradaAyuda, palabras: string[]): number {
 }
 
 /** Busca preguntas frecuentes por coincidencia de palabras, sin depender de ningun servicio externo. */
-export function buscarAyuda(consulta: string): EntradaAyuda[] {
+export function buscarAyuda(consulta: string, entradas: EntradaAyuda[] = AYUDA): EntradaAyuda[] {
   const palabras = normalizar(consulta).split(/\s+/).filter((p) => p.length > 1)
   if (palabras.length === 0) return []
 
-  return AYUDA.map((entrada) => ({ entrada, puntaje: coincide(entrada, palabras) }))
+  return entradas
+    .map((entrada) => ({ entrada, puntaje: coincide(entrada, palabras) }))
     .filter((r) => r.puntaje > 0)
     .sort((a, b) => b.puntaje - a.puntaje)
     .map((r) => r.entrada)

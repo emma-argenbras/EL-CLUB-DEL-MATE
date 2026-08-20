@@ -10,7 +10,7 @@ import {
   type Producto,
   type Turno,
 } from '../db/db'
-import { arqueoVacio, resumirJornada, totalArqueo } from '../lib/calculos'
+import { arqueoVacio, resumirJornada, sinStock, totalArqueo } from '../lib/calculos'
 import { fechaLinda, hoyISO, horaAhora, leerNumero, plata } from '../lib/formato'
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
@@ -346,6 +346,14 @@ function PanelVentas({
                 </select>
               </div>
 
+              {sinStock(elegido) && (
+                <div className="aviso aviso-ojo">
+                  Según la app este producto está sin stock (queda {elegido.stock}). Si igual lo
+                  tenés en el mostrador, vendelo tranquila: el stock queda en negativo y se
+                  acomoda cuando registres la próxima compra al proveedor.
+                </div>
+              )}
+
               {!elegido.precioCompra && (
                 <div className="aviso aviso-ojo">
                   Este producto no tiene precio de compra cargado, así que esta venta no va a
@@ -499,7 +507,11 @@ function PanelEgresos({
                     <button
                       className="boton-chico"
                       style={{ marginTop: 4 }}
-                      onClick={() => db.movimientos.delete(m.id)}
+                      onClick={() => {
+                        if (confirm(`¿Borrar "${m.concepto}" de ${plata(m.monto)}?`)) {
+                          db.movimientos.delete(m.id)
+                        }
+                      }}
                     >
                       Borrar
                     </button>

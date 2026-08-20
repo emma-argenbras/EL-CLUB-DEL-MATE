@@ -15,15 +15,29 @@ import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { useSesion } from '../sync/useSesion'
 
-interface Respaldo {
+/**
+ * Todo lo que entra en una copia manual. Cada vez que se suma una tabla
+ * a la base hay que sumarla aca tambien, o esa informacion no viaja en el
+ * respaldo (los usuarios no se incluyen: sus cuentas viven en Firebase
+ * Auth, no en la base local, y restaurarlos sin sus logins no serviria).
+ */
+const TABLAS_RESPALDO = [
+  'productos',
+  'proveedores',
+  'movimientosProveedor',
+  'jornadas',
+  'ventas',
+  'movimientos',
+  'historialProductos',
+  'ajustes',
+] as const
+
+type TablaRespaldo = (typeof TABLAS_RESPALDO)[number]
+
+interface Respaldo extends Partial<Record<TablaRespaldo, unknown[]>> {
   app: string
   version: number
   fecha: string
-  productos: unknown[]
-  jornadas: unknown[]
-  ventas: unknown[]
-  movimientos: unknown[]
-  ajustes: unknown[]
 }
 
 export default function Ajustes() {
@@ -32,9 +46,11 @@ export default function Ajustes() {
 
   const conteos = useLiveQuery(async () => ({
     productos: await db.productos.count(),
+    proveedores: await db.proveedores.count(),
     jornadas: await db.jornadas.count(),
     ventas: await db.ventas.count(),
     movimientos: await db.movimientos.count(),
+    movimientosProveedor: await db.movimientosProveedor.count(),
   }), [])
 
   async function exportar() {
@@ -42,13 +58,11 @@ export default function Ajustes() {
     try {
       const respaldo: Respaldo = {
         app: 'el-club-del-mate',
-        version: 1,
+        version: 2,
         fecha: new Date().toISOString(),
-        productos: await db.productos.toArray(),
-        jornadas: await db.jornadas.toArray(),
-        ventas: await db.ventas.toArray(),
-        movimientos: await db.movimientos.toArray(),
-        ajustes: await db.ajustes.toArray(),
+      }
+      for (const tabla of TABLAS_RESPALDO) {
+        respaldo[tabla] = await db.table(tabla).toArray()
       }
       const blob = new Blob([JSON.stringify(respaldo)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -78,25 +92,26 @@ export default function Ajustes() {
       if (datos.app !== 'el-club-del-mate') {
         throw new Error('El archivo no es un respaldo de esta app.')
       }
+      // Un respaldo viejo (version 1) no trae proveedores ni cuenta
+      // corriente: se importa igual lo que si tenga, sin vaciar el resto.
+      const presentes = TABLAS_RESPALDO.filter((t) => Array.isArray(datos[t]))
       await db.transaction(
         'rw',
-        [db.productos, db.jornadas, db.ventas, db.movimientos, db.ajustes],
+        presentes.map((t) => db.table(t)),
         async () => {
-          await Promise.all([
-            db.productos.clear(),
-            db.jornadas.clear(),
-            db.ventas.clear(),
-            db.movimientos.clear(),
-            db.ajustes.clear(),
-          ])
-          await db.productos.bulkPut(datos.productos as never[])
-          await db.jornadas.bulkPut(datos.jornadas as never[])
-          await db.ventas.bulkPut(datos.ventas as never[])
-          await db.movimientos.bulkPut(datos.movimientos as never[])
-          await db.ajustes.bulkPut(datos.ajustes as never[])
+          for (const tabla of presentes) {
+            await db.table(tabla).clear()
+            await db.table(tabla).bulkPut(datos[tabla] as never[])
+          }
         },
       )
-      setMensaje({ tipo: 'ok', texto: 'Respaldo importado.' })
+      const faltantes = TABLAS_RESPALDO.filter((t) => !presentes.includes(t))
+      setMensaje({
+        tipo: 'ok',
+        texto: faltantes.length
+          ? `Respaldo importado. Era una copia vieja, así que no traía: ${faltantes.join(', ')}. Eso quedó como estaba.`
+          : 'Respaldo importado.',
+      })
     } catch (e) {
       setMensaje({ tipo: 'error', texto: `No se pudo importar: ${e}` })
     } finally {
@@ -166,6 +181,10 @@ export default function Ajustes() {
           <span className="fila-valor">{numero(conteos?.productos ?? null)}</span>
         </div>
         <div className="fila">
+          <span className="fila-etiqueta">Proveedores</span>
+          <span className="fila-valor">{numero(conteos?.proveedores ?? null)}</span>
+        </div>
+        <div className="fila">
           <span className="fila-etiqueta">Turnos</span>
           <span className="fila-valor">{numero(conteos?.jornadas ?? null)}</span>
         </div>
@@ -176,6 +195,10 @@ export default function Ajustes() {
         <div className="fila">
           <span className="fila-etiqueta">Movimientos de plata</span>
           <span className="fila-valor">{numero(conteos?.movimientos ?? null)}</span>
+        </div>
+        <div className="fila">
+          <span className="fila-etiqueta">Compras y pagos a proveedores</span>
+          <span className="fila-valor">{numero(conteos?.movimientosProveedor ?? null)}</span>
         </div>
       </div>
 
