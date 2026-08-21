@@ -10,6 +10,8 @@ import {
   precioSugerido,
   redondearPrecio,
   resumirJornada,
+  precioAtrasado,
+  precioDesactualizado,
   resumirAnio,
   resumirMes,
   sinStock,
@@ -413,5 +415,84 @@ describe('resumirAnio', () => {
     expect(a.meses).toEqual([])
     expect(a.mejorMes).toBeNull()
     expect(a.promedioMensual).toBe(0)
+  })
+})
+
+describe('precioDesactualizado', () => {
+  const base = { fechaPrecioVenta: '2026-08-01', precioVenta: 5000 }
+
+  it('un precio tocado el mes pasado esta al dia', () => {
+    expect(precioDesactualizado(producto(base))).toBe(false)
+  })
+
+  it('un precio que no se toca hace dos años esta vencido', () => {
+    expect(precioDesactualizado(producto({ ...base, fechaPrecioVenta: '2024-01-10' }))).toBe(true)
+  })
+
+  it('sin fecha de precio se considera vencido: nadie sabe de cuando es', () => {
+    expect(precioDesactualizado(producto({ ...base, fechaPrecioVenta: null }))).toBe(true)
+  })
+
+  it('un producto sin precio de venta no cuenta como "precio viejo"', () => {
+    // Ese caso ya se avisa por otro lado; sumarlo aca seria ruido.
+    expect(precioDesactualizado(producto({ ...base, precioVenta: null }))).toBe(false)
+  })
+
+  it('un archivado no molesta mas', () => {
+    expect(
+      precioDesactualizado(producto({ ...base, fechaPrecioVenta: '2020-01-01', archivado: true })),
+    ).toBe(false)
+  })
+
+  it('es independiente de la fecha del costo', () => {
+    // Costo viejisimo pero precio remarcado ayer: el precio NO esta vencido.
+    const p = producto({ ...base, fechaCompra: '2021-01-01', fechaPrecioVenta: '2026-08-15' })
+    expect(precioDesactualizado(p)).toBe(false)
+    expect(costoDesactualizado(p)).toBe(true)
+  })
+})
+
+describe('precioAtrasado', () => {
+  it('avisa cuanto le falta al precio para llegar a su rentabilidad', () => {
+    // 510 de costo con 165 % de markup -> 1.351,5, redondeado para arriba 1.400.
+    const r = precioAtrasado(producto({ precioCompra: 510, rentabilidad: 1.65, precioVenta: 500 }))
+    expect(r).toEqual({ actual: 500, sugerido: 1400, falta: 900 })
+  })
+
+  it('un precio que ya esta donde tiene que estar no aparece', () => {
+    expect(
+      precioAtrasado(producto({ precioCompra: 510, rentabilidad: 1.65, precioVenta: 1400 })),
+    ).toBeNull()
+  })
+
+  it('cobrar de mas tampoco es un problema para este aviso', () => {
+    expect(
+      precioAtrasado(producto({ precioCompra: 510, rentabilidad: 1.65, precioVenta: 2000 })),
+    ).toBeNull()
+  })
+
+  it('una diferencia chica se deja pasar: es redondeo, no un olvido', () => {
+    // Sugerido 1.400; a 1.360 le falta menos del 5 %.
+    expect(
+      precioAtrasado(producto({ precioCompra: 510, rentabilidad: 1.65, precioVenta: 1360 })),
+    ).toBeNull()
+  })
+
+  it('sin costo o sin rentabilidad no se puede calcular', () => {
+    expect(precioAtrasado(producto({ precioCompra: null, rentabilidad: 1.3 }))).toBeNull()
+    expect(precioAtrasado(producto({ precioCompra: 500, rentabilidad: null }))).toBeNull()
+  })
+
+  it('no depende de las fechas: costo y precio recientes y aun asi atrasado', () => {
+    const p = producto({
+      precioCompra: 10000,
+      rentabilidad: 1.3,
+      precioVenta: 15000,
+      fechaCompra: '2026-08-01',
+      fechaPrecioVenta: '2026-08-01',
+    })
+    expect(costoDesactualizado(p)).toBe(false)
+    expect(precioDesactualizado(p)).toBe(false)
+    expect(precioAtrasado(p)).toEqual({ actual: 15000, sugerido: 23000, falta: 8000 })
   })
 })

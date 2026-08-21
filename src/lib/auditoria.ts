@@ -7,7 +7,15 @@ import type {
   SeccionId,
   Venta,
 } from '../db/db'
-import { costoDesactualizado, precioBajoCosto, resumirJornada, sinStock, totalArqueo } from './calculos'
+import {
+  costoDesactualizado,
+  precioAtrasado,
+  precioBajoCosto,
+  precioDesactualizado,
+  resumirJornada,
+  sinStock,
+  totalArqueo,
+} from './calculos'
 import { plata } from './formato'
 
 /**
@@ -222,15 +230,68 @@ function auditarProductos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
     })
   }
 
+  // La planilla de precios lleva DOS fechas por producto, y son dos
+  // problemas distintos que antes se avisaban juntos:
+  //
+  //   fecha del costo         -> si esta vieja, el margen del reporte
+  //                              miente (el costo real subio).
+  //   fecha del precio venta  -> si esta vieja, se esta cobrando de
+  //                              menos (el precio quedo planchado).
+  //
+  // Mezclarlos daba un solo aviso rojo sobre el 90 % del catalogo, que
+  // no le decia a nadie que hacer primero.
+
+  // 1. Lo mas accionable: el precio quedo por debajo de su propia
+  //    rentabilidad. No depende de ninguna fecha.
+  const atrasados = visibles
+    .map((p) => ({ producto: p, atraso: precioAtrasado(p) }))
+    .filter((x) => x.atraso !== null)
+  if (atrasados.length > 0) {
+    const falta = atrasados.reduce((suma, x) => suma + (x.atraso?.falta ?? 0), 0)
+    hallazgos.push({
+      id: 'productos-precio-atrasado',
+      modulo: 'productos',
+      nivel: 'importante',
+      titulo: `${atrasados.length} ${plural(atrasados.length, 'producto está', 'productos están')} más baratos de lo que dice su rentabilidad`,
+      detalle: `Sumando todos, se están dejando de cobrar ${plata(falta)} por unidad vendida. No es que falte actualizar una fecha: con el costo y la rentabilidad que ya tienen cargados, el precio debería ser más alto.`,
+      comoSeResuelve:
+        'Abrí cada uno: la app te muestra el precio que sale de su rentabilidad y lo podés poner de una.',
+      ruta: '/productos?precioAtrasado=1',
+      cantidad: atrasados.length,
+      monto: falta,
+      requiereSeccion: 'productos',
+    })
+  }
+
+  // 2. Hace mucho que no se remarca. Puede estar bien igual, pero con
+  //    inflación conviene revisarlo.
+  const precioViejo = visibles.filter((p) => precioDesactualizado(p))
+  if (precioViejo.length > 0) {
+    hallazgos.push({
+      id: 'productos-precio-vencido',
+      modulo: 'productos',
+      nivel: 'aviso',
+      titulo: `${precioViejo.length} de ${visibles.length} productos no se remarcan hace más de un año`,
+      detalle:
+        'El precio de venta quedó donde estaba mientras todo lo demás aumentaba. No siempre está mal, pero conviene repasarlos.',
+      comoSeResuelve:
+        'Empezá por los que más se venden. Al abrir cada uno vas a ver desde cuándo tiene ese precio.',
+      ruta: '/productos?precioViejo=1',
+      cantidad: precioViejo.length,
+      requiereSeccion: 'productos',
+    })
+  }
+
+  // 3. El costo vencido no cambia lo que se cobra: ensucia el reporte.
   const vencidos = visibles.filter((p) => costoDesactualizado(p))
   if (vencidos.length > 0) {
     hallazgos.push({
       id: 'productos-costo-vencido',
       modulo: 'productos',
-      nivel: vencidos.length > visibles.length / 2 ? 'importante' : 'aviso',
+      nivel: 'aviso',
       titulo: `${vencidos.length} de ${visibles.length} productos tienen el costo vencido o sin cargar`,
       detalle:
-        'El margen de contribución les queda inflado: el precio de venta está actualizado y el de compra no, así que la ganancia parece mayor de la real.',
+        'Esto no afecta lo que le cobrás al cliente: afecta al reporte. Como el costo cargado es más viejo que el real, el margen de contribución sale más alto de lo que en verdad es.',
       comoSeResuelve:
         'Actualizá primero los que más se venden. Desde Proveedores se puede subir todos los costos de un proveedor de una vez.',
       ruta: '/productos?alertas=1',

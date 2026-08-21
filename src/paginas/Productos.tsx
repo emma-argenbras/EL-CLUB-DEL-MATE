@@ -5,13 +5,36 @@ import { db, nuevoId, productoVisible, type HistorialProducto, type Producto } f
 import {
   costoDesactualizado,
   margenPorcentual,
+  precioAtrasado,
   precioBajoCosto,
+  precioDesactualizado,
   redondearPrecio,
   sinStock,
 } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
 import { CompartirProducto } from '../componentes/BotonWhatsApp'
+
+/** Las alertas que se pueden usar para filtrar el catalogo. */
+type Filtro = 'costoViejo' | 'precioViejo' | 'precioAtrasado' | 'sinStock' | 'bajoCosto' | null
+
+const DESCRIPCION_FILTRO: Record<Exclude<Filtro, null>, string> = {
+  costoViejo: 'mostrando solo los de costo vencido',
+  precioViejo: 'mostrando solo los que no se remarcan hace más de un año',
+  precioAtrasado: 'mostrando solo los que están por debajo de su rentabilidad',
+  sinStock: 'mostrando solo los que están sin stock',
+  bajoCosto: 'mostrando solo los que se venden bajo costo',
+}
+
+/** El Panel enlaza a Productos con el filtro ya puesto. */
+function filtroDeLaURL(parametros: URLSearchParams): Filtro {
+  if (parametros.get('bajoCosto') === '1') return 'bajoCosto'
+  if (parametros.get('precioAtrasado') === '1') return 'precioAtrasado'
+  if (parametros.get('precioViejo') === '1') return 'precioViejo'
+  if (parametros.get('sinStock') === '1') return 'sinStock'
+  if (parametros.get('alertas') === '1') return 'costoViejo'
+  return null
+}
 
 export default function Productos() {
   const [parametros] = useSearchParams()
@@ -20,9 +43,10 @@ export default function Productos() {
   const [consulta, setConsulta] = useState('')
   const [editando, setEditando] = useState<Producto | null>(null)
   const [creando, setCreando] = useState(false)
-  const [soloAlertas, setSoloAlertas] = useState(parametros.get('alertas') === '1')
-  const [soloSinStock, setSoloSinStock] = useState(parametros.get('sinStock') === '1')
-  const [soloBajoCosto, setSoloBajoCosto] = useState(parametros.get('bajoCosto') === '1')
+  // Un solo filtro por vez. Antes era un booleano por alerta y cada
+  // boton tenia que acordarse de apagar todos los demas a mano; con
+  // cinco alertas eso ya no cerraba.
+  const [filtro, setFiltro] = useState<Filtro>(filtroDeLaURL(parametros))
   const [verArchivados, setVerArchivados] = useState(false)
 
   const total = useLiveQuery(() => db.productos.filter(productoVisible).count(), [])
@@ -40,7 +64,7 @@ export default function Productos() {
     [esOwner],
   )
 
-  const filtrando = soloAlertas || soloSinStock || soloBajoCosto
+  const filtrando = filtro !== null
 
   const resultados = useLiveQuery(async () => {
     if (verArchivados) {
@@ -56,11 +80,21 @@ export default function Productos() {
       )
       .limit(filtrando ? 2000 : 100)
       .toArray()
-    if (soloBajoCosto) return encontrados.filter(precioBajoCosto).slice(0, 100)
-    if (soloSinStock) return encontrados.filter(sinStock).slice(0, 100)
-    if (soloAlertas) return encontrados.filter((p) => costoDesactualizado(p)).slice(0, 100)
+    if (filtro === 'bajoCosto') return encontrados.filter(precioBajoCosto).slice(0, 100)
+    if (filtro === 'precioAtrasado') {
+      // Los que mas plata dejan sobre la mesa, primero.
+      return encontrados
+        .filter((p) => precioAtrasado(p))
+        .sort((a, b) => (precioAtrasado(b)?.falta ?? 0) - (precioAtrasado(a)?.falta ?? 0))
+        .slice(0, 100)
+    }
+    if (filtro === 'precioViejo') {
+      return encontrados.filter((p) => precioDesactualizado(p)).slice(0, 100)
+    }
+    if (filtro === 'sinStock') return encontrados.filter(sinStock).slice(0, 100)
+    if (filtro === 'costoViejo') return encontrados.filter((p) => costoDesactualizado(p)).slice(0, 100)
     return encontrados
-  }, [consulta, soloAlertas, soloSinStock, soloBajoCosto, verArchivados, filtrando])
+  }, [consulta, filtro, verArchivados, filtrando])
 
   const conteoAlertas = useLiveQuery(async () => {
     const todos = await db.productos.filter(productoVisible).toArray()
@@ -68,13 +102,28 @@ export default function Productos() {
       desactualizados: todos.filter((p) => costoDesactualizado(p)).length,
       agotados: todos.filter(sinStock).length,
       bajoCosto: todos.filter(precioBajoCosto).length,
+      precioAtrasado: todos.filter((p) => precioAtrasado(p)).length,
+      precioViejo: todos.filter((p) => precioDesactualizado(p)).length,
     }
   }, [])
   const desactualizados = conteoAlertas?.desactualizados
   const agotados = conteoAlertas?.agotados
   const bajoCosto = conteoAlertas?.bajoCosto
+  const atrasados = conteoAlertas?.precioAtrasado
+  const precioViejo = conteoAlertas?.precioViejo
 
   async function aprobarSolicitud(p: Producto) {
+    const queda = p.stock !== null && p.stock !== undefined && p.stock > 0
+    const aviso = queda
+      ? `Ojo: todavía figuran ${p.stock} en stock. Si lo archivás no se va a poder vender.\n\n`
+      : ''
+    if (
+      !confirm(
+        `${aviso}¿Archivar "${p.descripcion}"? Deja de verse en el catálogo y en Caja, pero se conserva su historial de ventas para siempre.`,
+      )
+    ) {
+      return
+    }
     await db.productos.update(p.codigo, { archivado: true, solicitudBorrado: null })
   }
 
@@ -114,9 +163,39 @@ export default function Productos() {
                 <div style={{ minWidth: 0 }}>
                   <div className="item-titulo">{p.descripcion}</div>
                   <div className="item-sub">
-                    Pedido por {p.solicitudBorrado?.porNombre} · {fechaLinda(hoyISO())}
+                    {p.codigo} · pedido por {p.solicitudBorrado?.porNombre}
+                    {p.solicitudBorrado?.cuando
+                      ? ` · ${fechaLinda(new Date(p.solicitudBorrado.cuando).toISOString().slice(0, 10))}`
+                      : ''}
                     {p.solicitudBorrado?.motivo ? ` · "${p.solicitudBorrado.motivo}"` : ''}
                   </div>
+                  {/* Lo que hay que mirar antes de decidir: si queda
+                      stock, archivarlo es dejar de poder venderlo. */}
+                  <div className="item-sub">
+                    Se vende a {plata(p.precioVenta)} · costo {plata(p.precioCompra)} ·{' '}
+                    {p.stock === null || p.stock === undefined
+                      ? 'stock sin llevar'
+                      : `quedan ${p.stock}`}
+                    {precioBajoCosto(p) && (
+                      <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
+                        BAJO COSTO
+                      </span>
+                    )}
+                  </div>
+                  {!p.descontinuado && (
+                    <p className="silencio" style={{ margin: '6px 0 0' }}>
+                      Si todavía queda stock para vender, conviene{' '}
+                      <button
+                        className="boton-chico"
+                        onClick={() => setEditando(p)}
+                        style={{ padding: '2px 6px', minHeight: 0 }}
+                      >
+                        marcarlo como descontinuado
+                      </button>{' '}
+                      en vez de archivarlo: deja de pedir costo nuevo pero se puede seguir
+                      vendiendo.
+                    </p>
+                  )}
                 </div>
                 <div className="botonera" style={{ flexShrink: 0 }}>
                   <button className="boton-chico" onClick={() => rechazarSolicitud(p)}>
@@ -135,62 +214,63 @@ export default function Productos() {
         </div>
       )}
 
-      {bajoCosto !== undefined && bajoCosto > 0 && !verArchivados && (
-        <div className="aviso aviso-error">
-          <strong>{bajoCosto}</strong>{' '}
-          {bajoCosto === 1 ? 'producto se vende' : 'productos se venden'} al costo o por debajo:
-          cada unidad que sale es plata perdida. Suele pasar cuando el proveedor aumentó y el
-          precio de venta quedó sin actualizar.{' '}
-          <button
-            className="boton-chico"
-            style={{ marginTop: 6 }}
-            onClick={() => {
-              setSoloBajoCosto(!soloBajoCosto)
-              setSoloAlertas(false)
-              setSoloSinStock(false)
-            }}
+      {!verArchivados && (
+        <>
+          <Alerta
+            n={bajoCosto}
+            tono="error"
+            activo={filtro === 'bajoCosto'}
+            onToggle={() => setFiltro(filtro === 'bajoCosto' ? null : 'bajoCosto')}
           >
-            {soloBajoCosto ? 'Ver todos' : 'Ver esos productos'}
-          </button>
-        </div>
-      )}
+            <strong>{bajoCosto}</strong>{' '}
+            {bajoCosto === 1 ? 'producto se vende' : 'productos se venden'} al costo o por debajo:
+            cada unidad que sale es plata perdida.
+          </Alerta>
 
-      {agotados !== undefined && agotados > 0 && !verArchivados && (
-        <div className="aviso aviso-error">
-          <strong>{agotados}</strong> {agotados === 1 ? 'producto se quedó' : 'productos se quedaron'}{' '}
-          sin stock. Conviene reponerlos: registrando la compra al proveedor, el stock se actualiza
-          solo.{' '}
-          <button
-            className="boton-chico"
-            style={{ marginTop: 6 }}
-            onClick={() => {
-              setSoloSinStock(!soloSinStock)
-              setSoloAlertas(false)
-              setSoloBajoCosto(false)
-            }}
+          <Alerta
+            n={atrasados}
+            tono="error"
+            activo={filtro === 'precioAtrasado'}
+            onToggle={() => setFiltro(filtro === 'precioAtrasado' ? null : 'precioAtrasado')}
           >
-            {soloSinStock ? 'Ver todos' : 'Ver esos productos'}
-          </button>
-        </div>
-      )}
+            <strong>{atrasados}</strong>{' '}
+            {atrasados === 1 ? 'producto está más barato' : 'productos están más baratos'} de lo
+            que dice su propia rentabilidad. Con el costo y el markup que ya tienen cargados, el
+            precio debería ser más alto.
+          </Alerta>
 
-      {desactualizados !== undefined && desactualizados > 0 && !verArchivados && (
-        <div className="aviso aviso-ojo">
-          <strong>{desactualizados}</strong> de {total} productos tienen el precio de compra
-          vencido o sin cargar. El margen de contribución les queda inflado, porque el precio de
-          venta está actualizado y el de compra no.{' '}
-          <button
-            className="boton-chico"
-            style={{ marginTop: 6 }}
-            onClick={() => {
-              setSoloAlertas(!soloAlertas)
-              setSoloSinStock(false)
-              setSoloBajoCosto(false)
-            }}
+          <Alerta
+            n={agotados}
+            tono="error"
+            activo={filtro === 'sinStock'}
+            onToggle={() => setFiltro(filtro === 'sinStock' ? null : 'sinStock')}
           >
-            {soloAlertas ? 'Ver todos' : 'Ver esos productos'}
-          </button>
-        </div>
+            <strong>{agotados}</strong>{' '}
+            {agotados === 1 ? 'producto se quedó' : 'productos se quedaron'} sin stock. Conviene
+            reponerlos: registrando la compra al proveedor, el stock se actualiza solo.
+          </Alerta>
+
+          <Alerta
+            n={precioViejo}
+            tono="ojo"
+            activo={filtro === 'precioViejo'}
+            onToggle={() => setFiltro(filtro === 'precioViejo' ? null : 'precioViejo')}
+          >
+            <strong>{precioViejo}</strong> de {total} productos no se remarcan hace más de un año.
+            El <strong>precio de venta</strong> quedó donde estaba mientras todo aumentaba.
+          </Alerta>
+
+          <Alerta
+            n={desactualizados}
+            tono="ojo"
+            activo={filtro === 'costoViejo'}
+            onToggle={() => setFiltro(filtro === 'costoViejo' ? null : 'costoViejo')}
+          >
+            <strong>{desactualizados}</strong> de {total} productos tienen el{' '}
+            <strong>costo</strong> vencido o sin cargar. Esto no cambia lo que le cobrás al
+            cliente: hace que el margen del reporte salga más alto de lo real.
+          </Alerta>
+        </>
       )}
 
       <div className="tarjeta">
@@ -209,7 +289,7 @@ export default function Productos() {
         <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
           {verArchivados
             ? 'Mostrando productos archivados'
-            : `${total ?? '…'} productos en el catálogo${soloAlertas ? ' · mostrando solo los de costo vencido' : soloSinStock ? ' · mostrando solo los que están sin stock' : soloBajoCosto ? ' · mostrando solo los que se venden bajo costo' : ''}`}
+            : `${total ?? '…'} productos en el catálogo${filtro ? ` · ${DESCRIPCION_FILTRO[filtro]}` : ''}`}
           {esOwner && (
             <>
               {' · '}
@@ -253,8 +333,12 @@ export default function Productos() {
                       )}
                     </div>
                     <div className="item-sub">
-                      Costo {plata(p.precioCompra)} · Margen{' '}
-                      {margen === null ? '—' : porcentaje(margen)}
+                      Costo {plata(p.precioCompra)}
+                      {p.fechaCompra ? ` (${fechaLinda(p.fechaCompra)})` : ''} · Precio desde{' '}
+                      {p.fechaPrecioVenta ? fechaLinda(p.fechaPrecioVenta) : 'siempre'}
+                    </div>
+                    <div className="item-sub">
+                      Margen {margen === null ? '—' : porcentaje(margen)}
                       {precioBajoCosto(p) && (
                         <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
                           BAJO COSTO
@@ -265,11 +349,23 @@ export default function Productos() {
                           Descontinuado
                         </span>
                       ) : (
-                        costoDesactualizado(p) && (
-                          <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
-                            COSTO VIEJO
-                          </span>
-                        )
+                        <>
+                          {costoDesactualizado(p) && (
+                            <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
+                              COSTO VIEJO
+                            </span>
+                          )}
+                          {precioDesactualizado(p) && (
+                            <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
+                              PRECIO VIEJO
+                            </span>
+                          )}
+                          {precioAtrasado(p) && (
+                            <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
+                              BAJO SU MARKUP
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -382,12 +478,24 @@ function FormularioProducto({
     // de los datos) se conserva el que ya tenia el producto.
     const ventaFinal = esOwner ? ventaNum : (producto?.precioVenta ?? ventaNum)
 
+    const cambioElCosto = compraNum !== (producto?.precioCompra ?? null)
+    const tocoLaFecha = (fechaCompra || null) !== (producto?.fechaCompra ?? null)
+    const fechaCompraFinal =
+      cambioElCosto && !tocoLaFecha ? hoyISO() : fechaCompra || null
+
     const registro: Producto = {
       codigo: cod,
       descripcion: descripcion.trim(),
       proveedor: nombreProveedor,
       proveedorId: idProveedor,
-      fechaCompra: fechaCompra || null,
+      // Las dos fechas se comportan igual: cada una marca cuando se
+      // toco SU numero. La del costo se ponia a mano y quedaba vieja
+      // aunque el costo hubiera cambiado, que es justo lo que hacia que
+      // el aviso de "costo vencido" no fuera confiable.
+      //
+      // Si la persona edito la fecha ella misma, se respeta: sirve para
+      // cargar una compra de la semana pasada.
+      fechaCompra: fechaCompraFinal,
       precioCompra: compraNum,
       rentabilidad: rentNum != null ? rentNum / 100 : null,
       precioVenta: ventaFinal,
@@ -662,5 +770,36 @@ function FormularioProducto({
         </button>
       )}
     </>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Un aviso del catalogo con su boton para filtrar. Se desaparece solo
+ * cuando no hay nada que avisar, asi el llamador no tiene que repetir
+ * el chequeo en cada uno.
+ */
+function Alerta({
+  n,
+  tono,
+  activo,
+  onToggle,
+  children,
+}: {
+  n: number | undefined
+  tono: 'error' | 'ojo'
+  activo: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  if (n === undefined || n === 0) return null
+  return (
+    <div className={tono === 'error' ? 'aviso aviso-error' : 'aviso aviso-ojo'}>
+      {children}{' '}
+      <button className="boton-chico" style={{ marginTop: 6 }} onClick={onToggle}>
+        {activo ? 'Ver todos' : 'Ver esos productos'}
+      </button>
+    </div>
   )
 }
