@@ -5,6 +5,7 @@ describe('seccionesVisibles', () => {
   it('un owner ve todas las secciones configurables', () => {
     const perfil: Perfil = { nombre: 'Emma', rol: 'owner' }
     expect(seccionesVisibles(perfil)).toEqual([
+      'panel',
       'caja',
       'productos',
       'proveedores',
@@ -20,7 +21,7 @@ describe('seccionesVisibles', () => {
   it('un empleado sin secciones configuradas usa el default de siempre (sin reportes)', () => {
     const perfil: Perfil = { nombre: 'Gabriela', rol: 'empleado' }
     const visibles = seccionesVisibles(perfil)
-    expect(visibles).toEqual(['caja', 'productos', 'proveedores', 'gastos'])
+    expect(visibles).toEqual(['panel', 'caja', 'productos', 'proveedores', 'gastos'])
     expect(visibles).not.toContain('reportes')
   })
 

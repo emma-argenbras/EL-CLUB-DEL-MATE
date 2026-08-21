@@ -11,6 +11,7 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 
 | Sección | Para qué sirve |
 |---|---|
+| **Panel** | La **revisión automática** del negocio: cada vez que se abre la app revisa sola la caja, el catálogo, los proveedores, los gastos y la sincronización, y arma la lista de lo que hay para hacer, ordenada por gravedad. Cada hallazgo dice qué pasa, por qué importa y qué hacer, con un botón que lleva a la pantalla que lo resuelve, ya filtrada. |
 | **Caja** | Abrir el turno (mañana / tarde) contando la caja, cargar ventas buscando por código o por nombre, registrar egresos, y cerrar el turno viendo la diferencia de caja. |
 | **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock, con filtros rápidos por costo vencido o sin stock. El precio de venta sugerido siempre redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos. |
 | **Proveedores** | Aumento de costos en bloque, marcar un proveedor como inactivo, y una **cuenta corriente**: registrar compras (que suman stock y actualizan costo solas) y pagos (efectivo, transferencia, etc.), con el saldo que se le debe a cada uno siempre a la vista. |
@@ -18,11 +19,18 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | **Reportes** | El número que importa: margen de contribución del mes, cómo se arma, y si el mes dio a favor o en contra. |
 | **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
 
-La campana 🔔 de arriba de todo avisa sola cuando hay algo para revisar: productos
-que se venden **al costo o por debajo** (el aviso más urgente: cada venta pierde
-plata), productos sin stock, productos con costo vencido, ventas del mes sin costo
-cargado, diferencias de caja o problemas de sincronización. Cada aviso lleva a la
-pantalla que lo resuelve, ya filtrada.
+La campana 🔔 es la versión corta del Panel: los mismos hallazgos, ordenados de lo
+más urgente a lo menos. Panel, campana y "Mi día" salen del **mismo motor**
+([`src/lib/auditoria.ts`](./src/lib/auditoria.ts)), así los tres dicen siempre lo
+mismo. "Mi día" es la vista de un empleado: sus pendientes, filtrados a lo que
+efectivamente puede resolver, sin números de ganancia del negocio.
+
+Un aviso que no se puede resolver ahora se pospone un día o una semana; vuelve solo
+cuando llega la fecha, si el problema sigue. Los urgentes no se pueden posponer.
+También hay **recordatorios** del navegador para lo urgente (una vez por día como
+máximo). Son notificaciones locales: llegan mientras la app está abierta, aunque sea
+minimizada. Con la app cerrada no llega nada — eso necesitaría un servidor de push,
+que este proyecto a propósito no tiene.
 
 La **Ayuda** (❓) se adapta a quién la mira: un empleado ve solo las preguntas de
 lo que efectivamente puede hacer — sin las de dueño (usuarios, respaldos) ni las

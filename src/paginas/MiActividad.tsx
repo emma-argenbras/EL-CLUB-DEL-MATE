@@ -1,28 +1,34 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, productoVisible, type HistorialProducto } from '../db/db'
-import { costoDesactualizado, sinStock } from '../lib/calculos'
 import { mesActualISO, mesLindo, numero } from '../lib/formato'
+import { useAuditoria } from '../lib/useAuditoria'
+import { estadoPermiso, pedirPermiso, recordarUrgentes } from '../lib/recordatorios'
+import ListaHallazgos from '../componentes/ListaHallazgos'
 import { useSesion } from '../sync/useSesion'
 
 /**
- * El reporte de un empleado no muestra plata ni margen: muestra su propio
- * trabajo (que tan al dia esta con los costos, cuanto cargo este mes) y
- * lo que mas se vende, para que le sirva para hacer bien su trabajo sin
- * exponerle numeros de ganancia del negocio.
+ * Mi dia: lo que tengo para hacer hoy.
+ *
+ * Sale de la misma auditoria automatica que el Panel, pero filtrada a lo
+ * que esta persona puede resolver. No muestra plata ni margen del
+ * negocio: es una lista de tareas, no un reporte de ganancias.
  */
 export default function MiActividad() {
   const sesion = useSesion()
   const mes = mesActualISO()
   const nombre = sesion.perfil?.nombre ?? 'Vos'
   const email = sesion.email
+  const { cargando, hallazgos, pospuestos } = useAuditoria()
+  const [permiso, setPermiso] = useState(estadoPermiso())
+
+  // Avisa una vez por dia de lo urgente, si dieron permiso.
+  useEffect(() => {
+    if (cargando || permiso !== 'granted') return
+    recordarUrgentes(hallazgos)
+  }, [cargando, hallazgos, permiso])
 
   const productos = useLiveQuery(() => db.productos.filter(productoVisible).toArray(), [])
-  const pendientes = useMemo(
-    () => (productos ?? []).filter((p) => costoDesactualizado(p)),
-    [productos],
-  )
-  const agotados = useMemo(() => (productos ?? []).filter(sinStock), [productos])
 
   const creadosEsteMes = useMemo(() => {
     if (!productos || !email) return 0
@@ -65,35 +71,44 @@ export default function MiActividad() {
     return [...mapa.entries()].sort((a, b) => b[1].unidades - a[1].unidades).slice(0, 8)
   }, [ventas])
 
-  const cargando = !productos || !ventas
-  const todoAlDia = pendientes.length === 0 && agotados.length === 0
-
-  const pendiente: string[] = []
-  if (pendientes.length > 0) {
-    pendiente.push(
-      `${pendientes.length} ${pendientes.length === 1 ? 'producto' : 'productos'} con el costo vencido o sin cargar`,
-    )
-  }
-  if (agotados.length > 0) {
-    pendiente.push(
-      `${agotados.length} sin stock`,
-    )
-  }
+  const urgentes = hallazgos.filter((h) => h.nivel === 'critico').length
 
   return (
     <>
       <h2>Mi día</h2>
 
       {!cargando && (
-        <div className={todoAlDia ? 'aviso aviso-ok' : 'aviso aviso-ojo'}>
-          {todoAlDia
-            ? `¡Todo al día, ${nombre}! No queda nada pendiente. 🎉`
-            : `Hola ${nombre}, quedan ${pendiente.join(' y ')}.`}
+        <div className={hallazgos.length === 0 ? 'aviso aviso-ok' : 'aviso aviso-ojo'}>
+          {hallazgos.length === 0
+            ? `¡Todo al día, ${nombre}! No te queda nada pendiente. 🎉`
+            : `Hola ${nombre}, tenés ${hallazgos.length} ${hallazgos.length === 1 ? 'cosa' : 'cosas'} para revisar${urgentes > 0 ? `, ${urgentes} ${urgentes === 1 ? 'urgente' : 'urgentes'}` : ''}.`}
+          {pospuestos > 0 &&
+            ` (${pospuestos} pospuesto${pospuestos === 1 ? '' : 's'} para más adelante.)`}
+        </div>
+      )}
+
+      {cargando ? <p className="vacio">Revisando…</p> : <ListaHallazgos hallazgos={hallazgos} />}
+
+      {permiso === 'default' && (
+        <div className="tarjeta" style={{ marginTop: 12 }}>
+          <p className="tarjeta-titulo">Recordatorios</p>
+          <p className="silencio" style={{ marginTop: 0 }}>
+            Si querés, la app te avisa con una notificación cuando quede algo urgente — por
+            ejemplo, un turno sin cerrar. Avisa mientras la app está abierta, y como mucho una vez
+            por día por cada cosa.
+          </p>
+          <button
+            className="boton-principal"
+            style={{ width: '100%' }}
+            onClick={async () => setPermiso(await pedirPermiso())}
+          >
+            Activar recordatorios
+          </button>
         </div>
       )}
 
       <div className="tarjeta">
-        <p className="tarjeta-titulo">Tu actividad de {mesLindo(mes)}</p>
+        <p className="tarjeta-titulo">Tu trabajo de {mesLindo(mes)}</p>
         <div className="fila">
           <span className="fila-etiqueta">Productos que creaste</span>
           <span className="fila-valor">{numero(creadosEsteMes)}</span>
@@ -102,55 +117,7 @@ export default function MiActividad() {
           <span className="fila-etiqueta">Productos que actualizaste</span>
           <span className="fila-valor">{numero(actualizadosEsteMes)}</span>
         </div>
-        <div className="fila destacada">
-          <span className="fila-etiqueta">Costos pendientes en todo el catálogo</span>
-          <span className="fila-valor">{numero(pendientes.length)}</span>
-        </div>
-        <div className="fila destacada">
-          <span className="fila-etiqueta">Productos sin stock</span>
-          <span className="fila-valor">{numero(agotados.length)}</span>
-        </div>
       </div>
-
-      {agotados.length > 0 && (
-        <div className="tarjeta">
-          <p className="tarjeta-titulo">Sin stock — hay que reponer</p>
-          <ul className="lista">
-            {agotados.slice(0, 12).map((p) => (
-              <li className="item" key={p.codigo}>
-                <div className="item-titulo">{p.descripcion}</div>
-                <span className="chip chip-alerta">
-                  {p.stock === 0 ? 'SIN STOCK' : `${p.stock}`}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {agotados.length > 12 && (
-            <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
-              Y {agotados.length - 12} más — buscalos en Productos.
-            </p>
-          )}
-        </div>
-      )}
-
-      {pendientes.length > 0 && (
-        <div className="tarjeta">
-          <p className="tarjeta-titulo">Para ponerse al día</p>
-          <ul className="lista">
-            {pendientes.slice(0, 12).map((p) => (
-              <li className="item" key={p.codigo}>
-                <div className="item-titulo">{p.descripcion}</div>
-                <span className="chip chip-alerta">COSTO VIEJO</span>
-              </li>
-            ))}
-          </ul>
-          {pendientes.length > 12 && (
-            <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
-              Y {pendientes.length - 12} más — buscalos en Productos.
-            </p>
-          )}
-        </div>
-      )}
 
       <div className="tarjeta">
         <p className="tarjeta-titulo">Lo más vendido este mes</p>

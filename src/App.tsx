@@ -5,6 +5,7 @@ import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
 import { useSesion } from './sync/useSesion'
+import Panel from './paginas/Panel'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
 import Proveedores from './paginas/Proveedores'
@@ -21,6 +22,7 @@ import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './compone
 // ruta e icono de menu. Un owner las ve todas siempre; a un empleado un
 // owner le puede prender o apagar cada una desde Ajustes.
 const NAV_POR_SECCION: Record<SeccionId, { ruta: string; icono: string; texto: string }> = {
+  panel: { ruta: '/panel', icono: '🧭', texto: 'Panel' },
   caja: { ruta: '/caja', icono: '🧉', texto: 'Caja' },
   productos: { ruta: '/productos', icono: '🏷️', texto: 'Productos' },
   proveedores: { ruta: '/proveedores', icono: '🚚', texto: 'Provee.' },
@@ -125,7 +127,11 @@ export default function App() {
 
       <main className="contenido">
         <Routes>
-          <Route path="/" element={<Navigate to="/caja" replace />} />
+          <Route path="/" element={<Navigate to={puedeVer('panel') ? '/panel' : '/caja'} replace />} />
+          <Route
+            path="/panel"
+            element={puedeVer('panel') ? <Panel /> : <Navigate to="/caja" replace />}
+          />
           <Route
             path="/caja"
             element={puedeVer('caja') ? <Caja /> : <Navigate to="/mi-actividad" replace />}

@@ -25,6 +25,7 @@ export interface EntradaAyuda {
 
 export const CATEGORIAS_AYUDA = [
   'Primeros pasos',
+  'Panel y pendientes',
   'Usuarios y roles',
   'Caja',
   'Productos',
@@ -56,7 +57,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Primeros pasos',
     pregunta: '¿Qué es cada sección del menú de abajo?',
     respuesta:
-      '🧉 Caja: abrir el turno, cargar ventas y cerrar la caja. Es lo que se usa todos los días.\n\n🏷️ Productos: el catálogo completo, buscar y editar precios y costos.\n\n🚚 Proveedores: quién provee cada producto, para actualizar costos en bloque.\n\n💸 Gastos: alquiler, sueldos, proveedores pagados con la caja grande.\n\n📊 Reportes (dueños): el margen de contribución del mes, si dio a favor o en contra.\n\n⭐ Mi día (empleados): en vez de Reportes, un resumen del propio trabajo — costos pendientes, cuánto cargaste este mes, lo más vendido.\n\n⚙️ Ajustes (dueños): respaldo de los datos y usuarios del equipo.',
+      '🧭 Panel: la revisión automática. Lo primero que conviene mirar al abrir la app: te dice qué hay para hacer hoy.\n\n🧉 Caja: abrir el turno, cargar ventas y cerrar la caja. Es lo que se usa todos los días.\n\n🏷️ Productos: el catálogo completo, buscar y editar precios y costos.\n\n🚚 Proveedores: quién provee cada producto, para actualizar costos en bloque.\n\n💸 Gastos: alquiler, sueldos, proveedores pagados con la caja grande.\n\n📊 Reportes (dueños): el margen de contribución del mes, si dio a favor o en contra.\n\n⭐ Mi día (empleados): tus pendientes del día, tu resumen del mes y lo más vendido.\n\n⚙️ Ajustes (dueños): respaldo de los datos y usuarios del equipo.',
   },
   {
     id: 'sin-internet',
@@ -87,8 +88,61 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Primeros pasos',
     pregunta: '¿Para qué sirve la campana 🔔 de arriba?',
     respuesta:
-      'Avisa sola de cosas para revisar: productos que se quedaron sin stock, productos con el costo de compra vencido, ventas del mes sin costo cargado, una diferencia de caja en el último cierre, o problemas de sincronización. Tocando cada aviso te lleva directo a la pantalla donde se soluciona, ya filtrada para mostrarte justo esos productos.',
-    palabrasClave: ['campana', 'avisos', 'alertas'],
+      'Es la versión corta de la revisión automática que hace la app: muestra las mismas cosas que el Panel, ordenadas de lo más urgente a lo menos. Tocando cada aviso te lleva directo a la pantalla donde se soluciona, ya filtrada.\n\nEl número rojo es cuántas cosas hay para revisar. Si querés ver el detalle completo, con el "qué hacer" de cada una, entrá al Panel desde el botón de abajo de todo.',
+    palabrasClave: ['campana', 'avisos', 'alertas', 'numero rojo'],
+  },
+
+  // ---------- Panel y pendientes ----------
+  {
+    id: 'que-es-el-panel',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿Qué es el Panel?',
+    respuesta:
+      'Es la revisión automática del negocio. Cada vez que abrís la app, revisa sola la caja, el catálogo, los proveedores, los gastos y la sincronización, y te dice qué hay para hacer — ordenado de lo más urgente a lo menos.\n\nCada cosa que encuentra viene con tres datos: qué pasa, por qué importa, y qué hacer para resolverlo. El botón "Ir a resolverlo" te lleva derecho a la pantalla donde se arregla, ya filtrada.\n\nNo hay que pedirle nada ni apretar "actualizar": se recalcula sola con lo que va pasando.',
+    palabrasClave: ['panel', 'auditoria', 'revision', 'dashboard', 'tablero'],
+    requiereSeccion: 'panel',
+  },
+  {
+    id: 'semaforo-panel',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿Qué significa el puntaje y el color del Panel?',
+    respuesta:
+      'Es un resumen rápido de cómo viene el negocio en cuanto a cosas pendientes, del 0 al 100. Arranca en 100 y baja según lo que encuentra: mucho por cada tema urgente, poco por cada aviso menor.\n\n🟢 90 o más: todo en orden.\n🟡 70 a 89: hay cosas para revisar, nada grave.\n🟠 40 a 69: varias cosas necesitan atención.\n🔴 menos de 40: hay temas urgentes sin resolver.\n\nNo es una nota del negocio ni de nadie: es cuánto hay pendiente de cargar o corregir en la app.',
+    palabrasClave: ['puntaje', 'semaforo', 'colores', 'nota', 'salud'],
+    requiereSeccion: 'panel',
+  },
+  {
+    id: 'que-revisa-la-app',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿Qué cosas revisa la app sola?',
+    respuesta:
+      'Caja: turnos que quedaron abiertos sin cerrar, cierres con diferencia de caja, y días del mes que no tienen caja cargada.\n\nProductos: los que se venden al costo o por debajo, los que se quedaron sin stock, los que tienen el costo vencido, los que no tienen proveedor asignado, y los pedidos de archivado esperando autorización.\n\nProveedores: a quiénes se les debe plata y cuánto.\n\nGastos: si falta cargar un gasto habitual que el mes pasado sí se pagó (alquiler, luz, sueldos, contador).\n\nSistema: si el dispositivo dejó de sincronizar con la nube.',
+    palabrasClave: ['que revisa', 'controles', 'chequeos', 'auditoria'],
+    requiereSeccion: 'panel',
+  },
+  {
+    id: 'posponer-aviso',
+    categoria: 'Panel y pendientes',
+    pregunta: 'Un aviso no lo puedo resolver ahora, ¿lo puedo posponer?',
+    respuesta:
+      'Sí. Cada aviso que no sea urgente tiene un botón para posponerlo: "Recordar mañana" o "Recordar en una semana", según qué tan importante sea. Mientras tanto deja de aparecer en el Panel, en Mi día y en la campana.\n\nCuando llega la fecha vuelve solo, si el problema sigue estando. Si lo resolviste antes, no vuelve a aparecer nunca.\n\nLos avisos urgentes (los rojos) no se pueden posponer a propósito: son los que hacen perder plata todos los días.\n\nArriba de todo del Panel, si hay algo pospuesto, aparece un botón "Ver de nuevo" para traerlos todos de vuelta.',
+    palabrasClave: ['posponer', 'recordar', 'mas tarde', 'silenciar', 'ocultar aviso'],
+  },
+  {
+    id: 'mis-pendientes',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿Dónde veo lo que me queda pendiente a mí?',
+    respuesta:
+      'En "Mi día", en el menú de abajo. Es la misma revisión automática del Panel, pero filtrada a lo que vos podés resolver: no te muestra números de ganancia del negocio ni cosas de secciones que no tengas habilitadas.\n\nAbajo también está tu resumen del mes (cuántos productos creaste y actualizaste) y lo más vendido, para tenerlo a mano.',
+    palabrasClave: ['pendientes', 'mi dia', 'tareas', 'que tengo que hacer'],
+  },
+  {
+    id: 'recordatorios',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿Me puede avisar la app con una notificación?',
+    respuesta:
+      'Sí, para las cosas urgentes. En "Mi día" hay un botón "Activar recordatorios": la primera vez el navegador te va a preguntar si permitís las notificaciones.\n\nDos cosas importantes para que no te sorprenda: avisa como mucho una vez por día por cada cosa (para no volverse molesto), y solo mientras la app está abierta — aunque sea minimizada o en otra pestaña. Con la app cerrada del todo no llega nada, porque la app funciona sola, sin un servidor que mande avisos.\n\nSi no las activás no perdés nada: los mismos avisos están siempre en el Panel, en Mi día y en la campana 🔔.',
+    palabrasClave: ['notificacion', 'recordatorio', 'aviso', 'alerta', 'permiso'],
   },
 
   // ---------- Usuarios y roles ----------

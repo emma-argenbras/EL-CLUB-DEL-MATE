@@ -308,6 +308,7 @@ const ETIQUETA_ROL: Record<Rol, string> = {
 }
 
 const ETIQUETA_SECCION: Record<SeccionId, string> = {
+  panel: '🧭 Panel (revisión automática y pendientes)',
   caja: '🧉 Caja',
   productos: '🏷️ Productos',
   proveedores: '🚚 Proveedores',
