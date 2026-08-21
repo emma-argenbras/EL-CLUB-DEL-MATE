@@ -76,7 +76,7 @@ const MARCA_HISTORICO = 'Importado desde la planilla de Google Sheets.'
  * cargar un mes que ya se habia importado. Las jornadas que cargo una
  * persona a mano nunca se tocan, se reconocen porque no tienen la marca.
  */
-const VERSION_IMPORTACION = '2'
+const VERSION_IMPORTACION = '3'
 
 /**
  * Trae de la planilla un mes que la app todavia no tiene, o vuelve a

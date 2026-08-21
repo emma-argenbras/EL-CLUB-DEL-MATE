@@ -541,15 +541,20 @@ def main():
                 ventas.append(v)
 
             for e in egresos_dia:
+                # Que sea fijo o variable depende de QUE se pago, no de con
+                # que caja se pago: un sueldo sacado de la caja del turno
+                # sigue siendo un gasto fijo. Si se cuenta como variable, el
+                # margen de contribucion sale mas bajo de lo real.
+                categoria = categoria_de(e["concepto"])
                 movimientos.append(
                     {
                         "fecha": fecha,
                         "tipo": "EGRESO_CAJA",
                         "concepto": e["concepto"],
                         "monto": e["monto"],
-                        "categoria": categoria_de(e["concepto"]),
+                        "categoria": categoria,
                         "_jornadaIndice": indice_jornada,
-                        "esVariable": True,
+                        "esVariable": categoria not in FIJOS,
                     }
                 )
             for p in pases_dia:

@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../db/db'
-import { costoDesactualizado, resumirMes } from '../lib/calculos'
+import { costoDesactualizado, desglosarGastos, resumirMes } from '../lib/calculos'
 import { fechaLinda, mesActualISO, mesLindo, plata, porcentaje, numero } from '../lib/formato'
+import DesgloseGastos from '../componentes/DesgloseGastos'
 
 export default function Reportes() {
   const navegar = useNavigate()
@@ -22,6 +23,7 @@ export default function Reportes() {
     () => resumirMes(ventas ?? [], movimientos ?? []),
     [ventas, movimientos],
   )
+  const desglose = useMemo(() => desglosarGastos(movimientos ?? []), [movimientos])
 
   const porDia = useMemo(() => {
     const mapa = new Map<string, { venta: number; costo: number }>()
@@ -171,6 +173,9 @@ export default function Reportes() {
                 : `El mes dio en contra: faltaron ${plata(Math.abs(resumen.resultado))} para cubrir los gastos fijos.`}
             </p>
           </div>
+
+          {/* ---- De que estan hechos esos dos totales de gastos ---- */}
+          <DesgloseGastos desglose={desglose} />
 
           {/* ---- Advertencia de calidad de datos ---- */}
           {resumen.ventasSinCosto > 0 && (

@@ -3,7 +3,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import {
   db,
   nuevoId,
+  CATEGORIAS_GASTO,
   MEDIOS_PAGO,
+  type CategoriaGasto,
   type Arqueo,
   type Jornada,
   type MedioPago,
@@ -411,6 +413,16 @@ function PanelVentas({
 
 /* ------------------------------------------------------------------ */
 
+/** Categorias que se pagan igual se venda mucho o poco. */
+const CATEGORIAS_FIJAS: CategoriaGasto[] = [
+  'ALQUILER',
+  'SERVICIOS',
+  'SUELDOS',
+  'CONTADOR',
+  'IMPUESTOS',
+  'MANTENIMIENTO',
+]
+
 function PanelEgresos({
   jornada,
   movimientos,
@@ -423,6 +435,7 @@ function PanelEgresos({
   const [concepto, setConcepto] = useState('')
   const [monto, setMonto] = useState('')
   const [tipo, setTipo] = useState<'EGRESO_CAJA' | 'A_CAJA_GRANDE'>('EGRESO_CAJA')
+  const [categoria, setCategoria] = useState<CategoriaGasto>('OTROS')
 
   async function agregar() {
     const valor = leerNumero(monto)
@@ -433,13 +446,16 @@ function PanelEgresos({
       tipo,
       concepto: concepto.trim() || (tipo === 'A_CAJA_GRANDE' ? 'Pase a caja grande' : 'Egreso'),
       monto: valor,
-      categoria: tipo === 'EGRESO_CAJA' ? 'OTROS' : null,
+      categoria: tipo === 'EGRESO_CAJA' ? categoria : null,
       jornadaId: jornada.id,
       // Un pase a caja grande no es un gasto: es plata que cambia de lugar.
-      esVariable: tipo === 'EGRESO_CAJA',
+      // Y que un gasto sea fijo o variable depende de QUE se pago, no de
+      // con que caja: un sueldo pagado de la caja del turno es fijo igual.
+      esVariable: tipo === 'EGRESO_CAJA' && !CATEGORIAS_FIJAS.includes(categoria),
     })
     setConcepto('')
     setMonto('')
+    setCategoria('OTROS')
   }
 
   return (
@@ -480,6 +496,28 @@ function PanelEgresos({
               placeholder="0"
             />
           </div>
+
+          {tipo === 'EGRESO_CAJA' && (
+            <div className="campo">
+              <label htmlFor="cat-egreso">Categoría</label>
+              <select
+                id="cat-egreso"
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value as CategoriaGasto)}
+              >
+                {CATEGORIAS_GASTO.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <p className="silencio" style={{ marginTop: 4 }}>
+                {CATEGORIAS_FIJAS.includes(categoria)
+                  ? 'Se cuenta como gasto fijo: se paga igual se venda mucho o poco.'
+                  : 'Se cuenta como gasto variable: sube cuando se vende más.'}
+              </p>
+            </div>
+          )}
 
           <button className="boton-principal" onClick={agregar}>
             Registrar egreso

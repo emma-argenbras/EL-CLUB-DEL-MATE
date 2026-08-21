@@ -227,3 +227,85 @@ export function costoDesactualizado(producto: Producto, mesesLimite = 6): boolea
   limite.setMonth(limite.getMonth() - mesesLimite)
   return compra < limite
 }
+
+export interface GastoDetallado {
+  concepto: string
+  monto: number
+  fecha: string
+  /** Un egreso de caja sale del turno; un gasto grande, de la caja grande. */
+  deLaCaja: boolean
+}
+
+export interface CategoriaGastada {
+  categoria: string
+  monto: number
+  /** Cuanto pesa dentro de su grupo (fijos o variables). */
+  porcentaje: number
+  movimientos: GastoDetallado[]
+}
+
+export interface GrupoGastos {
+  total: number
+  categorias: CategoriaGastada[]
+}
+
+export interface DesgloseGastos {
+  variables: GrupoGastos
+  fijos: GrupoGastos
+  total: number
+}
+
+/**
+ * Abre los dos totales de gastos del mes para ver de que estan hechos.
+ *
+ * Se agrupa primero por fijo/variable —que es lo que cambia el calculo
+ * del margen— y adentro por categoria, de mayor a menor: asi se ve de un
+ * vistazo cual es el gasto que mas pesa en cada grupo.
+ *
+ * Toma los mismos movimientos que resumirMes: los gastos pagados con la
+ * caja grande y los egresos chicos de la caja del turno. Los pases a
+ * caja grande no son un gasto (es plata que cambia de lugar), y los
+ * ingresos tampoco.
+ */
+export function desglosarGastos(movimientos: Movimiento[]): DesgloseGastos {
+  const gastos = movimientos.filter(
+    (m) => m.tipo === 'GASTO_CAJA_GRANDE' || m.tipo === 'EGRESO_CAJA',
+  )
+
+  function armarGrupo(deEsteGrupo: Movimiento[]): GrupoGastos {
+    const total = deEsteGrupo.reduce((suma, m) => suma + m.monto, 0)
+    const porCategoria = new Map<string, GastoDetallado[]>()
+
+    for (const m of deEsteGrupo) {
+      const categoria = m.categoria ?? 'OTROS'
+      const detalle: GastoDetallado = {
+        concepto: m.concepto,
+        monto: m.monto,
+        fecha: m.fecha,
+        deLaCaja: m.tipo === 'EGRESO_CAJA',
+      }
+      const actual = porCategoria.get(categoria)
+      if (actual) actual.push(detalle)
+      else porCategoria.set(categoria, [detalle])
+    }
+
+    const categorias: CategoriaGastada[] = [...porCategoria.entries()]
+      .map(([categoria, movs]) => {
+        const monto = movs.reduce((suma, m) => suma + m.monto, 0)
+        return {
+          categoria,
+          monto,
+          porcentaje: total > 0 ? (monto / total) * 100 : 0,
+          movimientos: movs.sort((a, b) => a.fecha.localeCompare(b.fecha)),
+        }
+      })
+      .sort((a, b) => b.monto - a.monto)
+
+    return { total, categorias }
+  }
+
+  const variables = armarGrupo(gastos.filter((m) => m.esVariable))
+  const fijos = armarGrupo(gastos.filter((m) => !m.esVariable))
+
+  return { variables, fijos, total: variables.total + fijos.total }
+}
