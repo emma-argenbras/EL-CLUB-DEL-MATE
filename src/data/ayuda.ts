@@ -385,6 +385,34 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'productos',
   },
 
+  {
+    id: 'compartir-whatsapp',
+    categoria: 'Productos',
+    pregunta: '¿Cómo le paso un producto a un cliente por WhatsApp?',
+    respuesta:
+      'En la lista de Productos, cada producto tiene un botón 💬 al lado del precio. También aparece abajo de todo cuando abrís un producto para editarlo.\n\nAl tocarlo se abre tu WhatsApp con el mensaje ya escrito: el nombre del producto, el precio y el enlace al catálogo. Vos elegís a quién mandárselo y tocás enviar.\n\nUsa el WhatsApp que ya tenés en el celular, con tu número de siempre. No hace falta ninguna cuenta nueva ni configurar nada.',
+    palabrasClave: ['whatsapp', 'wsp', 'compartir', 'mandar', 'pasar precio', 'cliente'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'catalogo-publico',
+    categoria: 'Productos',
+    pregunta: '¿Qué es el catálogo público y qué ven los clientes?',
+    respuesta:
+      'Es una página web que puede abrir cualquiera, sin usuario ni contraseña: app.elclubdelmate.com/catalogo/. Muestra los productos con su nombre, su código y el precio de venta, con un buscador.\n\nSolo se publican esas tres cosas. El precio de compra, la rentabilidad, el proveedor y el stock NO se publican nunca.\n\nTampoco salen los productos inactivos, los archivados, los descontinuados ni los que no tienen precio cargado.',
+    palabrasClave: ['catalogo', 'publico', 'clientes', 'pagina', 'web', 'link', 'enlace'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'catalogo-desactualizado',
+    categoria: 'Productos',
+    pregunta: 'Cambié un precio y el catálogo público sigue mostrando el viejo',
+    respuesta:
+      'El catálogo público no se actualiza solo: es una página aparte, que se publica cada vez que se sube una lista de precios nueva.\n\nSi editaste precios desde la app y querés que salgan ya, andá a Ajustes → Catálogo público → "Exportar catálogo con los precios de hoy". Eso te descarga un archivo que hay que publicar.\n\nMientras tanto, el catálogo sigue mostrando los precios de la última lista publicada. Por eso la página aclara abajo que los precios pueden cambiar sin aviso.',
+    palabrasClave: ['catalogo viejo', 'precio desactualizado', 'no se actualiza', 'publicar'],
+    soloOwner: true,
+    requiereSeccion: 'productos',
+  },
   // ---------- Proveedores ----------
   {
     id: 'asignar-proveedor',

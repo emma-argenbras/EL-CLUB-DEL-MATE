@@ -722,3 +722,41 @@ th.num {
     font-size: 0.78rem;
   }
 }
+
+/* ---------- WhatsApp: compartir productos y catalogo ---------- */
+
+/* Es un enlace, no un boton, porque navega a wa.me; se le da el mismo
+   aspecto que a los botones chicos para que no desentone en la fila. */
+.boton-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 0.8rem;
+  line-height: 1;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--papel);
+  color: var(--verde);
+}
+
+.boton-wa:hover {
+  background: var(--verde-suave);
+  border-color: var(--verde-claro);
+}
+
+.boton-wa:focus-visible {
+  outline: 2px solid var(--verde-claro);
+  outline-offset: 2px;
+}
+
+/* En la fila de un producto va solo el icono, para no comerle lugar
+   al precio. */
+.boton-wa-chico {
+  padding: 7px 9px;
+  font-size: 1rem;
+}
