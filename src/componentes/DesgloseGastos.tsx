@@ -3,29 +3,35 @@ import type { DesgloseGastos as Desglose, GrupoGastos } from '../lib/calculos'
 import { fechaLinda, plata, porcentaje } from '../lib/formato'
 
 /**
- * Abre los dos totales de gastos del mes para ver de que estan hechos:
+ * Abre los dos totales de gastos del periodo para ver de que estan hechos:
  * primero por categoria, y tocando una categoria, el detalle de cada
  * gasto con su fecha.
  *
  * Se separan fijos de variables porque no pesan igual en la cuenta: los
  * variables se restan antes del margen de contribucion y los fijos
- * despues, para llegar al resultado del mes.
+ * despues, para llegar al resultado.
  */
-export default function DesgloseGastos({ desglose }: { desglose: Desglose }) {
+export default function DesgloseGastos({
+  desglose,
+  titulo = 'Gastos del mes en detalle',
+}: {
+  desglose: Desglose
+  titulo?: string
+}) {
   if (desglose.total === 0) {
     return (
       <div className="tarjeta">
-        <p className="tarjeta-titulo">Gastos del mes en detalle</p>
-        <p className="vacio">No hay gastos cargados en este mes.</p>
+        <p className="tarjeta-titulo">{titulo}</p>
+        <p className="vacio">No hay gastos cargados en este período.</p>
       </div>
     )
   }
 
   return (
     <div className="tarjeta">
-      <p className="tarjeta-titulo">Gastos del mes en detalle</p>
+      <p className="tarjeta-titulo">{titulo}</p>
       <p className="silencio" style={{ marginTop: 0, marginBottom: 12 }}>
-        Total del mes: <strong>{plata(desglose.total)}</strong>. Tocá una categoría para ver los
+        Total: <strong>{plata(desglose.total)}</strong>. Tocá una categoría para ver los
         gastos que la componen.
       </p>
 
@@ -78,7 +84,7 @@ function Grupo({
 
       {grupo.categorias.length === 0 ? (
         <p className="vacio" style={{ margin: 0 }}>
-          Sin gastos {titulo.toLowerCase()} este mes.
+          Sin gastos {titulo.toLowerCase()} en este período.
         </p>
       ) : (
         <ul className="lista">

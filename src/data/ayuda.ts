@@ -505,6 +505,16 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'reportes',
   },
   {
+    id: 'reporte-anual',
+    categoria: 'Reportes',
+    pregunta: '¿Puedo ver el año completo en vez de un mes?',
+    respuesta:
+      'Sí. Arriba de todo en Reportes hay dos pestañas: "Por mes" y "Por año". En la anual elegís el año y ves el resultado del año entero, cómo se arma, y una tabla mes por mes con las ventas, el margen y el resultado de cada uno, para ver la evolución.\n\nTambién te muestra el promedio de ventas por mes, cuál fue el mejor mes y cuál el más flojo, el desglose de los gastos del año y los productos que más facturaron.\n\nSolo aparecen los meses que tienen algo cargado: un año recién empezado no se llena de meses en cero.',
+    palabrasClave: ['anual', 'año', 'todo el año', 'evolucion', 'comparar meses'],
+    soloOwner: true,
+    requiereSeccion: 'reportes',
+  },
+  {
     id: 'ver-mes-anterior',
     categoria: 'Reportes',
     pregunta: '¿Cómo veo el reporte de un mes anterior?',

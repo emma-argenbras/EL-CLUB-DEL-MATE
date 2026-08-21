@@ -5,10 +5,13 @@ import { db } from '../db/db'
 import { costoDesactualizado, desglosarGastos, resumirMes } from '../lib/calculos'
 import { fechaLinda, mesActualISO, mesLindo, plata, porcentaje, numero } from '../lib/formato'
 import DesgloseGastos from '../componentes/DesgloseGastos'
+import ReporteAnual from '../componentes/ReporteAnual'
 
 export default function Reportes() {
   const navegar = useNavigate()
+  const [vista, setVista] = useState<'mes' | 'anio'>('mes')
   const [mes, setMes] = useState(mesActualISO())
+  const [anio, setAnio] = useState(mesActualISO().slice(0, 4))
 
   const ventas = useLiveQuery(
     () => db.ventas.where('fecha').between(`${mes}-00`, `${mes}-32`).toArray(),
@@ -91,11 +94,44 @@ export default function Reportes() {
       <h2>Reportes</h2>
 
       <div className="tarjeta">
-        <label htmlFor="mes-rep">Mes</label>
-        <input id="mes-rep" type="month" value={mes} onChange={(e) => setMes(e.target.value)} />
+        <div className="pestanas" style={{ marginBottom: 10 }}>
+          <button
+            className={vista === 'mes' ? 'pestana activa' : 'pestana'}
+            onClick={() => setVista('mes')}
+          >
+            Por mes
+          </button>
+          <button
+            className={vista === 'anio' ? 'pestana activa' : 'pestana'}
+            onClick={() => setVista('anio')}
+          >
+            Por año
+          </button>
+        </div>
+        {vista === 'mes' ? (
+          <div className="campo">
+            <label htmlFor="mes-rep">Mes</label>
+            <input id="mes-rep" type="month" value={mes} onChange={(e) => setMes(e.target.value)} />
+          </div>
+        ) : (
+          <div className="campo">
+            <label htmlFor="anio-rep">Año</label>
+            <input
+              id="anio-rep"
+              type="number"
+              inputMode="numeric"
+              min={2020}
+              max={2100}
+              value={anio}
+              onChange={(e) => setAnio(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
-      {cargando ? (
+      {vista === 'anio' && <ReporteAnual anio={anio} />}
+
+      {vista !== 'mes' ? null : cargando ? (
         <p className="vacio">Cargando…</p>
       ) : sinDatos ? (
         <p className="vacio">No hay ventas cargadas en {mesLindo(mes)}.</p>
