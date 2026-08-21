@@ -309,3 +309,70 @@ export function desglosarGastos(movimientos: Movimiento[]): DesgloseGastos {
 
   return { variables, fijos, total: variables.total + fijos.total }
 }
+
+export interface ResumenDeUnMes extends ResumenMes {
+  /** Mes en formato yyyy-mm. */
+  mes: string
+}
+
+export interface ResumenAnual {
+  anio: string
+  /** Un renglon por cada mes que tuvo movimiento, del mas viejo al mas nuevo. */
+  meses: ResumenDeUnMes[]
+  /** El año entero, calculado igual que un mes. */
+  total: ResumenMes
+  mejorMes: ResumenDeUnMes | null
+  peorMes: ResumenDeUnMes | null
+  /** Promedio de ventas de los meses con actividad. */
+  promedioMensual: number
+}
+
+/**
+ * El año completo, mes por mes y en total.
+ *
+ * Solo entran los meses que tuvieron algo cargado: un año recien
+ * empezado no muestra diez meses en cero, que solo ensucian la
+ * comparacion y el promedio.
+ */
+export function resumirAnio(
+  anio: string,
+  ventas: Venta[],
+  movimientos: Movimiento[],
+): ResumenAnual {
+  const ventasPorMes = new Map<string, Venta[]>()
+  const movimientosPorMes = new Map<string, Movimiento[]>()
+
+  for (const v of ventas) {
+    const mes = v.fecha.slice(0, 7)
+    const actual = ventasPorMes.get(mes)
+    if (actual) actual.push(v)
+    else ventasPorMes.set(mes, [v])
+  }
+  for (const m of movimientos) {
+    const mes = m.fecha.slice(0, 7)
+    const actual = movimientosPorMes.get(mes)
+    if (actual) actual.push(m)
+    else movimientosPorMes.set(mes, [m])
+  }
+
+  const conActividad = [...new Set([...ventasPorMes.keys(), ...movimientosPorMes.keys()])].sort()
+
+  const meses: ResumenDeUnMes[] = conActividad.map((mes) => ({
+    mes,
+    ...resumirMes(ventasPorMes.get(mes) ?? [], movimientosPorMes.get(mes) ?? []),
+  }))
+
+  const conVentas = meses.filter((m) => m.ventasTotales > 0)
+  const ordenadosPorVenta = [...conVentas].sort((a, b) => b.ventasTotales - a.ventasTotales)
+
+  return {
+    anio,
+    meses,
+    total: resumirMes(ventas, movimientos),
+    mejorMes: ordenadosPorVenta[0] ?? null,
+    peorMes: ordenadosPorVenta.length > 1 ? ordenadosPorVenta[ordenadosPorVenta.length - 1] : null,
+    promedioMensual: conVentas.length
+      ? conVentas.reduce((suma, m) => suma + m.ventasTotales, 0) / conVentas.length
+      : 0,
+  }
+}
