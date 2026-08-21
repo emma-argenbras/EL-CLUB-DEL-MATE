@@ -12,3 +12,4 @@ dev-dist
 datos-originales/
 *.xlsx
 tsconfig.tsbuildinfo
+scripts/__pycache__/

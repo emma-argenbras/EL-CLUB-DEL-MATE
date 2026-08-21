@@ -1,14 +1,13 @@
 import {
+  comoRemoto,
   db,
   derivarProveedoresDesdeProductos,
   guardarAjuste,
   leerAjuste,
   nuevoId,
-  type Arqueo,
   type Jornada,
   type Movimiento,
   type Producto,
-  type Turno,
   type Venta,
 } from './db'
 
@@ -70,96 +69,172 @@ interface HistoricoMes {
   movimientos: MovimientoHistorico[]
 }
 
-/**
- * Carga las jornadas, ventas y gastos que ya estaban anotados en la
- * planilla vieja para un mes puntual (hoy solo julio 2026), asi el
- * primer reporte de margen de contribucion no arranca en cero.
- *
- * Es prudente: si el negocio ya tiene turnos cargados (es decir, ya se
- * empezo a usar la app para cargar caja de verdad), no toca nada.
- */
-export async function sembrarHistorico(mes: string): Promise<{
-  jornadas: number
-  ventas: number
-  movimientos: number
-}> {
-  const clave = `historico_${mes}_sembrado`
-  const vacio = { jornadas: 0, ventas: 0, movimientos: 0 }
-
-  if ((await leerAjuste(clave)) === 'si') return vacio
-  if ((await db.jornadas.count()) > 0) {
-    await guardarAjuste(clave, 'si')
-    return vacio
-  }
-
-  const datos = await bajarJSON<HistoricoMes>(`historico-${mes}.seed.json`)
-
-  const idsJornadas = datos.jornadas.map(() => nuevoId())
-  const jornadas: Jornada[] = datos.jornadas.map((j, i) => ({ ...j, id: idsJornadas[i] }))
-
-  const ventas: Venta[] = datos.ventas.map((v) => {
-    const { _jornadaIndice, ...resto } = v
-    return { ...resto, id: nuevoId(), jornadaId: idsJornadas[_jornadaIndice] }
-  })
-
-  const movimientos: Movimiento[] = datos.movimientos.map((m) => {
-    const { _jornadaIndice, ...resto } = m
-    return {
-      ...resto,
-      id: nuevoId(),
-      jornadaId: _jornadaIndice === null ? null : idsJornadas[_jornadaIndice],
-    }
-  })
-
-  await db.transaction('rw', db.jornadas, db.ventas, db.movimientos, async () => {
-    await db.jornadas.bulkAdd(jornadas)
-    await db.ventas.bulkAdd(ventas)
-    await db.movimientos.bulkAdd(movimientos)
-  })
-
-  await guardarAjuste(clave, 'si')
-  return { jornadas: jornadas.length, ventas: ventas.length, movimientos: movimientos.length }
-}
-
-interface ArqueoHistorico {
-  fecha: string
-  turno: Turno
-  arqueoApertura: Arqueo | null
-  arqueoCierre: Arqueo | null
-}
-
 const MARCA_HISTORICO = 'Importado desde la planilla de Google Sheets.'
 
 /**
- * Completa el conteo de billetes (apertura y cierre) de las jornadas ya
- * importadas por sembrarHistorico, que se cargaron sin ese detalle. Es un
- * parche aparte (no forma parte del seed original) porque llega despues:
- * solo toca jornadas que siguen marcadas como importadas, para no pisar
- * un arqueo real que alguien haya cargado a mano desde la app.
+ * Se sube de numero cuando se corrige el importador y hay que volver a
+ * cargar un mes que ya se habia importado. Las jornadas que cargo una
+ * persona a mano nunca se tocan, se reconocen porque no tienen la marca.
  */
-export async function cargarArqueosHistoricos(mes: string): Promise<number> {
-  const clave = `arqueos_${mes}_cargados`
-  if ((await leerAjuste(clave)) === 'si') return 0
+const VERSION_IMPORTACION = '2'
 
-  const datos = await bajarJSON<ArqueoHistorico[]>(`arqueos-${mes}.seed.json`)
+/**
+ * Trae de la planilla un mes que la app todavia no tiene, o vuelve a
+ * traer uno que se habia importado con una version vieja del script.
+ *
+ * A diferencia de sembrarHistorico (que solo corre en un dispositivo
+ * recien instalado), esta funcion sirve con la app ya en uso: va turno
+ * por turno y solo toca los que estan marcados como importados. Un turno
+ * que abrio y cerro una persona desde la app queda intacto, aunque la
+ * planilla tenga ese mismo dia cargado.
+ */
+export async function sincronizarMesImportado(mes: string): Promise<{
+  jornadasNuevas: number
+  jornadasActualizadas: number
+  ventas: number
+  movimientos: number
+}> {
+  const resultado = { jornadasNuevas: 0, jornadasActualizadas: 0, ventas: 0, movimientos: 0 }
+  const clave = `historico_${mes}_version`
+  if ((await leerAjuste(clave)) === VERSION_IMPORTACION) return resultado
 
-  let parcheadas = 0
-  for (const dato of datos) {
-    const jornada = await db.jornadas
-      .where('[fecha+turno]')
-      .equals([dato.fecha, dato.turno])
-      .first()
-    if (!jornada || jornada.notas !== MARCA_HISTORICO) continue
+  const datos = await bajarJSON<HistoricoMes>(`historico-${mes}.seed.json`)
 
-    const cambios: Partial<Jornada> = {}
-    if (dato.arqueoApertura) cambios.arqueoApertura = dato.arqueoApertura
-    if (dato.arqueoCierre) cambios.arqueoCierre = dato.arqueoCierre
-    if (Object.keys(cambios).length === 0) continue
+  // Los gastos de caja grande no cuelgan de ningun turno: se reconocen
+  // por fecha + concepto + monto para no cargarlos dos veces.
+  const sueltos = datos.movimientos.filter((m) => m._jornadaIndice === null)
+  const yaCargados = new Set(
+    (await db.movimientos.where('fecha').between(`${mes}-00`, `${mes}-32`).toArray()).map(
+      (m) => `${m.fecha}|${m.concepto}|${m.monto}`,
+    ),
+  )
 
-    await db.jornadas.update(jornada.id, cambios)
-    parcheadas++
-  }
+  await db.transaction('rw', db.jornadas, db.ventas, db.movimientos, async () => {
+    for (const [indice, jornadaSeed] of datos.jornadas.entries()) {
+      const existente = await db.jornadas
+        .where('[fecha+turno]')
+        .equals([jornadaSeed.fecha, jornadaSeed.turno])
+        .first()
 
+      // Turno cargado por una persona desde la app: no se toca nunca.
+      if (existente && existente.notas !== MARCA_HISTORICO) continue
+
+      let jornadaId: string
+      if (existente) {
+        jornadaId = existente.id
+        await db.jornadas.update(jornadaId, {
+          cajaInicial: jornadaSeed.cajaInicial,
+          arqueoApertura: jornadaSeed.arqueoApertura,
+          arqueoCierre: jornadaSeed.arqueoCierre,
+        })
+        // Se reemplaza lo que habia traido la version anterior del script.
+        const viejas = await db.ventas.where('jornadaId').equals(jornadaId).primaryKeys()
+        await db.ventas.bulkDelete(viejas as string[])
+        const viejos = await db.movimientos.where('jornadaId').equals(jornadaId).primaryKeys()
+        await db.movimientos.bulkDelete(viejos as string[])
+        resultado.jornadasActualizadas++
+      } else {
+        jornadaId = nuevoId()
+        await db.jornadas.add({ ...jornadaSeed, id: jornadaId })
+        resultado.jornadasNuevas++
+      }
+
+      const ventas = datos.ventas
+        .filter((v) => v._jornadaIndice === indice)
+        .map(({ _jornadaIndice: _, ...resto }) => ({ ...resto, id: nuevoId(), jornadaId }))
+      await db.ventas.bulkAdd(ventas)
+      resultado.ventas += ventas.length
+
+      const movimientos = datos.movimientos
+        .filter((m) => m._jornadaIndice === indice)
+        .map(({ _jornadaIndice: _, ...resto }) => ({ ...resto, id: nuevoId(), jornadaId }))
+      await db.movimientos.bulkAdd(movimientos)
+      resultado.movimientos += movimientos.length
+    }
+
+    for (const { _jornadaIndice: _, ...gasto } of sueltos) {
+      if (yaCargados.has(`${gasto.fecha}|${gasto.concepto}|${gasto.monto}`)) continue
+      await db.movimientos.add({ ...gasto, id: nuevoId(), jornadaId: null })
+      resultado.movimientos++
+    }
+  })
+
+  await guardarAjuste(clave, VERSION_IMPORTACION)
+  return resultado
+}
+
+/** Campos que puede traer la lista de precios de la planilla. */
+type CampoPrecio = 'precioCompra' | 'fechaCompra' | 'rentabilidad' | 'precioVenta' | 'fechaPrecioVenta'
+
+interface CambioPrecio {
+  codigo: string
+  anterior: Partial<Record<CampoPrecio, unknown>>
+  nuevo: Partial<Record<CampoPrecio, unknown>>
+}
+
+interface ParchePrecios {
+  mes: string
+  cambios: CambioPrecio[]
+  nuevos: Producto[]
+}
+
+/**
+ * Trae la lista de precios actualizada de la planilla "BASE DE DATOS
+ * ECDM 2026" (ver scripts/actualizar-precios.py).
+ *
+ * Respeta lo que se haya editado desde la app: cada campo se pisa
+ * solamente si lo guardado sigue siendo igual a lo que decia la lista
+ * anterior. Si alguien ya corrigio ese costo a mano — o lo actualizo una
+ * compra cargada en la cuenta corriente del proveedor — ese campo se
+ * deja como esta, porque es mas nuevo que la planilla.
+ */
+export async function aplicarPreciosNuevos(mes: string): Promise<{
+  actualizados: number
+  nuevos: number
+  respetados: number
+}> {
+  const resultado = { actualizados: 0, nuevos: 0, respetados: 0 }
+  const clave = `precios_${mes}_aplicados`
+  if ((await leerAjuste(clave)) === 'si') return resultado
+
+  const parche = await bajarJSON<ParchePrecios>(`precios-${mes}.seed.json`)
+
+  // comoRemoto: es la misma lista de precios para todos los dispositivos,
+  // asi que cada uno la aplica igual por su cuenta. No tiene sentido
+  // anotarlo en el historial a nombre de quien abrio la app, ni mandar
+  // los mismos cambios a la nube desde cada telefono.
+  await comoRemoto(async () => {
+    await db.transaction('rw', db.productos, async () => {
+      for (const cambio of parche.cambios) {
+        const producto = await db.productos.get(cambio.codigo)
+        if (!producto) continue
+
+        const aplicar: Partial<Producto> = {}
+        let respetado = false
+        for (const [campo, valor] of Object.entries(cambio.nuevo) as [CampoPrecio, never][]) {
+          if (producto[campo] === cambio.anterior[campo]) {
+            aplicar[campo] = valor
+          } else {
+            respetado = true
+          }
+        }
+
+        if (Object.keys(aplicar).length > 0) {
+          await db.productos.update(cambio.codigo, aplicar)
+          resultado.actualizados++
+        }
+        if (respetado) resultado.respetados++
+      }
+
+      for (const producto of parche.nuevos) {
+        if (await db.productos.get(producto.codigo)) continue
+        await db.productos.add(producto)
+        resultado.nuevos++
+      }
+    })
+  })
+
+  if (resultado.nuevos > 0) await derivarProveedoresDesdeProductos()
   await guardarAjuste(clave, 'si')
-  return parcheadas
+  return resultado
 }

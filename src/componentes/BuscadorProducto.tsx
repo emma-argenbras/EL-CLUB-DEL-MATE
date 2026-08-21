@@ -8,6 +8,29 @@ interface Props {
 }
 
 /**
+ * Producto de una sola vez, para poder cobrar algo que todavia no esta
+ * en el catalogo sin frenar la atencion al cliente. No se guarda como
+ * producto: solo queda la venta, con su descripcion y su precio.
+ */
+function productoSuelto(descripcion: string): Producto {
+  const nombre = descripcion.trim()
+  return {
+    codigo: '',
+    descripcion: nombre,
+    proveedor: null,
+    proveedorId: null,
+    fechaCompra: null,
+    precioCompra: null,
+    rentabilidad: null,
+    precioVenta: null,
+    fechaPrecioVenta: null,
+    busqueda: normalizar(nombre),
+    stock: null,
+    activo: true,
+  }
+}
+
+/**
  * Buscador de productos por codigo o por nombre.
  * Sirve escribir "mate calabaza" o el codigo exacto: si el codigo
  * coincide justo, se puede confirmar con Enter sin tocar la lista.
@@ -132,6 +155,13 @@ export default function BuscadorProducto({ onElegir, autoFoco }: Props) {
       {abierto && texto.length >= 2 && resultados.length === 0 && (
         <div className="sugerencias">
           <div className="sugerencia silencio">Sin resultados para “{texto}”</div>
+          <div className="sugerencia" onClick={() => elegir(productoSuelto(texto))}>
+            <div className="item-titulo">Vender igual, sin código</div>
+            <div className="item-sub">
+              Se registra como “{texto.trim()}” y le ponés el precio a mano. Sirve para algo que
+              todavía no está en el catálogo, sin frenar la venta.
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { cargarArqueosHistoricos, sembrarCatalogo, sembrarHistorico } from './db/sembrar'
+import { aplicarPreciosNuevos, sembrarCatalogo, sincronizarMesImportado } from './db/sembrar'
 import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
@@ -28,8 +28,11 @@ const NAV_POR_SECCION: Record<SeccionId, { ruta: string; icono: string; texto: s
   reportes: { ruta: '/reportes', icono: '📊', texto: 'Reportes' },
 }
 
-// Meses de la planilla vieja ya extraidos y listos para sembrar solos.
-const MESES_HISTORICOS = ['2026-07']
+// Meses de la planilla vieja ya extraidos y listos para cargarse solos.
+const MESES_HISTORICOS = ['2026-07', '2026-08']
+
+// Actualizaciones de la lista de precios traidas de la BASE DE DATOS.
+const LISTAS_DE_PRECIOS = ['2026-08']
 
 export default function App() {
   const [listo, setListo] = useState(false)
@@ -43,8 +46,10 @@ export default function App() {
     ;(async () => {
       await sembrarCatalogo()
       for (const mes of MESES_HISTORICOS) {
-        await sembrarHistorico(mes)
-        await cargarArqueosHistoricos(mes)
+        await sincronizarMesImportado(mes)
+      }
+      for (const mes of LISTAS_DE_PRECIOS) {
+        await aplicarPreciosNuevos(mes)
       }
     })()
       .then(() => setListo(true))

@@ -199,6 +199,18 @@ export function sinStock(producto: Producto): boolean {
 }
 
 /**
+ * Se esta vendiendo al costo o por debajo: cada unidad que sale es plata
+ * perdida. Suele pasar cuando el proveedor aumenta y el precio de venta
+ * queda sin actualizar. A diferencia del costo vencido, aca el problema
+ * no es el dato sino el precio: hay que corregirlo si o si.
+ */
+export function precioBajoCosto(producto: Producto): boolean {
+  if (producto.archivado) return false
+  if (!producto.precioCompra || !producto.precioVenta) return false
+  return producto.precioVenta <= producto.precioCompra
+}
+
+/**
  * Un costo de compra viejo infla el margen: si el precio de venta se
  * actualizo por inflacion y el de compra no, la ganancia parece mayor
  * de lo que es. Marcamos los productos con costo desactualizado.

@@ -5,6 +5,7 @@ import {
   costoDesactualizado,
   margenPorcentual,
   margenUnitario,
+  precioBajoCosto,
   precioSugerido,
   redondearPrecio,
   resumirJornada,
@@ -242,5 +243,30 @@ describe('sinStock', () => {
 
   it('un producto archivado no molesta con avisos de stock', () => {
     expect(sinStock(producto({ stock: 0, archivado: true }))).toBe(false)
+  })
+})
+
+describe('precioBajoCosto', () => {
+  it('avisa cuando el precio de venta no llega a cubrir el costo', () => {
+    expect(precioBajoCosto(producto({ precioCompra: 12500, precioVenta: 8750 }))).toBe(true)
+  })
+
+  it('vender justo al costo tambien cuenta: no deja nada', () => {
+    expect(precioBajoCosto(producto({ precioCompra: 2700, precioVenta: 2700 }))).toBe(true)
+  })
+
+  it('con margen normal no avisa', () => {
+    expect(precioBajoCosto(producto({ precioCompra: 1000, precioVenta: 2300 }))).toBe(false)
+  })
+
+  it('sin costo o sin precio de venta cargado no se puede saber, y no avisa', () => {
+    expect(precioBajoCosto(producto({ precioCompra: null, precioVenta: 2300 }))).toBe(false)
+    expect(precioBajoCosto(producto({ precioCompra: 1000, precioVenta: null }))).toBe(false)
+  })
+
+  it('un producto archivado no molesta mas', () => {
+    expect(
+      precioBajoCosto(producto({ precioCompra: 12500, precioVenta: 8750, archivado: true })),
+    ).toBe(false)
   })
 })

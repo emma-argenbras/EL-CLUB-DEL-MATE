@@ -19,9 +19,10 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
 
 La campana 🔔 de arriba de todo avisa sola cuando hay algo para revisar: productos
-sin stock, productos con costo vencido, ventas del mes sin costo cargado,
-diferencias de caja o problemas de sincronización. Cada aviso lleva a la pantalla
-que lo resuelve, ya filtrada.
+que se venden **al costo o por debajo** (el aviso más urgente: cada venta pierde
+plata), productos sin stock, productos con costo vencido, ventas del mes sin costo
+cargado, diferencias de caja o problemas de sincronización. Cada aviso lleva a la
+pantalla que lo resuelve, ya filtrada.
 
 La **Ayuda** (❓) se adapta a quién la mira: un empleado ve solo las preguntas de
 lo que efectivamente puede hacer — sin las de dueño (usuarios, respaldos) ni las
@@ -34,13 +35,28 @@ versión nueva en cualquier momento, sin esperar a que avise sola.
 
 ---
 
-## Julio 2026 ya está cargado
+## Julio y agosto 2026 ya están cargados
 
-Las 62 jornadas, 337 ventas y 35 gastos que estaban anotados en la planilla de
-julio se cargan solos la primera vez que se abre la app (una sola vez: si después
-se sigue usando la app para cargar caja de verdad, no se vuelve a tocar).
+Lo que estaba anotado en las planillas de julio (62 jornadas, 375 ventas, 35
+gastos) y de agosto (62 jornadas, 167 ventas, 24 gastos) se carga solo.
 
-**Con eso, julio 2026 dio así:**
+La carga es **turno por turno y no pisa nada**: un turno que abrió y cerró una
+persona desde la app queda intacto aunque la planilla tenga ese mismo día. Solo
+se tocan los turnos marcados como importados. Eso permite volver a traer un mes
+cuando se corrige el importador, sin riesgo para lo que se cargó a mano.
+
+**Agosto 2026 (hasta el día 18, que es hasta donde llega la planilla):**
+
+| | |
+|---|--:|
+| Ventas totales | $3.869.780 |
+| Costo de mercadería vendida | −$1.437.865 |
+| Gastos variables | −$911.550 |
+| **Margen de contribución** | **$1.520.365 (39,3 %)** |
+| Gastos fijos | −$1.150.000 |
+| **Resultado del mes** | **$370.365 a favor** |
+
+**Julio 2026 dio así:**
 
 | | |
 |---|--:|
