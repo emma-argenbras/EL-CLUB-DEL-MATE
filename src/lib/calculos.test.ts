@@ -496,3 +496,42 @@ describe('precioAtrasado', () => {
     expect(precioAtrasado(p)).toEqual({ actual: 15000, sugerido: 23000, falta: 8000 })
   })
 })
+
+describe('un producto descontinuado deja de reclamar mantenimiento', () => {
+  // Es lo que pasaba en el local: Gabriela marcaba productos como
+  // descontinuados y le seguian apareciendo en la lista de pendientes,
+  // porque el unico aviso que la respetaba era el del costo.
+  const viejo = '2023-02-27'
+  const muerto = producto({
+    descontinuado: true,
+    stock: 0,
+    fechaCompra: viejo,
+    fechaPrecioVenta: viejo,
+    precioCompra: 1000,
+    rentabilidad: 1.3,
+    precioVenta: 1500, // por debajo de los 2.300 que dice su markup
+  })
+
+  it('no pide reponer stock de algo que no se repone', () => {
+    expect(sinStock(muerto)).toBe(false)
+    expect(sinStock({ ...muerto, descontinuado: false })).toBe(true)
+  })
+
+  it('no reclama remarcar el precio', () => {
+    expect(precioDesactualizado(muerto)).toBe(false)
+    expect(precioDesactualizado({ ...muerto, descontinuado: false })).toBe(true)
+  })
+
+  it('no reclama subirlo al markup: se esta liquidando', () => {
+    expect(precioAtrasado(muerto)).toBeNull()
+    expect(precioAtrasado({ ...muerto, descontinuado: false })).not.toBeNull()
+  })
+
+  it('no reclama actualizar el costo', () => {
+    expect(costoDesactualizado(muerto)).toBe(false)
+  })
+
+  it('pero si se vende por debajo del costo sigue avisando: eso es plata que sale hoy', () => {
+    expect(precioBajoCosto({ ...muerto, precioCompra: 2000, precioVenta: 1500 })).toBe(true)
+  })
+})

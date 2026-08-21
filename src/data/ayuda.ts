@@ -352,10 +352,10 @@ export const AYUDA: EntradaAyuda[] = [
   {
     id: 'producto-descontinuado',
     categoria: 'Productos',
-    pregunta: 'Un producto ya no se fabrica más, ¿cómo hago para que deje de avisarme que actualice el costo?',
+    pregunta: 'Marqué un producto como descontinuado y me sigue apareciendo, ¿por qué?',
     respuesta:
-      'Abrí el producto y tildá "Ya no se fabrica / no se repone", más abajo del stock. Con eso deja de contar como "costo desactualizado" en todos lados (la campana, el listado de Productos, Mi día y los reportes), pero sigue viéndose en el catálogo y se puede seguir vendiendo por si queda stock — no es lo mismo que archivarlo. Lo puede hacer cualquiera, dueño o empleado.',
-    palabrasClave: ['descontinuado', 'no se fabrica', 'no se repone', 'costo viejo'],
+      'Ya no debería. Antes pasaba: al tildar "Ya no se fabrica / no se repone" solo dejaba de reclamar el COSTO, pero seguía apareciendo en "sin stock", en "precio viejo" y en "por debajo de su markup". O sea, hacías el trabajo y el aviso seguía ahí.\n\nAhora un producto descontinuado deja de pedir todo lo que no tiene sentido hacerle: no pide reponer stock (no se repone), no pide remarcarlo (lo estás terminando) y no pide actualizarle el costo (no lo vas a volver a comprar).\n\nLo único que sí sigue avisando es si lo estás vendiendo por debajo de lo que te costó, porque eso es plata que sale cada vez que sale uno del mostrador.\n\nPara marcarlo: abrí el producto y tildá la casilla abajo del stock. Lo puede hacer cualquiera, dueño o empleado. Sigue viéndose y se puede seguir vendiendo — no es lo mismo que archivarlo.',
+    palabrasClave: ['descontinuado', 'no se fabrica', 'no se repone', 'costo viejo', 'sigue apareciendo'],
     requiereSeccion: 'productos',
   },
   {
@@ -439,6 +439,14 @@ export const AYUDA: EntradaAyuda[] = [
       'Depende de si todavía te queda para vender.\n\n• Si NO queda stock y no se repone más → archivalo. Desaparece del catálogo y de Caja, pero su historial de ventas se guarda para siempre.\n\n• Si TODAVÍA queda stock → marcalo como descontinuado, no lo archives. Así lo seguís viendo y lo podés seguir vendiendo hasta que se termine, pero deja de reclamarte que actualices el costo de algo que no vas a volver a comprar.\n\nSi archivás algo que todavía tenías en el mostrador, no lo vas a poder cargar en una venta. Por eso, cuando autorizás un pedido de archivado, la app te muestra cuánto stock queda antes de que decidas.',
     palabrasClave: ['archivar', 'descontinuado', 'no se fabrica', 'dar de baja', 'borrar producto'],
     requiereSeccion: 'productos',
+  },
+  {
+    id: 'me-llego-lo-del-otro',
+    categoria: 'Sincronización y respaldo',
+    pregunta: '¿Cómo sé si lo que carga la otra persona me llegó?',
+    respuesta:
+      'Andá a Ajustes → Respaldo automático. Ahí hay dos renglones:\n\n• "Estado" tiene que decir Sincronizado.\n• "Último cambio recibido" te dice hace cuánto llegó algo de otro dispositivo: "recién", "hace 3 minutos", etc.\n\nNo hace falta recargar ni cerrar la app: los cambios llegan solos en segundos mientras haya internet. Si alguien edita un producto desde el local, en tu celular se actualiza sin que toques nada.\n\nSi dice "todavía nada" pero el estado está en Sincronizado, no hay problema: significa que nadie cargó nada desde que abriste la app.\n\nSi el estado no dice Sincronizado, lo que se cargó no se pierde: queda guardado en el dispositivo y se sube solo apenas vuelve la señal.',
+    palabrasClave: ['sincronizar', 'me llego', 'no veo', 'otro celular', 'gabriela', 'actualiza'],
   },
   // ---------- Proveedores ----------
   {
