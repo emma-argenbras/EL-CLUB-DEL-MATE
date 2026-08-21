@@ -9,7 +9,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "catalogo": "python3 scripts/generar-catalogo-publico.py"
   },
   "dependencies": {
     "dexie": "^4.0.11",

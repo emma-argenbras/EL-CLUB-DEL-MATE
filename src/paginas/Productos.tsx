@@ -11,6 +11,7 @@ import {
 } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
+import { CompartirProducto } from '../componentes/BotonWhatsApp'
 
 export default function Productos() {
   const [parametros] = useSearchParams()
@@ -277,7 +278,10 @@ export default function Productos() {
                       Reactivar
                     </button>
                   ) : (
-                    <div className="item-monto">{plata(p.precioVenta)}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="item-monto">{plata(p.precioVenta)}</div>
+                      <CompartirProducto producto={p} chico />
+                    </div>
                   )}
                 </li>
               )
@@ -626,6 +630,19 @@ function FormularioProducto({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {!nuevo && producto && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Pasarle este producto a un cliente</p>
+          <p className="silencio" style={{ marginTop: 0 }}>
+            Abre tu WhatsApp con el nombre, el precio y el enlace al catálogo ya escritos.
+            Vos elegís a quién mandárselo.
+          </p>
+          <CompartirProducto
+            producto={{ ...producto, precioVenta: ventaNum ?? producto.precioVenta }}
+          />
         </div>
       )}
 

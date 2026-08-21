@@ -9,8 +9,10 @@ import {
   type Usuario,
 } from '../db/db'
 import { resembrarCatalogo } from '../db/sembrar'
-import { hoyISO, numero } from '../lib/formato'
+import { hoyISO, normalizar, numero } from '../lib/formato'
 import CampoContrasena from '../componentes/CampoContrasena'
+import { CompartirCatalogo } from '../componentes/BotonWhatsApp'
+import { URL_CATALOGO } from '../lib/whatsapp'
 import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { useSesion } from '../sync/useSesion'
@@ -114,6 +116,54 @@ export default function Ajustes() {
       })
     } catch (e) {
       setMensaje({ tipo: 'error', texto: `No se pudo importar: ${e}` })
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  /**
+   * Arma el mismo catalogo.json que publica scripts/generar-catalogo-publico.py,
+   * pero con los precios que estan HOY en la app. Sirve cuando se
+   * editaron precios desde acá y no desde la planilla de precios.
+   *
+   * Solo salen tres campos: codigo, descripcion y precio de venta. El
+   * costo, la rentabilidad y el proveedor no se publican nunca.
+   */
+  async function exportarCatalogoPublico() {
+    setTrabajando(true)
+    try {
+      const productos = await db.productos.toArray()
+      const publicos = productos
+        .filter(
+          (p) =>
+            p.activo &&
+            !p.archivado &&
+            !p.descontinuado &&
+            p.precioVenta !== null &&
+            p.precioVenta > 0 &&
+            p.descripcion.trim() !== '',
+        )
+        .map((p) => ({
+          c: p.codigo.trim(),
+          d: p.descripcion.trim(),
+          p: Math.round(p.precioVenta as number),
+          b: normalizar(`${p.codigo} ${p.descripcion}`),
+        }))
+        .sort((a, b) => a.b.localeCompare(b.b))
+
+      const blob = new Blob([JSON.stringify(publicos)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'catalogo.json'
+      a.click()
+      URL.revokeObjectURL(url)
+      setMensaje({
+        tipo: 'ok',
+        texto: `Catálogo público con ${publicos.length} productos descargado. Pasámelo y lo publico.`,
+      })
+    } catch (e) {
+      setMensaje({ tipo: 'error', texto: `No se pudo exportar: ${e}` })
     } finally {
       setTrabajando(false)
     }
@@ -237,6 +287,33 @@ export default function Ajustes() {
         <button style={{ width: '100%' }} onClick={recargarCatalogo} disabled={trabajando}>
           Recargar catálogo original
         </button>
+      </div>
+
+      <div className="tarjeta">
+        <p className="tarjeta-titulo">Catálogo público</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          Es la página que ven los clientes: solo nombre, código y precio de venta. El costo,
+          la rentabilidad y el proveedor no se publican.
+        </p>
+        <div className="botonera" style={{ marginBottom: 8 }}>
+          <a
+            className="boton-chico boton-wa"
+            style={{ flex: 1, justifyContent: 'center' }}
+            href={URL_CATALOGO}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            👀 Ver cómo se ve
+          </a>
+          <CompartirCatalogo />
+        </div>
+        <button style={{ width: '100%' }} onClick={exportarCatalogoPublico} disabled={trabajando}>
+          Exportar catálogo con los precios de hoy
+        </button>
+        <p className="silencio" style={{ marginBottom: 0 }}>
+          La página se actualiza cuando se publica una lista de precios nueva. Si editaste
+          precios desde la app y querés que salgan ya, exportá el archivo y pasámelo.
+        </p>
       </div>
 
       <div className="tarjeta">

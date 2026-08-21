@@ -16,6 +16,7 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock, con filtros rápidos por costo vencido o sin stock. El precio de venta sugerido siempre redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos. |
 | **Proveedores** | Aumento de costos en bloque, marcar un proveedor como inactivo, y una **cuenta corriente**: registrar compras (que suman stock y actualizan costo solas) y pagos (efectivo, transferencia, etc.), con el saldo que se le debe a cada uno siempre a la vista. |
 | **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. Un pago registrado desde la cuenta corriente de un proveedor aparece acá solo, sin cargarlo dos veces. |
+| **Catálogo público** | Una página aparte, sin login, en `/catalogo/`: nombre, código y precio de venta de 1.280 productos, con buscador. Desde Productos se comparte cualquier producto por WhatsApp con un toque. |
 | **Reportes** | El número que importa: margen de contribución, cómo se arma, y si dio a favor o en contra. Se puede ver **por mes o por año** (el anual trae la tabla mes por mes, el mejor y el más flojo, y el promedio de los meses cerrados — el mes en curso queda marcado aparte y no compite). Incluye el **desglose de los gastos**, separados en fijos y variables y abiertos por categoría, con el detalle de cada movimiento. |
 | **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
 
@@ -199,6 +200,69 @@ y sincroniza apenas vuelve la señal.
 
 ---
 
+## WhatsApp y catálogo público
+
+Dos cosas que no necesitan ninguna cuenta nueva ni ningún servidor.
+
+### Compartir un producto por WhatsApp
+
+En Productos, cada producto tiene un botón 💬 al lado del precio (y otro más grande
+al abrirlo para editar). Abre el WhatsApp que la persona ya tiene instalado, con el
+mensaje escrito:
+
+```
+🧉 *MATE IMPERIAL VIROLA ALPACA LISA*
+$ 45.000
+
+Código TM015
+
+Mirá todo el catálogo 👉 https://app.elclubdelmate.com/catalogo/
+El Club del Mate · Concordia
+```
+
+Es un enlace `wa.me`: no manda nada solo, la persona elige el destinatario y toca
+enviar. Funciona con WhatsApp común o Business, con el número de siempre.
+
+### El catálogo público
+
+Vive en **https://app.elclubdelmate.com/catalogo/** y lo puede abrir cualquiera, sin
+usuario ni contraseña. Tiene buscador y muestra 1.280 productos.
+
+Es una **página aparte de la app**, a propósito:
+
+- un cliente que abre el enlace desde WhatsApp no se baja la app de administración
+  entera (pesa 2,5 MB; el catálogo, 48 KB más los datos);
+- no pasa por el login ni registra el service worker;
+- no puede llegar a ninguna pantalla de administración aunque quiera.
+
+**Qué se publica y qué no.** El catálogo lee `public/catalogo.json`, que tiene
+exactamente tres campos por producto: código, descripción y precio de venta. El
+precio de compra, la rentabilidad, el proveedor y el stock **no se publican**. Quedan
+afuera también los productos inactivos, archivados, descontinuados o sin precio.
+
+Para regenerarlo después de actualizar la lista de precios:
+
+```bash
+npm run catalogo
+```
+
+Si se editaron precios desde la app y no desde la planilla, se puede exportar el
+archivo con los precios actuales desde **Ajustes → Catálogo público → Exportar
+catálogo con los precios de hoy**, y publicarlo.
+
+### ⚠️ Pendiente de seguridad: `productos.seed.json`
+
+El catálogo público no expone nada confidencial, pero el archivo que usa la app para
+la carga inicial, `public/productos.seed.json`, **sí lleva el precio de compra, la
+rentabilidad y el proveedor de cada producto**, y hoy se sirve público en
+`app.elclubdelmate.com/productos.seed.json`.
+
+No es algo que haya introducido el catálogo — viene de antes—, pero conviene
+resolverlo. La forma prolija es mover la carga inicial del catálogo detrás del login
+(traerla de Firestore en vez de un JSON público). Queda anotado como próximo paso.
+
+---
+
 ## Cómo instalarla en el celular
 
 1. Abrir **https://app.elclubdelmate.com/** en Chrome (Android) o Safari (iPhone).
@@ -295,6 +359,16 @@ Las pruebas del parser se corren aparte:
 ```bash
 python3 scripts/importar-historico.test.py
 ```
+
+### Regenerar el catálogo público
+
+```bash
+npm run catalogo
+```
+
+Lee `public/productos.seed.json` y escribe `public/catalogo.json` dejando pasar solo
+código, descripción y precio de venta. Hay que correrlo cada vez que se actualiza la
+lista de precios, o el catálogo público sigue mostrando los precios viejos.
 
 ### Regenerar los íconos
 
