@@ -18,7 +18,7 @@ function producto(parcial: Partial<Producto>): Producto {
     precioCompra: 1000,
     rentabilidad: 1.3,
     precioVenta: 2300,
-    fechaPrecioVenta: null,
+    fechaPrecioVenta: new Date().toISOString().slice(0, 10),
     busqueda: 'producto',
     stock: null,
     activo: true,
@@ -304,5 +304,42 @@ describe('puntajeSalud', () => {
     const critico = auditar(datos({ productos: [producto({ precioVenta: 500 })] }))
     expect(puntajeSalud(critico)).toBeLessThan(100)
     expect(puntajeSalud(Array(20).fill(critico[0]))).toBe(0)
+  })
+})
+
+describe('las dos fechas de la planilla dan avisos distintos', () => {
+  const haceDosAnios = new Date()
+  haceDosAnios.setFullYear(haceDosAnios.getFullYear() - 2)
+  const viejo = haceDosAnios.toISOString().slice(0, 10)
+
+  it('costo viejo con precio remarcado: avisa del reporte, no del precio', () => {
+    const hallazgos = auditar(datos({ productos: [producto({ fechaCompra: viejo })] }))
+    const ids = hallazgos.map((h) => h.id)
+    expect(ids).toContain('productos-costo-vencido')
+    expect(ids).not.toContain('productos-precio-vencido')
+  })
+
+  it('precio sin remarcar con costo al dia: avisa del precio, no del reporte', () => {
+    const hallazgos = auditar(datos({ productos: [producto({ fechaPrecioVenta: viejo })] }))
+    const ids = hallazgos.map((h) => h.id)
+    expect(ids).toContain('productos-precio-vencido')
+    expect(ids).not.toContain('productos-costo-vencido')
+  })
+
+  it('el precio por debajo de su rentabilidad aparece aunque las dos fechas sean de hoy', () => {
+    // Costo 1.000 con 130 % -> deberia venderse a 2.300, y esta a 1.500.
+    const h = buscar(
+      auditar(datos({ productos: [producto({ precioVenta: 1500 })] })),
+      'productos-precio-atrasado',
+    )
+    expect(h?.cantidad).toBe(1)
+    expect(h?.monto).toBe(800)
+  })
+
+  it('un producto bien puesto no dispara ninguno de los tres', () => {
+    const ids = auditar(datos()).map((h) => h.id)
+    expect(ids).not.toContain('productos-precio-atrasado')
+    expect(ids).not.toContain('productos-precio-vencido')
+    expect(ids).not.toContain('productos-costo-vencido')
   })
 })

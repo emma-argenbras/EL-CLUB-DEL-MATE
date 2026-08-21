@@ -204,6 +204,57 @@ export function sinStock(producto: Producto): boolean {
  * queda sin actualizar. A diferencia del costo vencido, aca el problema
  * no es el dato sino el precio: hay que corregirlo si o si.
  */
+/**
+ * Hace mucho que nadie toca el precio de VENTA de este producto.
+ *
+ * Es un problema distinto del costo vencido, y conviene no mezclarlos:
+ *
+ *   - costo vencido      -> el margen del reporte miente, porque el
+ *                           costo cargado es mas viejo que el real.
+ *   - precio vencido     -> se esta cobrando de menos, porque el precio
+ *                           quedo planchado mientras todo aumentaba.
+ *
+ * En la planilla de precios son dos fechas separadas justamente por
+ * esto: la fecha del costo cambia cuando se le compra al proveedor, y
+ * la del precio de venta cambia cuando se remarca, se haya comprado o no.
+ */
+export function precioDesactualizado(producto: Producto, mesesLimite = 12): boolean {
+  if (producto.archivado) return false
+  // Un producto sin precio de venta no es "precio viejo", es otra cosa
+  // (no se puede vender), y ya se avisa por otro lado.
+  if (!producto.precioVenta) return false
+  if (!producto.fechaPrecioVenta) return true
+  const puesto = new Date(producto.fechaPrecioVenta)
+  if (Number.isNaN(puesto.getTime())) return true
+  const limite = new Date()
+  limite.setMonth(limite.getMonth() - mesesLimite)
+  return puesto < limite
+}
+
+/**
+ * Cuanto le falta al precio de venta para llegar al que sale de su
+ * propia rentabilidad. Devuelve null cuando no se puede calcular o
+ * cuando el precio ya esta donde tiene que estar.
+ *
+ * Esta es la senal mas afilada de las tres, porque no depende de
+ * ninguna fecha: compara el precio que hay con el que la propia
+ * planilla dice que deberia haber. Si el costo esta al dia y el precio
+ * quedo atras, aparece aca aunque las dos fechas sean recientes.
+ */
+export function precioAtrasado(
+  producto: Producto,
+  tolerancia = 0.05,
+): { actual: number; sugerido: number; falta: number } | null {
+  if (producto.archivado) return null
+  const { precioCompra: compra, rentabilidad: rent, precioVenta: venta } = producto
+  if (!compra || !rent || !venta) return null
+  const sugerido = redondearPrecio(compra * (1 + rent))
+  // Una diferencia chica es redondeo o una decision de precio, no un
+  // olvido: recien se avisa cuando se despego de verdad.
+  if (venta >= sugerido * (1 - tolerancia)) return null
+  return { actual: venta, sugerido, falta: sugerido - venta }
+}
+
 export function precioBajoCosto(producto: Producto): boolean {
   if (producto.archivado) return false
   if (!producto.precioCompra || !producto.precioVenta) return false

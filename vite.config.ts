@@ -1,4 +1,3 @@
-import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -13,14 +12,14 @@ export default defineConfig({
     rollupOptions: {
       input: {
         // La app de administracion.
-        app: resolve(__dirname, 'index.html'),
+        app: new URL('./index.html', import.meta.url).pathname,
         // El catalogo publico, que queda en /catalogo/. Va como pagina
         // aparte a proposito: un cliente que abre el enlace desde
         // WhatsApp no tiene por que bajarse la app entera ni pasar por
         // el login. Tampoco registra el service worker, porque el
         // registro vive en un componente de la app y esta pagina no lo
         // importa.
-        catalogo: resolve(__dirname, 'catalogo/index.html'),
+        catalogo: new URL('./catalogo/index.html', import.meta.url).pathname,
       },
     },
   },

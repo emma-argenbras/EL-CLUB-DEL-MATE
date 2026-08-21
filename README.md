@@ -100,6 +100,43 @@ vieja" más abajo.
 
 ---
 
+## Las dos fechas de cada producto
+
+La planilla de precios lleva **dos fechas por producto**, y son dos cosas distintas
+que conviene no mezclar:
+
+| Fecha | Qué marca | Si queda vieja… |
+|---|---|---|
+| Al lado del **costo** | Cuándo se actualizó el precio de compra | El **reporte miente**: el margen sale más alto de lo real, porque el costo cargado es más barato que el de verdad. No cambia lo que se le cobra al cliente. |
+| Al lado del **precio de venta** | Cuándo se remarcó, se haya comprado o no | Se está **cobrando de menos**: el precio quedó planchado mientras todo aumentaba. |
+
+Se mueven por separado a propósito: se puede remarcar sin haber comprado, y comprar
+sin remarcar.
+
+**Las dos se ponen solas.** Si se cambia el costo y no se toca la fecha, la app le
+pone la de hoy; lo mismo con el precio de venta. Si se escribe una fecha a mano
+(porque se está cargando una compra de la semana pasada), se respeta la escrita.
+Antes la del costo era manual y quedaba vieja aunque el costo hubiera cambiado, que
+es lo que hacía que el aviso no fuera confiable.
+
+### Tres avisos, no uno
+
+Antes había un solo aviso que juntaba todo y salía en rojo sobre el 90 % del
+catálogo, así que no servía para decidir por dónde empezar. Ahora son tres, y el
+orden es el de importancia real:
+
+1. **Bajo su markup** — con el costo y la rentabilidad que el producto ya tiene
+   cargados, el precio debería ser más alto. **No depende de ninguna fecha: es una
+   cuenta.** Hoy son 16 productos, y es la lista más accionable de las tres.
+2. **Precio viejo** — hace más de un año que no se remarca. Hoy son 518.
+3. **Costo vencido** — el costo cargado tiene más de 6 meses. Hoy son 1.247, y es
+   el que menos urge: ensucia el reporte, no la caja.
+
+Cada uno tiene su chip en la lista de Productos y su filtro propio, y el Panel
+enlaza directo a la lista ya filtrada.
+
+---
+
 ## Cómo se calcula el margen de contribución
 
 ```

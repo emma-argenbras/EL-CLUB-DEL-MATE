@@ -345,7 +345,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Por qué dice "COSTO VIEJO" al lado de un producto?',
     respuesta:
-      'Porque el precio de compra cargado tiene más de 6 meses, o directamente no tiene precio de compra cargado. Mientras el precio de venta se actualiza seguido por la inflación, si el costo queda atrás el margen calculado va a parecer más alto de lo que es en realidad. Conviene actualizar esos costos seguido — el módulo de Proveedores ayuda a hacerlo en bloque. Si es un producto que ya no se fabrica más, mejor que actualizarlo es marcarlo como descontinuado (ver la pregunta siguiente): así deja de avisar para siempre, en vez de seguir apareciendo cada 6 meses.',
+      'Porque el precio de compra cargado tiene más de 6 meses, o directamente no está cargado.\n\nOjo con qué significa: esto NO quiere decir que le estés cobrando mal al cliente. El precio de venta puede estar perfecto. Lo que pasa es que, si el costo cargado es más viejo que el real, el margen que muestra el reporte sale más alto de lo que en verdad es. Es un problema del reporte, no de la caja.\n\nConviene actualizar esos costos seguido — el módulo de Proveedores ayuda a hacerlo en bloque. Si es un producto que ya no se fabrica más, mejor que actualizarlo es marcarlo como descontinuado: así deja de avisar para siempre.',
     palabrasClave: ['vencido', 'desactualizado', 'inflado'],
     requiereSeccion: 'productos',
   },
@@ -411,6 +411,33 @@ export const AYUDA: EntradaAyuda[] = [
       'El catálogo público no se actualiza solo: es una página aparte, que se publica cada vez que se sube una lista de precios nueva.\n\nSi editaste precios desde la app y querés que salgan ya, andá a Ajustes → Catálogo público → "Exportar catálogo con los precios de hoy". Eso te descarga un archivo que hay que publicar.\n\nMientras tanto, el catálogo sigue mostrando los precios de la última lista publicada. Por eso la página aclara abajo que los precios pueden cambiar sin aviso.',
     palabrasClave: ['catalogo viejo', 'precio desactualizado', 'no se actualiza', 'publicar'],
     soloOwner: true,
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'dos-fechas',
+    categoria: 'Productos',
+    pregunta: '¿Qué diferencia hay entre "costo viejo" y "precio viejo"?',
+    respuesta:
+      'Son dos cosas distintas y conviene no confundirlas, porque se arreglan de manera diferente.\n\nCada producto lleva DOS fechas. Una dice cuándo se actualizó el COSTO (lo que te cuesta a vos), y la otra cuándo se actualizó el PRECIO DE VENTA (lo que le cobrás al cliente). Se mueven por separado: podés remarcar un precio sin haber comprado, y podés comprar sin remarcar.\n\n• COSTO VIEJO → el reporte miente. El margen de contribución te va a dar más alto de lo real, porque el costo cargado es más barato que el de verdad. No perdés plata, pero no podés confiar en el número.\n\n• PRECIO VIEJO → estás cobrando de menos. Hace más de un año que ese precio no se toca, y mientras tanto todo aumentó.\n\n• BAJO SU MARKUP → el más importante de los tres. Con el costo y la rentabilidad que el producto ya tiene cargados, el precio debería ser más alto de lo que es. Este no depende de ninguna fecha: es una cuenta.\n\nEn la lista de Productos cada uno tiene su cartelito, y arriba de todo podés filtrar por cualquiera de ellos.',
+    palabrasClave: ['costo viejo', 'precio viejo', 'dos fechas', 'markup', 'rentabilidad', 'desactualizado'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'fecha-costo-automatica',
+    categoria: 'Productos',
+    pregunta: '¿Tengo que poner la fecha a mano cuando cambio un costo?',
+    respuesta:
+      'No. Si cambiás el precio de compra y no tocás la fecha, la app le pone la de hoy sola. Lo mismo pasa con el precio de venta: cambiás el precio y la fecha se actualiza.\n\nSi querés poner otra fecha (por ejemplo, porque estás cargando una compra de la semana pasada), escribila vos y la app respeta la que pusiste.\n\nEsto es importante para que los avisos sirvan: si la fecha del costo queda vieja aunque el costo haya cambiado, la app te sigue reclamando algo que ya hiciste.',
+    palabrasClave: ['fecha', 'automatica', 'costo', 'actualizar fecha'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'archivar-o-descontinuar',
+    categoria: 'Productos',
+    pregunta: '¿Archivo el producto o lo marco como descontinuado?',
+    respuesta:
+      'Depende de si todavía te queda para vender.\n\n• Si NO queda stock y no se repone más → archivalo. Desaparece del catálogo y de Caja, pero su historial de ventas se guarda para siempre.\n\n• Si TODAVÍA queda stock → marcalo como descontinuado, no lo archives. Así lo seguís viendo y lo podés seguir vendiendo hasta que se termine, pero deja de reclamarte que actualices el costo de algo que no vas a volver a comprar.\n\nSi archivás algo que todavía tenías en el mostrador, no lo vas a poder cargar en una venta. Por eso, cuando autorizás un pedido de archivado, la app te muestra cuánto stock queda antes de que decidas.',
+    palabrasClave: ['archivar', 'descontinuado', 'no se fabrica', 'dar de baja', 'borrar producto'],
     requiereSeccion: 'productos',
   },
   // ---------- Proveedores ----------
