@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { db, productoVisible } from '../db/db'
-import { costoDesactualizado, resumirJornada, sinStock, totalArqueo } from '../lib/calculos'
+import {
+  costoDesactualizado,
+  precioBajoCosto,
+  resumirJornada,
+  sinStock,
+  totalArqueo,
+} from '../lib/calculos'
 import { plata } from '../lib/formato'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { useSesion } from '../sync/useSesion'
@@ -50,6 +56,11 @@ export default function Notificaciones() {
     return todos.filter(sinStock).length
   }, [])
 
+  const bajoCosto = useLiveQuery(async () => {
+    const todos = await db.productos.filter(productoVisible).toArray()
+    return todos.filter(precioBajoCosto).length
+  }, [])
+
   const mesActual = new Date().toISOString().slice(0, 7)
   const ventasDelMes = useLiveQuery(
     () => db.ventas.where('fecha').between(`${mesActual}-00`, `${mesActual}-32`).toArray(),
@@ -85,6 +96,16 @@ export default function Notificaciones() {
   )
 
   const alertas: Alerta[] = []
+
+  if (bajoCosto && bajoCosto > 0) {
+    alertas.push({
+      clave: 'bajo-costo',
+      texto: `${bajoCosto} ${bajoCosto === 1 ? 'producto se vende' : 'productos se venden'} al costo o por debajo`,
+      detalle: 'Cada unidad que sale es plata perdida: hay que revisarles el precio de venta.',
+      nivel: 'error',
+      ir: () => navegar('/productos?bajoCosto=1'),
+    })
+  }
 
   if (esOwner && solicitudesBorrado && solicitudesBorrado > 0) {
     alertas.push({

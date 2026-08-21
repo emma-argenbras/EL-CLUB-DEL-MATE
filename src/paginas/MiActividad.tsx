@@ -57,9 +57,10 @@ export default function MiActividad() {
   const masVendidos = useMemo(() => {
     const mapa = new Map<string, { desc: string; unidades: number }>()
     for (const v of ventas ?? []) {
-      const actual = mapa.get(v.codigo) ?? { desc: v.descripcion, unidades: 0 }
+      const clave = v.codigo || v.descripcion
+      const actual = mapa.get(clave) ?? { desc: v.descripcion, unidades: 0 }
       actual.unidades += v.cantidad
-      mapa.set(v.codigo, actual)
+      mapa.set(clave, actual)
     }
     return [...mapa.entries()].sort((a, b) => b[1].unidades - a[1].unidades).slice(0, 8)
   }, [ventas])

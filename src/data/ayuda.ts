@@ -172,6 +172,15 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'vender-sin-catalogo',
+    categoria: 'Caja',
+    pregunta: 'El producto no aparece en el buscador, ¿puedo venderlo igual?',
+    respuesta:
+      'Sí. Escribí el nombre en el buscador y, cuando diga "Sin resultados", tocá "Vender igual, sin código": queda registrado con ese nombre y el precio que le pongas a mano, y la venta suma normal a la caja del turno.\n\nSirve para no frenar la atención al cliente. Como no tiene código, esa venta no descuenta stock ni tiene costo cargado, así que va a figurar entre las "ventas sin costo" del mes. Cuando puedas, cargá el producto en Productos para que la próxima vez aparezca completo.',
+    palabrasClave: ['no aparece', 'sin codigo', 'no esta en el catalogo', 'venta suelta', 'vender igual'],
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'producto-sin-codigo',
     categoria: 'Caja',
     pregunta: '¿Qué hago si no encuentro el código de un producto?',
@@ -260,6 +269,22 @@ export const AYUDA: EntradaAyuda[] = [
       'Es el porcentaje que se le quiere ganar a un producto sobre su costo. Por ejemplo, 130% significa que el precio de venta sugerido es el costo multiplicado por 2,3. Cargando el costo y la rentabilidad, la app calcula sola un precio de venta sugerido que podés usar con un toque, o cambiar a mano. Ese precio sugerido siempre se redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos ni un centavo de menos, para que sea fácil de cobrar.',
     palabrasClave: ['markup', 'ganancia', 'porcentaje', 'redondeo', 'redondear', 'numero facil de cobrar'],
     requiereSeccion: 'productos',
+  },
+  {
+    id: 'bajo-costo',
+    categoria: 'Productos',
+    pregunta: '¿Qué significa "BAJO COSTO" en rojo al lado de un producto?',
+    respuesta:
+      'Que el precio de venta es igual o menor que el precio de compra: cada vez que se vende ese producto, el local pierde plata. Casi siempre pasa porque el proveedor aumentó y el precio de venta quedó sin actualizar.\n\nEs el aviso más urgente de la app, por eso aparece primero y en rojo, tanto en Productos como en la campana 🔔. Tocando "Ver esos productos" quedan filtrados los que hay que corregir. Al abrir cada uno, el precio sugerido según la rentabilidad te da el valor al que debería estar.',
+    palabrasClave: ['bajo costo', 'perdida', 'pierdo plata', 'margen negativo', 'vender a perdida'],
+  },
+  {
+    id: 'de-donde-salen-los-precios',
+    categoria: 'Productos',
+    pregunta: '¿De dónde salen los precios y los costos que trae la app?',
+    respuesta:
+      'De la planilla "BASE DE DATOS ECDM 2026", que es la lista de precios de siempre del local. Cada tanto se vuelve a traer de ahí lo que haya cambiado: costo de compra, rentabilidad, precio de venta y las dos fechas (la de la última compra y la de la última vez que se actualizó el precio de venta).\n\nTraer la lista nueva nunca pisa lo que se editó desde la app: si un costo se corrigió acá — a mano o cargando una compra en la cuenta corriente del proveedor — ese producto se deja como está, porque lo de la app es más nuevo que la planilla.',
+    palabrasClave: ['base de datos', 'lista de precios', 'planilla', 'de donde salen'],
   },
   {
     id: 'costo-viejo',

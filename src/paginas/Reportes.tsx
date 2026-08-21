@@ -37,7 +37,10 @@ export default function Reportes() {
   const masVendidos = useMemo(() => {
     const mapa = new Map<string, { desc: string; unidades: number; venta: number; margen: number }>()
     for (const v of ventas ?? []) {
-      const actual = mapa.get(v.codigo) ?? {
+      // Una venta suelta no tiene codigo: se agrupa por su descripcion,
+      // asi no quedan todas amontonadas en una sola fila del ranking.
+      const clave = v.codigo || v.descripcion
+      const actual = mapa.get(clave) ?? {
         desc: v.descripcion,
         unidades: 0,
         venta: 0,
@@ -48,7 +51,7 @@ export default function Reportes() {
       if (v.costoUnitario != null) {
         actual.margen += (v.precioUnitario - v.costoUnitario) * v.cantidad
       }
-      mapa.set(v.codigo, actual)
+      mapa.set(clave, actual)
     }
     return [...mapa.entries()].sort((a, b) => b[1].venta - a[1].venta).slice(0, 12)
   }, [ventas])
