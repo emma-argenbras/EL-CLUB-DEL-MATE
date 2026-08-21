@@ -195,6 +195,9 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
 export function sinStock(producto: Producto): boolean {
   if (producto.stock === null || producto.stock === undefined) return false
   if (producto.archivado) return false
+  // Un producto descontinuado no se repone: avisar que "hay que
+  // reponerlo" es pedirle a alguien algo que no puede hacer.
+  if (producto.descontinuado) return false
   return producto.stock <= 0
 }
 
@@ -220,6 +223,9 @@ export function sinStock(producto: Producto): boolean {
  */
 export function precioDesactualizado(producto: Producto, mesesLimite = 12): boolean {
   if (producto.archivado) return false
+  // Igual que con el costo: a nadie le sirve que le reclamen remarcar
+  // algo que esta dejando de vender.
+  if (producto.descontinuado) return false
   // Un producto sin precio de venta no es "precio viejo", es otra cosa
   // (no se puede vender), y ya se avisa por otro lado.
   if (!producto.precioVenta) return false
@@ -246,6 +252,9 @@ export function precioAtrasado(
   tolerancia = 0.05,
 ): { actual: number; sugerido: number; falta: number } | null {
   if (producto.archivado) return null
+  // Un descontinuado se esta liquidando: que quede por debajo de su
+  // markup puede ser a proposito.
+  if (producto.descontinuado) return null
   const { precioCompra: compra, rentabilidad: rent, precioVenta: venta } = producto
   if (!compra || !rent || !venta) return null
   const sugerido = redondearPrecio(compra * (1 + rent))

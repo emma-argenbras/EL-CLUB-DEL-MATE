@@ -88,3 +88,21 @@ export function leerNumero(texto: string): number | null {
   const valor = Number(limpio)
   return Number.isFinite(valor) ? valor : null
 }
+
+/**
+ * "hace 2 minutos", "hace 3 horas". Sirve para contestar de un vistazo
+ * "¿lo que cargo la otra persona ya me llego?", que con una fecha y
+ * hora exactas hay que ponerse a calcular.
+ */
+export function haceCuanto(cuando: number | null | undefined, ahora = Date.now()): string {
+  if (!cuando) return 'todavía nada'
+  const segundos = Math.round((ahora - cuando) / 1000)
+  if (segundos < 0) return 'recién'
+  if (segundos < 60) return 'recién'
+  const minutos = Math.round(segundos / 60)
+  if (minutos < 60) return `hace ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}`
+  const horas = Math.round(minutos / 60)
+  if (horas < 24) return `hace ${horas} ${horas === 1 ? 'hora' : 'horas'}`
+  const dias = Math.round(horas / 24)
+  return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`
+}

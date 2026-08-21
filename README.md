@@ -119,6 +119,22 @@ pone la de hoy; lo mismo con el precio de venta. Si se escribe una fecha a mano
 Antes la del costo era manual y quedaba vieja aunque el costo hubiera cambiado, que
 es lo que hacía que el aviso no fuera confiable.
 
+### Un producto descontinuado deja de reclamar
+
+Tildar "Ya no se fabrica / no se repone" ahora silencia **todos** los avisos de
+mantenimiento, no solo el del costo:
+
+| Aviso | ¿Sigue apareciendo? |
+|---|---|
+| Costo vencido | No — no se vuelve a comprar |
+| Precio viejo | No — no se va a remarcar |
+| Bajo su markup | No — se está liquidando |
+| Sin stock | No — no se repone |
+| **Bajo costo** | **Sí** — es plata que sale cada vez que sale uno del mostrador |
+
+Antes solo el del costo respetaba la marca, así que alguien podía hacer el trabajo y
+seguir viendo el producto en la lista de pendientes.
+
 ### Tres avisos, no uno
 
 Antes había un solo aviso que juntaba todo y salía en rojo sobre el 90 % del
@@ -297,6 +313,20 @@ rentabilidad y el proveedor de cada producto**, y hoy se sirve público en
 No es algo que haya introducido el catálogo — viene de antes—, pero conviene
 resolverlo. La forma prolija es mover la carga inicial del catálogo detrás del login
 (traerla de Firestore en vez de un JSON público). Queda anotado como próximo paso.
+
+---
+
+### Ver si lo que carga otra persona ya llegó
+
+En **Ajustes → Respaldo automático** hay dos renglones: el estado de la conexión y
+**"Último cambio recibido"**, que dice hace cuánto llegó algo de otro dispositivo
+("recién", "hace 3 minutos"). Contesta de un vistazo la duda concreta de trabajar
+entre dos personas.
+
+La sincronización es en vivo (`onSnapshot` sobre cada colección, ver
+`src/sync/motor.ts`): no hace falta recargar. Un empleado activo puede editar
+cualquier campo de un producto salvo `precioVenta` y `archivado`, que quedan
+reservados a un dueño por `firestore.rules`.
 
 ---
 
