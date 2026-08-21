@@ -264,6 +264,7 @@ export type Rol = 'owner' | 'empleado'
  * primera siempre esta disponible para un empleado, la segunda nunca.
  */
 export const SECCIONES_CONFIGURABLES = [
+  'panel',
   'caja',
   'productos',
   'proveedores',
@@ -275,6 +276,7 @@ export type SeccionId = (typeof SECCIONES_CONFIGURABLES)[number]
 
 /** Lo que ve un empleado si nadie le toco nunca las secciones (comportamiento de siempre). */
 export const SECCIONES_POR_DEFECTO_EMPLEADO: SeccionId[] = [
+  'panel',
   'caja',
   'productos',
   'proveedores',
