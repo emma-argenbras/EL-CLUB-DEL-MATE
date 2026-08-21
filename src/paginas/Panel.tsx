@@ -6,6 +6,8 @@ import { fechaLinda, hoyISO, mesActualISO, mesLindo, numero, plata, porcentaje }
 import { ETIQUETA_MODULO, puntajeSalud, type ModuloAuditoria } from '../lib/auditoria'
 import { reactivarPospuestos, useAuditoria } from '../lib/useAuditoria'
 import ListaHallazgos from '../componentes/ListaHallazgos'
+import RevisionCompleta from '../componentes/RevisionCompleta'
+import { seccionesVisibles } from '../sync/sesion'
 import { useSesion } from '../sync/useSesion'
 
 const ORDEN_MODULOS: ModuloAuditoria[] = ['caja', 'productos', 'proveedores', 'gastos', 'sistema']
@@ -28,7 +30,7 @@ function semaforo(puntaje: number): { emoji: string; texto: string; clase: strin
 export default function Panel() {
   const sesion = useSesion()
   const esOwner = sesion.perfil?.rol === 'owner'
-  const { cargando, hallazgos, pospuestos } = useAuditoria()
+  const { cargando, hallazgos, pospuestos, datos: datosAuditoria } = useAuditoria()
   const mes = mesActualISO()
 
   const ventas = useLiveQuery(
@@ -100,6 +102,13 @@ export default function Panel() {
           ))}
 
           {hallazgos.length === 0 && <ListaHallazgos hallazgos={[]} />}
+
+          <RevisionCompleta
+            hallazgos={hallazgos}
+            esOwner={esOwner}
+            secciones={seccionesVisibles(sesion.perfil)}
+            datos={datosAuditoria}
+          />
 
           {esOwner && (
             <div className="tarjeta" style={{ marginTop: 16 }}>

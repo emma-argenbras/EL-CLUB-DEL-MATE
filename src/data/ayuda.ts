@@ -448,6 +448,32 @@ export const AYUDA: EntradaAyuda[] = [
       'Andá a Ajustes → Respaldo automático. Ahí hay dos renglones:\n\n• "Estado" tiene que decir Sincronizado.\n• "Último cambio recibido" te dice hace cuánto llegó algo de otro dispositivo: "recién", "hace 3 minutos", etc.\n\nNo hace falta recargar ni cerrar la app: los cambios llegan solos en segundos mientras haya internet. Si alguien edita un producto desde el local, en tu celular se actualiza sin que toques nada.\n\nSi dice "todavía nada" pero el estado está en Sincronizado, no hay problema: significa que nadie cargó nada desde que abriste la app.\n\nSi el estado no dice Sincronizado, lo que se cargó no se pierde: queda guardado en el dispositivo y se sube solo apenas vuelve la señal.',
     palabrasClave: ['sincronizar', 'me llego', 'no veo', 'otro celular', 'gabriela', 'actualiza'],
   },
+  {
+    id: 'productos-sin-precio',
+    categoria: 'Productos',
+    pregunta: 'Un producto no me aparece para vender, ¿qué pasa?',
+    respuesta:
+      'Fijate si tiene precio de venta cargado. Sin precio, la app no lo deja poner en una venta ni lo muestra en el catálogo que ven los clientes: no sabría cuánto cobrar.\n\nEn Productos, arriba de todo, hay un aviso rojo con cuántos están así y un botón para verlos todos juntos. Si el producto ya tiene el costo y la rentabilidad cargados, al abrirlo la app te sugiere el precio redondeado y lo ponés de una.',
+    palabrasClave: ['sin precio', 'no aparece', 'no lo puedo vender', 'no me deja vender'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'stock-negativo',
+    categoria: 'Productos',
+    pregunta: '¿Por qué un producto tiene el stock en negativo?',
+    respuesta:
+      'Porque se vendieron más unidades de las que figuraban cargadas. La app no frena la venta —primero está atender al cliente—, pero deja el número en negativo para que se note.\n\nGeneralmente es una de dos: falta registrar una compra al proveedor (llegó mercadería y no se cargó), o el conteo de stock quedó mal de antes.\n\nSe arregla contando lo que hay en el local y corrigiendo el número, o registrando la compra que faltaba desde Proveedores, que suma el stock sola.',
+    palabrasClave: ['stock negativo', 'menos de cero', 'stock mal'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'revision-completa',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿Cómo sé todo lo que la app revisa?',
+    respuesta:
+      'Abajo de todo en el Panel está "Revisión completa". Ahí aparece la lista entera de controles que la app corre sola cada vez que la abrís, con el resultado de cada uno.\n\nEs distinto del resto del Panel: arriba solo se muestra lo que hay para hacer, y acá se ve todo, incluido lo que dio bien. Sirve para saber que el negocio está sano y no solo que la app se quedó callada.\n\nCada control tiene su marca: ✓ está en orden, ! encontró algo, · es un aviso menor, y ? quiere decir que ese control no se pudo revisar (por ejemplo, los del respaldo automático cuando la nube todavía no está activada). Un control que no se pudo correr no cuenta como aprobado.',
+    palabrasClave: ['revision completa', 'que revisa', 'controles', 'auditoria', 'todo lo que mira'],
+  },
   // ---------- Proveedores ----------
   {
     id: 'asignar-proveedor',

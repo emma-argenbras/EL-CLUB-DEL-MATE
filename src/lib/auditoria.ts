@@ -190,6 +190,48 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       requiereSeccion: 'caja',
     })
   }
+
+  // --- La plata tiene que engancharse entre un turno y el siguiente ---
+  // Lo que se conto al cerrar la manana deberia ser lo que aparece al
+  // abrir la tarde. Si no engancha, o alguien saco plata entre medio, o
+  // uno de los dos conteos esta mal. Es el control que sigue el rastro
+  // del efectivo de punta a punta, y no lo hacia nadie.
+  const enOrden = datos.jornadas
+    .filter((j) => j.estado === 'cerrado' && j.arqueoCierre && j.fecha.startsWith(datos.mes))
+    .sort((a, b) => (a.fecha + a.turno).localeCompare(b.fecha + b.turno))
+
+  const saltos: { fecha: string; turno: string; salto: number }[] = []
+  for (let i = 0; i < enOrden.length - 1; i++) {
+    const cierra = enOrden[i]
+    const abre = enOrden[i + 1]
+    // Solo tiene sentido comparar turnos consecutivos de verdad: si en
+    // el medio hubo un dia cerrado, la plata pudo ir a caja grande.
+    const seguidos =
+      (cierra.fecha === abre.fecha && cierra.turno === 'M' && abre.turno === 'T') ||
+      (diasEntre(cierra.fecha, abre.fecha) === 1 && cierra.turno === 'T' && abre.turno === 'M')
+    if (!seguidos) continue
+    const salto = abre.cajaInicial - totalArqueo(cierra.arqueoCierre)
+    if (Math.abs(salto) < 1) continue
+    saltos.push({ fecha: abre.fecha, turno: abre.turno, salto })
+  }
+
+  if (saltos.length > 0) {
+    const total = saltos.reduce((suma, x) => suma + Math.abs(x.salto), 0)
+    const peorSalto = saltos.reduce((a, b) => (Math.abs(b.salto) > Math.abs(a.salto) ? b : a))
+    hallazgos.push({
+      id: 'caja-no-engancha',
+      modulo: 'caja',
+      nivel: total >= 20000 ? 'importante' : 'aviso',
+      titulo: `${saltos.length} ${plural(saltos.length, 'turno abrió', 'turnos abrieron')} con una plata distinta a la que había quedado`,
+      detalle: `Lo que se contó al cerrar un turno tiene que ser lo mismo que aparece al abrir el siguiente. Suman ${plata(total)} de diferencia; la mayor fue al abrir el ${peorSalto.fecha} ${peorSalto.turno === 'M' ? 'a la mañana' : 'a la tarde'} (${peorSalto.salto > 0 ? 'apareció' : 'faltó'} ${plata(Math.abs(peorSalto.salto))}).`,
+      comoSeResuelve:
+        'Revisá esos dos turnos: puede que se haya sacado plata entre medio sin registrarla como egreso, o que uno de los dos conteos esté mal.',
+      ruta: '/caja',
+      cantidad: saltos.length,
+      monto: total,
+      requiereSeccion: 'caja',
+    })
+  }
 }
 
 function auditarProductos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
@@ -211,6 +253,70 @@ function auditarProductos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       ruta: '/productos?bajoCosto=1',
       cantidad: bajoCosto.length,
       monto: perdida,
+      requiereSeccion: 'productos',
+    })
+  }
+
+  // --- Sin precio de venta: no se pueden vender ---
+  // Es distinto de "precio viejo": aca directamente no hay precio, asi
+  // que el producto no se puede cargar en una venta ni sale en el
+  // catalogo publico. Esta primero porque es lo unico de esta lista que
+  // impide vender.
+  const sinPrecio = visibles.filter((p) => !p.descontinuado && !p.precioVenta)
+  if (sinPrecio.length > 0) {
+    const conCosto = sinPrecio.filter((p) => p.precioCompra).length
+    hallazgos.push({
+      id: 'productos-sin-precio',
+      modulo: 'productos',
+      nivel: 'importante',
+      titulo: `${sinPrecio.length} ${plural(sinPrecio.length, 'producto no tiene', 'productos no tienen')} precio de venta`,
+      detalle:
+        `Sin precio no se pueden cargar en una venta ni aparecen en el catálogo que ven los clientes.` +
+        (conCosto > 0
+          ? ` ${conCosto} de ${plural(conCosto, 'ellos ya tiene', 'ellos ya tienen')} el costo cargado, así que la app te puede sugerir el precio sola.`
+          : ''),
+      comoSeResuelve:
+        'Abrí cada uno y poné el precio de venta. Si tiene costo y rentabilidad cargados, la app te sugiere el número redondeado.',
+      ruta: '/productos?sinPrecio=1',
+      cantidad: sinPrecio.length,
+      requiereSeccion: 'productos',
+    })
+  }
+
+  // --- Stock en negativo: se vendio mas de lo que figuraba ---
+  const enNegativo = visibles.filter((p) => typeof p.stock === 'number' && p.stock < 0)
+  if (enNegativo.length > 0) {
+    hallazgos.push({
+      id: 'productos-stock-negativo',
+      modulo: 'productos',
+      nivel: 'importante',
+      titulo: `${enNegativo.length} ${plural(enNegativo.length, 'producto tiene', 'productos tienen')} el stock en negativo`,
+      detalle:
+        'Se vendieron más unidades de las que figuraban cargadas. O falta registrar una compra al proveedor, o el conteo de stock quedó mal.',
+      comoSeResuelve:
+        'Contá lo que hay en el local y corregí el stock, o registrá la compra que faltaba desde Proveedores.',
+      ruta: '/productos?stockNegativo=1',
+      cantidad: enNegativo.length,
+      requiereSeccion: 'productos',
+    })
+  }
+
+  // --- Sin nombre: figuran por el codigo pelado ---
+  const sinNombre = visibles.filter((p) => {
+    const d = (p.descripcion ?? '').trim()
+    return !d || d.toUpperCase() === (p.codigo ?? '').trim().toUpperCase()
+  })
+  if (sinNombre.length > 0) {
+    hallazgos.push({
+      id: 'productos-sin-nombre',
+      modulo: 'productos',
+      nivel: 'aviso',
+      titulo: `${sinNombre.length} ${plural(sinNombre.length, 'producto figura', 'productos figuran')} solo con su código`,
+      detalle:
+        'Nadie sabe qué son sin buscarlos en el estante. Aparecen así en las ventas, en los reportes y en el catálogo que ven los clientes.',
+      comoSeResuelve: 'Abrí cada uno y escribile el nombre.',
+      ruta: '/productos?sinNombre=1',
+      cantidad: sinNombre.length,
       requiereSeccion: 'productos',
     })
   }
@@ -483,4 +589,238 @@ export function puntajeSalud(hallazgos: Hallazgo[]): number {
   const penalidad = { critico: 25, importante: 10, aviso: 3 }
   const total = hallazgos.reduce((suma, h) => suma + penalidad[h.nivel], 0)
   return Math.max(0, 100 - total)
+}
+
+/* ------------------------------------------------------------------ */
+/* Revision completa: que se controla, no solo que salio mal           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cada control que corre la auditoria, con la explicacion de que mira.
+ *
+ * El Panel muestra solo lo que esta mal, que es lo util para trabajar.
+ * Pero para saber si el negocio esta sano hace falta lo otro: ver la
+ * lista entera y que los que estan bien digan que estan bien. Si no,
+ * "no hay avisos" y "no se reviso nada" se ven igual.
+ *
+ * La clave es el id del hallazgo, asi hay una sola fuente de verdad:
+ * si un id no aparece entre los hallazgos, ese control paso.
+ */
+export const CONTROLES: {
+  id: string
+  modulo: ModuloAuditoria
+  /** Que se revisa. */
+  que: string
+  /** Que quiere decir que este bien. */
+  bien: string
+  soloOwner?: boolean
+  requiereSeccion?: SeccionId
+  /**
+   * Cuando devuelve true, el control no se pudo correr. Un control que
+   * no corrio NO es un control que dio bien: mostrarlo con un tilde
+   * verde seria mentir. Pasa, por ejemplo, con la sincronizacion
+   * cuando el negocio todavia no activo la nube.
+   */
+  noSePudoCorrer?: (datos: DatosAuditoria) => boolean
+  /** Por que no se pudo correr, para explicarlo en la revision. */
+  porque?: string
+}[] = [
+  {
+    id: 'caja-turnos-abiertos',
+    modulo: 'caja',
+    que: 'Que no queden turnos abiertos de días anteriores',
+    bien: 'Todos los turnos de días pasados están cerrados',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'caja-diferencias',
+    modulo: 'caja',
+    que: 'Que la caja contada al cerrar coincida con lo que debería haber',
+    bien: 'Todos los cierres del mes dieron exactos',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'caja-no-engancha',
+    modulo: 'caja',
+    que: 'Que la plata de un turno sea la misma con la que abre el siguiente',
+    bien: 'El efectivo se engancha turno a turno sin saltos',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'caja-dias-sin-cargar',
+    modulo: 'caja',
+    que: 'Que no falte cargar ningún día del mes',
+    bien: 'Todos los días del mes tienen caja cargada',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'productos-bajo-costo',
+    modulo: 'productos',
+    que: 'Que ningún producto se venda por debajo de lo que costó',
+    bien: 'Todos los productos se venden por encima de su costo',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-sin-precio',
+    modulo: 'productos',
+    que: 'Que todos los productos tengan precio de venta',
+    bien: 'Todos los productos se pueden vender',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-precio-atrasado',
+    modulo: 'productos',
+    que: 'Que el precio coincida con el que sale de su rentabilidad',
+    bien: 'Ningún precio quedó por debajo de su propio markup',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-stock-negativo',
+    modulo: 'productos',
+    que: 'Que no haya stock en negativo',
+    bien: 'Ningún producto vendió más de lo que tenía cargado',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-sin-stock',
+    modulo: 'productos',
+    que: 'Que no haya productos agotados sin reponer',
+    bien: 'No hay productos agotados',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-precio-vencido',
+    modulo: 'productos',
+    que: 'Que los precios se revisen al menos una vez al año',
+    bien: 'Todos los precios se remarcaron en el último año',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-costo-vencido',
+    modulo: 'productos',
+    que: 'Que los costos estén al día, para que el margen sea confiable',
+    bien: 'Todos los costos tienen menos de 6 meses',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-sin-nombre',
+    modulo: 'productos',
+    que: 'Que todos los productos tengan nombre y no solo código',
+    bien: 'Todos los productos tienen nombre',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-sin-proveedor',
+    modulo: 'productos',
+    que: 'Que cada producto sepa de qué proveedor viene',
+    bien: 'Todos los productos tienen proveedor asignado',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-solicitudes',
+    modulo: 'productos',
+    que: 'Que no queden pedidos de archivado sin responder',
+    bien: 'No hay pedidos esperando autorización',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'ventas-sin-costo',
+    modulo: 'productos',
+    que: 'Que las ventas del mes tengan el costo cargado',
+    bien: 'Todas las ventas del mes tienen costo, así que el margen es real',
+    soloOwner: true,
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'proveedores-saldo',
+    modulo: 'proveedores',
+    que: 'Cuánto se le debe a los proveedores',
+    bien: 'No se le debe nada a ningún proveedor',
+    requiereSeccion: 'proveedores',
+  },
+  {
+    id: 'gastos-habituales-faltantes',
+    modulo: 'gastos',
+    que: 'Que no falte cargar un gasto que se paga todos los meses',
+    bien: 'Los gastos habituales del mes están cargados',
+    soloOwner: true,
+    requiereSeccion: 'gastos',
+  },
+  {
+    id: 'sistema-sync-error',
+    modulo: 'sistema',
+    que: 'Que la sincronización con el servidor funcione',
+    bien: 'La sincronización anda bien',
+    noSePudoCorrer: (d) => d.estadoNube === 'sin-configurar',
+    porque: 'El respaldo automático todavía no está activado',
+  },
+  {
+    id: 'sistema-sync-desconectado',
+    modulo: 'sistema',
+    que: 'Que este dispositivo esté vinculado al respaldo automático',
+    bien: 'Este dispositivo está vinculado y respalda solo',
+    noSePudoCorrer: (d) => d.estadoNube === 'sin-configurar',
+    porque: 'El respaldo automático todavía no está activado: los datos viven solo acá',
+  },
+]
+
+export interface ResultadoControl {
+  id: string
+  modulo: ModuloAuditoria
+  que: string
+  /**
+   * 'bien' cuando el control paso, 'no-corrio' cuando no se pudo
+   * revisar, y si no el nivel del hallazgo que encontro.
+   */
+  estado: 'bien' | 'no-corrio' | NivelHallazgo
+  /** Lo que se comprobo, o el titulo del problema encontrado. */
+  resultado: string
+  hallazgo?: Hallazgo
+}
+
+/**
+ * La foto completa: todos los controles con su resultado, los que
+ * pasaron y los que no. Se arma cruzando el catalogo de arriba con los
+ * hallazgos, para que no haya dos listas que se puedan desincronizar.
+ */
+export function revisionCompleta(
+  hallazgos: Hallazgo[],
+  esOwner = true,
+  secciones?: SeccionId[],
+  datos?: DatosAuditoria,
+): ResultadoControl[] {
+  const porId = new Map(hallazgos.map((h) => [h.id, h]))
+  return CONTROLES.filter((c) => {
+    if (c.soloOwner && !esOwner) return false
+    if (c.requiereSeccion && secciones && !secciones.includes(c.requiereSeccion)) return false
+    return true
+  }).map((c) => {
+    const hallazgo = porId.get(c.id)
+    if (hallazgo) {
+      return {
+        id: c.id,
+        modulo: c.modulo,
+        que: c.que,
+        estado: hallazgo.nivel,
+        resultado: hallazgo.titulo,
+        hallazgo,
+      }
+    }
+    if (datos && c.noSePudoCorrer?.(datos)) {
+      return {
+        id: c.id,
+        modulo: c.modulo,
+        que: c.que,
+        estado: 'no-corrio' as const,
+        resultado: c.porque ?? 'No se pudo revisar',
+      }
+    }
+    return {
+      id: c.id,
+      modulo: c.modulo,
+      que: c.que,
+      estado: 'bien' as const,
+      resultado: c.bien,
+    }
+  })
 }

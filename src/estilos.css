@@ -760,3 +760,88 @@ th.num {
   padding: 7px 9px;
   font-size: 1rem;
 }
+
+/* ---------- Revision completa: todos los controles de la app ---------- */
+
+.etiqueta-modulo {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+  margin: 0 0 6px;
+}
+
+.lista-controles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.control {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--borde);
+}
+
+.control:first-child {
+  border-top: none;
+}
+
+/* Circulito con el resultado. El color dice el estado; el simbolo
+   adentro lo repite, para que no dependa solo del color. */
+.control-senal {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.control-bien {
+  background: var(--verde-suave);
+  color: var(--verde-ok);
+}
+
+.control-critico {
+  background: var(--rojo-suave);
+  color: var(--rojo);
+}
+
+.control-importante {
+  background: var(--rojo-suave);
+  color: var(--rojo);
+}
+
+.control-aviso {
+  background: var(--amarillo-suave);
+  color: var(--amarillo);
+}
+
+.control-que {
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.control-resultado {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--tinta-suave);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+/* Un control que no se pudo correr no es un control que dio bien:
+   se marca distinto para no dar una tranquilidad falsa. */
+.control-no-corrio {
+  background: var(--borde);
+  color: var(--tinta-suave);
+}

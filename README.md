@@ -20,6 +20,11 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | **Reportes** | El número que importa: margen de contribución, cómo se arma, y si dio a favor o en contra. Se puede ver **por mes o por año** (el anual trae la tabla mes por mes, el mejor y el más flojo, y el promedio de los meses cerrados — el mes en curso queda marcado aparte y no compite). Incluye el **desglose de los gastos**, separados en fijos y variables y abiertos por categoría, con el detalle de cada movimiento. |
 | **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
 
+El Panel termina con **Revisión completa**: los 19 controles que la app corre sola,
+con el resultado de cada uno — también los que dieron bien. Sin eso, "no hay avisos" y
+"no se revisó nada" se ven igual. Un control que no se pudo correr (los del respaldo
+automático cuando la nube no está activada) se marca aparte con `?`, no como aprobado.
+
 La campana 🔔 es la versión corta del Panel: los mismos hallazgos, ordenados de lo
 más urgente a lo menos. Panel, campana y "Mi día" salen del **mismo motor**
 ([`src/lib/auditoria.ts`](./src/lib/auditoria.ts)), así los tres dicen siempre lo
