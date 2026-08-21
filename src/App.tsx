@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { aplicarPreciosNuevos, sembrarCatalogo, sincronizarMesImportado } from './db/sembrar'
 import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
+import { mesLindo } from './lib/formato'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
 import { useSesion } from './sync/useSesion'
@@ -31,13 +32,25 @@ const NAV_POR_SECCION: Record<SeccionId, { ruta: string; icono: string; texto: s
 }
 
 // Meses de la planilla vieja ya extraidos y listos para cargarse solos.
-const MESES_HISTORICOS = ['2026-07', '2026-08']
+// Todo 2026 desde enero: cada mes se carga una sola vez y nunca pisa un
+// turno cargado a mano desde la app.
+const MESES_HISTORICOS = [
+  '2026-01',
+  '2026-02',
+  '2026-03',
+  '2026-04',
+  '2026-05',
+  '2026-06',
+  '2026-07',
+  '2026-08',
+]
 
 // Actualizaciones de la lista de precios traidas de la BASE DE DATOS.
 const LISTAS_DE_PRECIOS = ['2026-08']
 
 export default function App() {
   const [listo, setListo] = useState(false)
+  const [paso, setPaso] = useState('')
   const [error, setError] = useState<string | null>(null)
   const sesion = useSesion()
 
@@ -46,11 +59,16 @@ export default function App() {
       import('./sync/motor').then((m) => m.iniciarMotor())
     }
     ;(async () => {
+      setPaso('Cargando el catálogo de productos…')
       await sembrarCatalogo()
+      // La primera vez son ocho meses de planilla: conviene ir contando
+      // en que va, para que no parezca que se colgo.
       for (const mes of MESES_HISTORICOS) {
+        setPaso(`Trayendo las ventas de ${mesLindo(mes)}…`)
         await sincronizarMesImportado(mes)
       }
       for (const mes of LISTAS_DE_PRECIOS) {
+        setPaso('Actualizando la lista de precios…')
         await aplicarPreciosNuevos(mes)
       }
     })()
@@ -66,7 +84,7 @@ export default function App() {
     return (
       <div className="pantalla-carga">
         <div className="logo-carga">🧉</div>
-        <p>{!listo ? 'Preparando El Club del Mate…' : 'Verificando tu sesión…'}</p>
+        <p>{!listo ? paso || 'Preparando El Club del Mate…' : 'Verificando tu sesión…'}</p>
       </div>
     )
   }

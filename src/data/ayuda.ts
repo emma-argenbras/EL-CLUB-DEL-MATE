@@ -509,8 +509,18 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Reportes',
     pregunta: '¿Puedo ver el año completo en vez de un mes?',
     respuesta:
-      'Sí. Arriba de todo en Reportes hay dos pestañas: "Por mes" y "Por año". En la anual elegís el año y ves el resultado del año entero, cómo se arma, y una tabla mes por mes con las ventas, el margen y el resultado de cada uno, para ver la evolución.\n\nTambién te muestra el promedio de ventas por mes, cuál fue el mejor mes y cuál el más flojo, el desglose de los gastos del año y los productos que más facturaron.\n\nSolo aparecen los meses que tienen algo cargado: un año recién empezado no se llena de meses en cero.',
+      'Sí. Arriba de todo en Reportes hay dos pestañas: "Por mes" y "Por año". En la anual elegís el año y ves el resultado del año entero, cómo se arma, y una tabla mes por mes con las ventas, el margen y el resultado de cada uno, para ver la evolución.\n\nTambién te muestra el promedio de ventas por mes, cuál fue el mejor mes y cuál el más flojo, el desglose de los gastos del año y los productos que más facturaron.\n\nEl mes que todavía está corriendo aparece marcado como "en curso". Lo vendido suma al total del año, pero ese mes no se usa para el promedio ni para elegir el mejor y el más flojo: como todavía le faltan días, siempre saldría el más flojo y bajaría el promedio sin que eso signifique nada.\n\nSolo aparecen los meses que tienen algo cargado: un año recién empezado no se llena de meses en cero.',
     palabrasClave: ['anual', 'año', 'todo el año', 'evolucion', 'comparar meses'],
+    soloOwner: true,
+    requiereSeccion: 'reportes',
+  },
+  {
+    id: 'meses-viejos-planilla',
+    categoria: 'Reportes',
+    pregunta: '¿De dónde salen los meses anteriores a que empezáramos a usar la app?',
+    respuesta:
+      'Todo 2026 desde enero se trajo de las planillas de Excel que se usaban antes. Son 2.141 ventas y 482 turnos que la app carga sola la primera vez que se abre, así el reporte anual tiene el año completo y no arranca del día que empezaste a usarla.\n\nEsa carga no pisa nada: un turno que abriste y cerraste vos desde la app queda intacto aunque la planilla tenga ese mismo día.\n\nCada mes importado se controló contra los totales que la propia planilla calculaba: de 482 turnos, 480 dan exactamente igual. Los otros dos son errores de la planilla vieja (una venta que su fórmula no sumaba y otra anotada dos veces), y en la app están bien.',
+    palabrasClave: ['excel', 'planilla', 'historico', 'meses viejos', 'enero', 'importado'],
     soloOwner: true,
     requiereSeccion: 'reportes',
   },
