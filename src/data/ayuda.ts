@@ -248,7 +248,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Caja',
     pregunta: '¿Cómo registro un gasto chico durante el turno?',
     respuesta:
-      'En Caja, pestaña "Egresos" → elegí "Gasto pagado con la caja" → escribí el concepto (ej: flete, café) y el monto → "Registrar egreso". Se descuenta solo del efectivo esperado en la caja al momento de cerrar.',
+      'En Caja, pestaña "Egresos" → elegí "Gasto pagado con la caja" → escribí el concepto (ej: flete, café), el monto y la categoría → "Registrar egreso". Se descuenta solo del efectivo esperado en la caja al momento de cerrar.\n\nLa categoría importa: según cuál elijas, la app lo cuenta como gasto fijo o variable, y eso cambia dónde entra en el reporte del mes. Abajo del selector te dice cuál de los dos va a ser. Un sueldo pagado de la caja del turno es un gasto fijo igual, aunque no salga de la caja grande.',
     palabrasClave: ['flete', 'gasto chico', 'plata que sale'],
     requiereSeccion: 'caja',
   },
@@ -466,6 +466,16 @@ export const AYUDA: EntradaAyuda[] = [
       'Un gasto fijo se paga todos los meses más o menos igual, vendas mucho o poco (alquiler, sueldos, contador). Un gasto variable depende de cuánto se vende (comisiones de tarjeta, flete, packaging). Esta diferencia importa para el reporte: los variables se restan del margen de contribución, los fijos se restan después, para llegar al resultado final del mes.',
     palabrasClave: ['margen de contribucion', 'resultado del mes'],
     requiereSeccion: 'gastos',
+  },
+  {
+    id: 'desglose-gastos',
+    categoria: 'Reportes',
+    pregunta: '¿Cómo veo de qué están hechos los gastos del mes?',
+    respuesta:
+      'En Reportes, debajo de "Cómo se arma", está la tarjeta "Gastos del mes en detalle". Separa los gastos en fijos y variables —que es lo que cambia el cálculo del margen— y adentro los agrupa por categoría, de mayor a menor, con cuánto pesa cada una.\n\nTocando una categoría se despliega el detalle: cada gasto con su fecha, su concepto y su monto. Los que salieron de la caja del turno (en vez de la caja grande) quedan marcados, para poder distinguirlos.',
+    palabrasClave: ['desglose', 'detalle de gastos', 'en que se gasto', 'categorias'],
+    soloOwner: true,
+    requiereSeccion: 'reportes',
   },
   {
     id: 'cargar-gasto',

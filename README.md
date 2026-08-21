@@ -16,7 +16,7 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock, con filtros rápidos por costo vencido o sin stock. El precio de venta sugerido siempre redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos. |
 | **Proveedores** | Aumento de costos en bloque, marcar un proveedor como inactivo, y una **cuenta corriente**: registrar compras (que suman stock y actualizan costo solas) y pagos (efectivo, transferencia, etc.), con el saldo que se le debe a cada uno siempre a la vista. |
 | **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. Un pago registrado desde la cuenta corriente de un proveedor aparece acá solo, sin cargarlo dos veces. |
-| **Reportes** | El número que importa: margen de contribución del mes, cómo se arma, y si el mes dio a favor o en contra. |
+| **Reportes** | El número que importa: margen de contribución del mes, cómo se arma, y si el mes dio a favor o en contra. Incluye el **desglose de los gastos**, separados en fijos y variables y abiertos por categoría, con el detalle de cada movimiento. |
 | **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
 
 La campana 🔔 es la versión corta del Panel: los mismos hallazgos, ordenados de lo
@@ -59,9 +59,9 @@ cuando se corrige el importador, sin riesgo para lo que se cargó a mano.
 |---|--:|
 | Ventas totales | $3.869.780 |
 | Costo de mercadería vendida | −$1.437.865 |
-| Gastos variables | −$911.550 |
-| **Margen de contribución** | **$1.520.365 (39,3 %)** |
-| Gastos fijos | −$1.150.000 |
+| Gastos variables | −$241.300 |
+| **Margen de contribución** | **$2.190.615 (56,6 %)** |
+| Gastos fijos | −$1.820.250 |
 | **Resultado del mes** | **$370.365 a favor** |
 
 **Julio 2026 dio así:**
@@ -69,16 +69,16 @@ cuando se corrige el importador, sin riesgo para lo que se cargó a mano.
 | | |
 |---|--:|
 | Ventas totales | $7.427.650 |
-| Costo de mercadería vendida (con los costos actuales del catálogo) | −$2.775.453 |
-| Gastos variables | −$1.532.650 |
-| **Margen de contribución** | **$3.119.547 (42,0 %)** |
-| Gastos fijos (alquiler, luz, contador) | −$1.334.000 |
-| **Resultado del mes** | **$1.785.547 a favor** |
+| Costo de mercadería vendida (con los costos actuales del catálogo) | −$3.014.503 |
+| Gastos variables | −$586.900 |
+| **Margen de contribución** | **$3.826.247 (51,5 %)** |
+| Gastos fijos (alquiler, sueldos, luz, contador) | −$2.279.750 |
+| **Resultado del mes** | **$1.546.497 a favor** |
 
 ⚠️ Ese margen usa el costo *actual* de cada producto (el que ya venías cargando en
 la planilla), y **el 88 % de lo vendido en julio corresponde a productos con el
 costo vencido o sin cargar** — ver la sección de abajo. El número real de julio es
-más bajo que $3.119.547. A medida que actualices los costos de lo que más se
+más bajo que $3.826.247. A medida que actualices los costos de lo que más se
 vende, el reporte de julio se va a ir corrigiendo solo.
 
 Para cargar otro mes histórico, ver "Importar un mes ya cargado en la planilla

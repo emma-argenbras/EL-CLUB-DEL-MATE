@@ -3,6 +3,7 @@ import type { Movimiento, Producto, Venta } from '../db/db'
 import {
   arqueoVacio,
   costoDesactualizado,
+  desglosarGastos,
   margenPorcentual,
   margenUnitario,
   precioBajoCosto,
@@ -268,5 +269,68 @@ describe('precioBajoCosto', () => {
     expect(
       precioBajoCosto(producto({ precioCompra: 12500, precioVenta: 8750, archivado: true })),
     ).toBe(false)
+  })
+})
+
+describe('desglosarGastos', () => {
+  it('separa fijos de variables y agrupa por categoria', () => {
+    const d = desglosarGastos([
+      movimiento({ id: 'a', categoria: 'ALQUILER', monto: 1150000, esVariable: false }),
+      movimiento({ id: 'b', categoria: 'SERVICIOS', monto: 64000, esVariable: false }),
+      movimiento({ id: 'c', categoria: 'PROVEEDORES', monto: 200000, esVariable: true }),
+      movimiento({ id: 'd', categoria: 'PROVEEDORES', monto: 100000, esVariable: true }),
+    ])
+
+    expect(d.fijos.total).toBe(1214000)
+    expect(d.variables.total).toBe(300000)
+    expect(d.total).toBe(1514000)
+    // Las dos compras al mismo proveedor quedan juntas en una categoria.
+    expect(d.variables.categorias).toHaveLength(1)
+    expect(d.variables.categorias[0].categoria).toBe('PROVEEDORES')
+    expect(d.variables.categorias[0].movimientos).toHaveLength(2)
+  })
+
+  it('ordena las categorias de mayor a menor', () => {
+    const d = desglosarGastos([
+      movimiento({ id: 'a', categoria: 'SERVICIOS', monto: 64000, esVariable: false }),
+      movimiento({ id: 'b', categoria: 'ALQUILER', monto: 1150000, esVariable: false }),
+    ])
+    expect(d.fijos.categorias.map((c) => c.categoria)).toEqual(['ALQUILER', 'SERVICIOS'])
+  })
+
+  it('calcula cuanto pesa cada categoria dentro de su grupo', () => {
+    const d = desglosarGastos([
+      movimiento({ id: 'a', categoria: 'ALQUILER', monto: 750, esVariable: false }),
+      movimiento({ id: 'b', categoria: 'SERVICIOS', monto: 250, esVariable: false }),
+    ])
+    expect(d.fijos.categorias[0].porcentaje).toBe(75)
+    expect(d.fijos.categorias[1].porcentaje).toBe(25)
+  })
+
+  it('un pase a caja grande no es un gasto: es plata que cambia de lugar', () => {
+    const d = desglosarGastos([
+      movimiento({ id: 'a', tipo: 'A_CAJA_GRANDE', monto: 400000, categoria: null }),
+      movimiento({ id: 'b', tipo: 'INGRESO_CAJA_GRANDE', monto: 50000, categoria: null }),
+    ])
+    expect(d.total).toBe(0)
+  })
+
+  it('distingue el egreso de la caja del turno del gasto de caja grande', () => {
+    const d = desglosarGastos([
+      movimiento({ id: 'a', tipo: 'EGRESO_CAJA', categoria: 'OTROS', monto: 3000, esVariable: true }),
+    ])
+    expect(d.variables.categorias[0].movimientos[0].deLaCaja).toBe(true)
+  })
+
+  it('un gasto sin categoria cae en OTROS y no se pierde', () => {
+    const d = desglosarGastos([movimiento({ id: 'a', categoria: null, monto: 500 })])
+    expect(d.variables.categorias[0].categoria).toBe('OTROS')
+    expect(d.total).toBe(500)
+  })
+
+  it('sin gastos, no divide por cero', () => {
+    const d = desglosarGastos([])
+    expect(d.total).toBe(0)
+    expect(d.fijos.categorias).toEqual([])
   })
 })
