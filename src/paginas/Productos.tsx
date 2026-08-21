@@ -16,7 +16,16 @@ import { useSesion } from '../sync/useSesion'
 import { CompartirProducto } from '../componentes/BotonWhatsApp'
 
 /** Las alertas que se pueden usar para filtrar el catalogo. */
-type Filtro = 'costoViejo' | 'precioViejo' | 'precioAtrasado' | 'sinStock' | 'bajoCosto' | null
+type Filtro =
+  | 'costoViejo'
+  | 'precioViejo'
+  | 'precioAtrasado'
+  | 'sinStock'
+  | 'bajoCosto'
+  | 'sinPrecio'
+  | 'stockNegativo'
+  | 'sinNombre'
+  | null
 
 const DESCRIPCION_FILTRO: Record<Exclude<Filtro, null>, string> = {
   costoViejo: 'mostrando solo los de costo vencido',
@@ -24,11 +33,25 @@ const DESCRIPCION_FILTRO: Record<Exclude<Filtro, null>, string> = {
   precioAtrasado: 'mostrando solo los que están por debajo de su rentabilidad',
   sinStock: 'mostrando solo los que están sin stock',
   bajoCosto: 'mostrando solo los que se venden bajo costo',
+  sinPrecio: 'mostrando solo los que no tienen precio de venta',
+  stockNegativo: 'mostrando solo los que tienen el stock en negativo',
+  sinNombre: 'mostrando solo los que figuran sin nombre',
+}
+
+/** Los mismos criterios que usa el motor de auditoria. */
+const sinPrecioDeVenta = (p: Producto) => !p.descontinuado && !p.precioVenta
+const stockEnNegativo = (p: Producto) => typeof p.stock === 'number' && p.stock < 0
+const sinNombrePropio = (p: Producto) => {
+  const d = (p.descripcion ?? '').trim()
+  return !d || d.toUpperCase() === (p.codigo ?? '').trim().toUpperCase()
 }
 
 /** El Panel enlaza a Productos con el filtro ya puesto. */
 function filtroDeLaURL(parametros: URLSearchParams): Filtro {
   if (parametros.get('bajoCosto') === '1') return 'bajoCosto'
+  if (parametros.get('sinPrecio') === '1') return 'sinPrecio'
+  if (parametros.get('stockNegativo') === '1') return 'stockNegativo'
+  if (parametros.get('sinNombre') === '1') return 'sinNombre'
   if (parametros.get('precioAtrasado') === '1') return 'precioAtrasado'
   if (parametros.get('precioViejo') === '1') return 'precioViejo'
   if (parametros.get('sinStock') === '1') return 'sinStock'
@@ -91,6 +114,9 @@ export default function Productos() {
     if (filtro === 'precioViejo') {
       return encontrados.filter((p) => precioDesactualizado(p)).slice(0, 100)
     }
+    if (filtro === 'sinPrecio') return encontrados.filter(sinPrecioDeVenta).slice(0, 100)
+    if (filtro === 'stockNegativo') return encontrados.filter(stockEnNegativo).slice(0, 100)
+    if (filtro === 'sinNombre') return encontrados.filter(sinNombrePropio).slice(0, 100)
     if (filtro === 'sinStock') return encontrados.filter(sinStock).slice(0, 100)
     if (filtro === 'costoViejo') return encontrados.filter((p) => costoDesactualizado(p)).slice(0, 100)
     return encontrados
@@ -104,6 +130,9 @@ export default function Productos() {
       bajoCosto: todos.filter(precioBajoCosto).length,
       precioAtrasado: todos.filter((p) => precioAtrasado(p)).length,
       precioViejo: todos.filter((p) => precioDesactualizado(p)).length,
+      sinPrecio: todos.filter(sinPrecioDeVenta).length,
+      stockNegativo: todos.filter(stockEnNegativo).length,
+      sinNombre: todos.filter(sinNombrePropio).length,
     }
   }, [])
   const desactualizados = conteoAlertas?.desactualizados
@@ -111,6 +140,9 @@ export default function Productos() {
   const bajoCosto = conteoAlertas?.bajoCosto
   const atrasados = conteoAlertas?.precioAtrasado
   const precioViejo = conteoAlertas?.precioViejo
+  const sinPrecio = conteoAlertas?.sinPrecio
+  const stockNegativo = conteoAlertas?.stockNegativo
+  const sinNombre = conteoAlertas?.sinNombre
 
   async function aprobarSolicitud(p: Producto) {
     const queda = p.stock !== null && p.stock !== undefined && p.stock > 0
@@ -228,6 +260,28 @@ export default function Productos() {
           </Alerta>
 
           <Alerta
+            n={sinPrecio}
+            tono="error"
+            activo={filtro === 'sinPrecio'}
+            onToggle={() => setFiltro(filtro === 'sinPrecio' ? null : 'sinPrecio')}
+          >
+            <strong>{sinPrecio}</strong>{' '}
+            {sinPrecio === 1 ? 'producto no tiene' : 'productos no tienen'} precio de venta: no se
+            pueden cargar en una venta ni aparecen en el catálogo que ven los clientes.
+          </Alerta>
+
+          <Alerta
+            n={stockNegativo}
+            tono="error"
+            activo={filtro === 'stockNegativo'}
+            onToggle={() => setFiltro(filtro === 'stockNegativo' ? null : 'stockNegativo')}
+          >
+            <strong>{stockNegativo}</strong>{' '}
+            {stockNegativo === 1 ? 'producto tiene' : 'productos tienen'} el stock en negativo: se
+            vendieron más unidades de las que figuraban.
+          </Alerta>
+
+          <Alerta
             n={atrasados}
             tono="error"
             activo={filtro === 'precioAtrasado'}
@@ -258,6 +312,17 @@ export default function Productos() {
           >
             <strong>{precioViejo}</strong> de {total} productos no se remarcan hace más de un año.
             El <strong>precio de venta</strong> quedó donde estaba mientras todo aumentaba.
+          </Alerta>
+
+          <Alerta
+            n={sinNombre}
+            tono="ojo"
+            activo={filtro === 'sinNombre'}
+            onToggle={() => setFiltro(filtro === 'sinNombre' ? null : 'sinNombre')}
+          >
+            <strong>{sinNombre}</strong>{' '}
+            {sinNombre === 1 ? 'producto figura' : 'productos figuran'} solo con su código, sin
+            nombre. Así salen en las ventas, en los reportes y en el catálogo.
           </Alerta>
 
           <Alerta

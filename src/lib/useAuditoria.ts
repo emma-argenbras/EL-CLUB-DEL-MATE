@@ -2,7 +2,12 @@ import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Movimiento, type Venta } from '../db/db'
 import { hoyISO, mesActualISO } from './formato'
-import { auditar, hallazgosVisibles, type Hallazgo } from './auditoria'
+import {
+  auditar,
+  hallazgosVisibles,
+  type DatosAuditoria,
+  type Hallazgo,
+} from './auditoria'
 import { seccionesVisibles } from '../sync/sesion'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { useSesion } from '../sync/useSesion'
@@ -36,6 +41,12 @@ export interface ResultadoAuditoria {
   hallazgos: Hallazgo[]
   /** Cuantos hay guardados para mas adelante. */
   pospuestos: number
+  /**
+   * Lo que se le paso al motor. La revision completa lo usa para saber
+   * que controles no se pudieron correr, que es distinto de que hayan
+   * dado bien.
+   */
+  datos?: DatosAuditoria
 }
 
 /**
@@ -104,9 +115,9 @@ export function useAuditoria(): ResultadoAuditoria {
   }, [mes, anterior, hoy])
 
   return useMemo(() => {
-    if (!datos) return { cargando: true, hallazgos: [], pospuestos: 0 }
+    if (!datos) return { cargando: true, hallazgos: [], pospuestos: 0, datos: undefined }
 
-    const todos = auditar({
+    const entrada: DatosAuditoria = {
       productos: datos.productos,
       proveedores: datos.proveedores,
       jornadas: datos.jornadas,
@@ -120,13 +131,17 @@ export function useAuditoria(): ResultadoAuditoria {
       errorNube: nube.error,
       hoy,
       mes,
-    })
+    }
+    const todos = auditar(entrada)
 
     const mios = hallazgosVisibles(todos, esOwner, secciones)
     return {
       cargando: false,
       hallazgos: mios.filter((h) => !datos.silenciados.has(h.id)),
       pospuestos: mios.filter((h) => datos.silenciados.has(h.id)).length,
+      // La revision completa lo necesita para saber que controles no
+      // se pudieron correr (por ejemplo, la nube sin configurar).
+      datos: entrada,
     }
     // secciones se recrea en cada render; se compara por contenido.
     // eslint-disable-next-line react-hooks/exhaustive-deps

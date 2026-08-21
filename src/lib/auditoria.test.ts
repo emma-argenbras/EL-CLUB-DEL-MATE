@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Jornada, Movimiento, MovimientoProveedor, Producto, Venta } from '../db/db'
 import {
   auditar,
+  CONTROLES,
   hallazgosVisibles,
+  revisionCompleta,
   puntajeSalud,
   type DatosAuditoria,
   type Hallazgo,
@@ -341,5 +343,149 @@ describe('las dos fechas de la planilla dan avisos distintos', () => {
     expect(ids).not.toContain('productos-precio-atrasado')
     expect(ids).not.toContain('productos-precio-vencido')
     expect(ids).not.toContain('productos-costo-vencido')
+  })
+})
+
+describe('controles nuevos', () => {
+  it('un producto sin precio de venta no se puede vender: avisa', () => {
+    const h = buscar(
+      auditar(datos({ productos: [producto({ precioVenta: null })] })),
+      'productos-sin-precio',
+    )
+    expect(h?.cantidad).toBe(1)
+  })
+
+  it('un descontinuado sin precio no molesta: ya no se vende', () => {
+    const hallazgos = auditar(
+      datos({ productos: [producto({ precioVenta: null, descontinuado: true })] }),
+    )
+    expect(hallazgos.map((h) => h.id)).not.toContain('productos-sin-precio')
+  })
+
+  it('stock en negativo: se vendio mas de lo que habia', () => {
+    const h = buscar(auditar(datos({ productos: [producto({ stock: -3 })] })), 'productos-stock-negativo')
+    expect(h?.cantidad).toBe(1)
+    // Y no se confunde con "sin stock", que es stock exactamente en cero.
+    expect(buscar(auditar(datos({ productos: [producto({ stock: 0 })] })), 'productos-sin-stock')).toBeTruthy()
+  })
+
+  it('un producto que figura solo con su codigo', () => {
+    const h = buscar(
+      auditar(datos({ productos: [producto({ codigo: 'AB12', descripcion: 'AB12' })] })),
+      'productos-sin-nombre',
+    )
+    expect(h?.cantidad).toBe(1)
+  })
+})
+
+describe('la plata se engancha entre turnos', () => {
+  const arqueo = (total: number) => ({ billetes: { '1000': total / 1000 }, monedas: 0 })
+
+  const turno = (fecha: string, t: 'M' | 'T', abre: number, cierra: number): Jornada => ({
+    id: `${fecha}-${t}`,
+    fecha,
+    turno: t,
+    estado: 'cerrado',
+    cajaInicial: abre,
+    arqueoApertura: arqueo(abre),
+    arqueoCierre: arqueo(cierra),
+    notas: null,
+    vendedor: null,
+    horaApertura: null,
+    horaCierre: null,
+  })
+
+  it('si la tarde abre con lo que cerro la mañana, no dice nada', () => {
+    const hallazgos = auditar(
+      datos({
+        jornadas: [turno('2026-08-03', 'M', 10000, 25000), turno('2026-08-03', 'T', 25000, 40000)],
+      }),
+    )
+    expect(hallazgos.map((h) => h.id)).not.toContain('caja-no-engancha')
+  })
+
+  it('si falta plata entre un turno y el otro, avisa cuanta', () => {
+    const h = buscar(
+      auditar(
+        datos({
+          jornadas: [turno('2026-08-03', 'M', 10000, 25000), turno('2026-08-03', 'T', 5000, 40000)],
+        }),
+      ),
+      'caja-no-engancha',
+    )
+    expect(h?.cantidad).toBe(1)
+    expect(h?.monto).toBe(20000)
+  })
+
+  it('entre dos turnos que no son seguidos no se compara: la plata pudo ir a caja grande', () => {
+    const hallazgos = auditar(
+      datos({
+        jornadas: [turno('2026-08-03', 'M', 10000, 25000), turno('2026-08-20', 'T', 5000, 40000)],
+      }),
+    )
+    expect(hallazgos.map((h) => h.id)).not.toContain('caja-no-engancha')
+  })
+})
+
+describe('revisionCompleta', () => {
+  it('lista todos los controles, tambien los que pasaron', () => {
+    const hallazgos = auditar(datos())
+    const revision = revisionCompleta(hallazgos)
+    expect(revision.length).toBe(CONTROLES.length)
+    expect(revision.every((c) => c.estado === 'bien')).toBe(true)
+  })
+
+  it('el control que fallo queda marcado con su nivel y su titulo', () => {
+    const hallazgos = auditar(datos({ productos: [producto({ precioVenta: null })] }))
+    const control = revisionCompleta(hallazgos).find((c) => c.id === 'productos-sin-precio')
+    expect(control?.estado).toBe('importante')
+    expect(control?.resultado).toContain('no tiene precio de venta')
+    expect(control?.hallazgo).toBeTruthy()
+  })
+
+  it('a un empleado no se le muestran los controles de ganancia del negocio', () => {
+    const revision = revisionCompleta(auditar(datos()), false)
+    expect(revision.map((c) => c.id)).not.toContain('ventas-sin-costo')
+    expect(revision.map((c) => c.id)).not.toContain('gastos-habituales-faltantes')
+  })
+
+  it('sin una seccion habilitada, sus controles no aparecen', () => {
+    const revision = revisionCompleta(auditar(datos()), true, ['caja'])
+    expect(revision.every((c) => c.modulo === 'caja' || c.modulo === 'sistema')).toBe(true)
+  })
+
+  it('cada hallazgo que produce el motor tiene su control declarado', () => {
+    // Si alguien agrega un aviso nuevo y se olvida de sumarlo al
+    // catalogo, la revision completa lo dejaria afuera sin avisar.
+    const todos = auditar(
+      datos({
+        productos: [producto({ precioVenta: null, stock: -1, descripcion: 'COD1', proveedorId: null })],
+      }),
+    )
+    const declarados = new Set(CONTROLES.map((c) => c.id))
+    for (const h of todos) expect(declarados.has(h.id)).toBe(true)
+  })
+})
+
+describe('un control que no se pudo correr no cuenta como aprobado', () => {
+  it('sin la nube configurada, los controles de respaldo quedan sin revisar', () => {
+    const entrada = datos({ estadoNube: 'sin-configurar' })
+    const revision = revisionCompleta(auditar(entrada), true, undefined, entrada)
+    const sync = revision.filter((c) => c.modulo === 'sistema')
+    expect(sync.length).toBe(2)
+    expect(sync.every((c) => c.estado === 'no-corrio')).toBe(true)
+    expect(sync[0].resultado).toContain('todavía no está activado')
+  })
+
+  it('con la nube andando, esos mismos controles dan bien', () => {
+    const entrada = datos({ estadoNube: 'sincronizado' })
+    const revision = revisionCompleta(auditar(entrada), true, undefined, entrada)
+    const sync = revision.filter((c) => c.modulo === 'sistema')
+    expect(sync.every((c) => c.estado === 'bien')).toBe(true)
+  })
+
+  it('sin pasarle los datos no inventa: los da por buenos, como antes', () => {
+    const revision = revisionCompleta(auditar(datos({ estadoNube: 'sin-configurar' })))
+    expect(revision.filter((c) => c.estado === 'no-corrio').length).toBe(0)
   })
 })
