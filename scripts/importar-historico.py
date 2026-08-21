@@ -252,6 +252,36 @@ def es_cobro_completo(fila):
     return fila["f_num"] >= lista * 0.9
 
 
+def es_split_simple(fila):
+    """Una sola venta cobrada mitad en efectivo y mitad con tarjeta:
+    las dos partes suman justo lo que valia el producto."""
+    if fila["f_num"] is None or fila["g_num"] is None:
+        return False
+    lista = lista_de(fila)
+    return lista > 0 and abs(fila["f_num"] + fila["g_num"] - lista) < 1
+
+
+def es_doble_conteo(fila):
+    """La planilla anoto el mismo importe en las dos columnas: la venta
+    quedo contada dos veces."""
+    if fila["f_num"] is None or fila["g_num"] is None:
+        return False
+    lista = lista_de(fila)
+    return (
+        abs(fila["f_num"] - fila["g_num"]) < 1
+        and lista > 0
+        and abs(fila["f_num"] - lista) < 1
+    )
+
+
+def empieza_operacion(fila):
+    """La fila se cobra sola, sin arrastrar a las de al lado: corta el
+    bloque que se venia armando."""
+    if es_split_simple(fila) or es_doble_conteo(fila):
+        return True
+    return fila["f_num"] is not None and fila["g_num"] is None and es_cobro_completo(fila)
+
+
 def procesar_bloque(bloque, fecha, turno, costos, sin_costo, avisos):
     """Un bloque es un conjunto de filas seguidas que se cobraron juntas.
     Puede tener filas sin total propio (los productos) y una fila con el
@@ -337,10 +367,9 @@ def procesar_ventas(filas, fecha, turno, costos, sin_costo, avisos):
     while i < len(filas):
         fila = filas[i]
 
-        # --- Pago partido, o la misma venta anotada dos veces ---
-        if fila["f_num"] is not None and fila["g_num"] is not None:
-            esperado = lista_de(fila)
-            if esperado and abs(fila["f_num"] + fila["g_num"] - esperado) < 1:
+        # --- Pago partido de una sola venta ---
+        if es_split_simple(fila):
+            if True:
                 # Parte en efectivo y parte con tarjeta. La app guarda un
                 # solo medio de pago por venta, asi que se parte en dos
                 # renglones: el producto (con su costo) por la parte en
@@ -360,21 +389,24 @@ def procesar_ventas(filas, fecha, turno, costos, sin_costo, avisos):
                 resto["costoUnitario"] = 0
                 resto["descripcion"] = f"{efectivo['descripcion']} (parte con tarjeta)"
                 ventas.append(resto)
-            else:
-                # La planilla la anoto en las dos columnas: se cuenta una vez.
-                avisos.append(
-                    f"{fecha} {turno} fila {fila['fila']}: {fila['codigo']} figura en efectivo "
-                    f"(${fila['f_num']:,.0f}) y en tarjetas (${fila['g_num']:,.0f}); se cuenta una sola vez."
-                    .replace(",", ".")
-                )
-                ventas.append(
-                    venta_de(fila, fila["f_num"], "EFECTIVO", fecha, turno, costos, sin_costo)
-                )
+            i += 1
+            continue
+
+        # --- La misma venta anotada en las dos columnas ---
+        if es_doble_conteo(fila):
+            avisos.append(
+                f"{fecha} {turno} fila {fila['fila']}: {fila['codigo']} figura en efectivo "
+                f"(${fila['f_num']:,.0f}) y en tarjetas (${fila['g_num']:,.0f}); se cuenta una sola vez."
+                .replace(",", ".")
+            )
+            ventas.append(
+                venta_de(fila, fila["f_num"], "EFECTIVO", fecha, turno, costos, sin_costo)
+            )
             i += 1
             continue
 
         # --- Efectivo cobrado entero en su propia fila ---
-        if fila["f_num"] is not None and es_cobro_completo(fila):
+        if fila["f_num"] is not None and fila["g_num"] is None and es_cobro_completo(fila):
             if fila["f_num"] > 0:
                 ventas.append(
                     venta_de(fila, fila["f_num"], "EFECTIVO", fecha, turno, costos, sin_costo)
@@ -388,12 +420,7 @@ def procesar_ventas(filas, fecha, turno, costos, sin_costo, avisos):
         # en efectivo ni pagos partidos, que empiezan otra operacion.
         inicio = i
         i += 1
-        while i < len(filas):
-            siguiente = filas[i]
-            if siguiente["f_num"] is not None and siguiente["g_num"] is not None:
-                break
-            if siguiente["f_num"] is not None and es_cobro_completo(siguiente):
-                break
+        while i < len(filas) and not empieza_operacion(filas[i]):
             i += 1
 
         ventas.extend(
@@ -448,15 +475,40 @@ def main():
 
     libro = openpyxl.load_workbook(ruta, data_only=True)
 
-    # Precios de compra actuales, para asignar el costo de cada venta.
+    # Precios de compra para asignar el costo de cada venta. Primero la
+    # hoja PRODUCTOS del propio mes, que es el costo que regia entonces.
     costos = {}
     if "PRODUCTOS" in libro.sheetnames:
         hp = libro["PRODUCTOS"]
         for r in range(2, hp.max_row + 1):
             codigo = txt(hp.cell(r, 1).value).upper()
             compra = num(hp.cell(r, 5).value)
-            if codigo:
+            if codigo and compra:
                 costos[codigo] = compra
+
+    # En los meses viejos la hoja PRODUCTOS todavia estaba a medio
+    # cargar: en enero 117 codigos vendidos no tenian costo. Si los
+    # dejamos en cero el margen de esos meses sale inflado. Para esos
+    # casos caemos al catalogo actual (la BASE DE DATOS ECDM), que es la
+    # fuente autoritativa de costos. No es el costo exacto de aquel mes,
+    # pero se acerca muchisimo mas que cero.
+    rellenados = 0
+    nombres = {}
+    catalogo = RAIZ / "public" / "productos.seed.json"
+    if catalogo.exists():
+        for p in json.loads(catalogo.read_text(encoding="utf-8")):
+            codigo = (p.get("codigo") or "").upper()
+            if not codigo:
+                continue
+            compra = p.get("precioCompra")
+            if compra and not costos.get(codigo):
+                costos[codigo] = compra
+                rellenados += 1
+            # En enero la columna de descripcion era un VLOOKUP contra la
+            # hoja rota, asi que llego vacia y el producto quedaba
+            # figurando por su codigo pelado en los reportes.
+            if p.get("descripcion"):
+                nombres[codigo] = p["descripcion"]
 
     jornadas = []
     ventas = []
@@ -597,6 +649,16 @@ def main():
                 }
             )
 
+    # Las filas que quedaron con el codigo como descripcion (porque la
+    # planilla de ese mes traia la columna vacia) recuperan su nombre
+    # del catalogo, asi los reportes no muestran codigos pelados.
+    bautizadas = 0
+    for v in ventas:
+        codigo = v.get("codigo")
+        if codigo and v.get("descripcion") == codigo and codigo in nombres:
+            v["descripcion"] = nombres[codigo]
+            bautizadas += 1
+
     salida = {
         "mes": f"{anio:04d}-{mes:02d}",
         "jornadas": jornadas,
@@ -647,6 +709,10 @@ def main():
             print(f"  {a}")
 
     print()
+    if rellenados:
+        print(f"Costos tomados del catalogo actual (la hoja del mes no los tenia): {rellenados}")
+    if bautizadas:
+        print(f"Ventas a las que se les puso el nombre del producto desde el catalogo: {bautizadas}")
     print(f"Productos vendidos SIN costo de compra cargado ({len(sin_costo)}):")
     for codigo, d in sorted(sin_costo.items(), key=lambda kv: -kv[1]["monto"])[:20]:
         print(

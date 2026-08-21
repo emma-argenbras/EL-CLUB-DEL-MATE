@@ -100,7 +100,7 @@ export default function ReporteAnual({ anio }: { anio: string }) {
       <div className="tarjeta">
         <p className="tarjeta-titulo">El año de un vistazo</p>
         <div className="fila">
-          <span className="fila-etiqueta">Venta promedio por mes</span>
+          <span className="fila-etiqueta">Venta promedio por mes cerrado</span>
           <span className="fila-valor">{plata(anual.promedioMensual)}</span>
         </div>
         {anual.mejorMes && (
@@ -155,7 +155,10 @@ export default function ReporteAnual({ anio }: { anio: string }) {
             <tbody>
               {anual.meses.map((m) => (
                 <tr key={m.mes}>
-                  <td style={{ whiteSpace: 'nowrap' }}>{mesLindo(m.mes)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {mesLindo(m.mes)}
+                    {m.enCurso && <div className="item-sub">en curso</div>}
+                  </td>
                   <td className="num">{plata(m.ventasTotales)}</td>
                   <td className="num">{plata(m.margenContribucion)}</td>
                   <td className="num">
@@ -170,7 +173,9 @@ export default function ReporteAnual({ anio }: { anio: string }) {
           </table>
         </div>
         <p className="silencio" style={{ marginTop: 8, marginBottom: 0 }}>
-          Solo se muestran los meses con movimiento cargado.
+          Solo se muestran los meses con movimiento cargado. El mes en curso suma al total del
+          año, pero no se usa para el promedio ni para elegir el mejor y el más flojo: todavía le
+          faltan días.
         </p>
       </div>
 

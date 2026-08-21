@@ -16,7 +16,7 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock, con filtros rápidos por costo vencido o sin stock. El precio de venta sugerido siempre redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos. |
 | **Proveedores** | Aumento de costos en bloque, marcar un proveedor como inactivo, y una **cuenta corriente**: registrar compras (que suman stock y actualizan costo solas) y pagos (efectivo, transferencia, etc.), con el saldo que se le debe a cada uno siempre a la vista. |
 | **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. Un pago registrado desde la cuenta corriente de un proveedor aparece acá solo, sin cargarlo dos veces. |
-| **Reportes** | El número que importa: margen de contribución, cómo se arma, y si dio a favor o en contra. Se puede ver **por mes o por año** (el anual trae la tabla mes por mes, el mejor y el más flojo, y el promedio mensual). Incluye el **desglose de los gastos**, separados en fijos y variables y abiertos por categoría, con el detalle de cada movimiento. |
+| **Reportes** | El número que importa: margen de contribución, cómo se arma, y si dio a favor o en contra. Se puede ver **por mes o por año** (el anual trae la tabla mes por mes, el mejor y el más flojo, y el promedio de los meses cerrados — el mes en curso queda marcado aparte y no compite). Incluye el **desglose de los gastos**, separados en fijos y variables y abiertos por categoría, con el detalle de cada movimiento. |
 | **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
 
 La campana 🔔 es la versión corta del Panel: los mismos hallazgos, ordenados de lo
@@ -43,43 +43,56 @@ versión nueva en cualquier momento, sin esperar a que avise sola.
 
 ---
 
-## Julio y agosto 2026 ya están cargados
+## Todo 2026 ya está cargado
 
-Lo que estaba anotado en las planillas de julio (62 jornadas, 375 ventas, 35
-gastos) y de agosto (62 jornadas, 167 ventas, 24 gastos) se carga solo.
+Los ocho meses que había anotados en las planillas viejas (de enero al 18 de
+agosto) se cargan solos la primera vez que abrís la app: **2.141 ventas, 482
+jornadas, 245 gastos y 40 pases a caja grande**.
 
 La carga es **turno por turno y no pisa nada**: un turno que abrió y cerró una
 persona desde la app queda intacto aunque la planilla tenga ese mismo día. Solo
 se tocan los turnos marcados como importados. Eso permite volver a traer un mes
 cuando se corrige el importador, sin riesgo para lo que se cargó a mano.
 
-**Agosto 2026 (hasta el día 18, que es hasta donde llega la planilla):**
+### El año, mes por mes
 
-| | |
-|---|--:|
-| Ventas totales | $3.869.780 |
-| Costo de mercadería vendida | −$1.437.865 |
-| Gastos variables | −$241.300 |
-| **Margen de contribución** | **$2.190.615 (56,6 %)** |
-| Gastos fijos | −$1.820.250 |
-| **Resultado del mes** | **$370.365 a favor** |
+| Mes | Ventas | Margen de contribución | % | Resultado |
+|---|--:|--:|--:|--:|
+| enero | $4.722.605 | $2.363.716 | 50 % | $574.676 |
+| febrero | $4.656.790 | $2.344.721 | 50 % | $641.921 |
+| marzo | $5.622.635 | $1.941.754 | 35 % | $194.754 |
+| abril | $4.913.540 | $2.705.735 | 55 % | $656.235 |
+| mayo | $7.029.250 | $4.476.266 | 64 % | $2.344.166 |
+| junio | $6.760.617 | $3.803.201 | 56 % | $1.194.141 |
+| julio | $7.427.650 | $3.826.247 | 52 % | $1.546.497 |
+| agosto *(en curso, hasta el 18)* | $3.869.780 | $2.190.615 | 57 % | $370.365 |
+| **Año 2026** | **$45.002.867** | **$23.652.255** | **52,6 %** | **$7.522.755** |
 
-**Julio 2026 dio así:**
+Mejor mes: **julio** ($7.427.650). Más flojo: **febrero** ($4.656.790). Promedio
+de los meses ya cerrados: **$5.876.155**. Agosto no entra en esa comparación
+porque todavía le faltan días — sí suma al total del año.
 
-| | |
-|---|--:|
-| Ventas totales | $7.427.650 |
-| Costo de mercadería vendida (con los costos actuales del catálogo) | −$3.014.503 |
-| Gastos variables | −$586.900 |
-| **Margen de contribución** | **$3.826.247 (51,5 %)** |
-| Gastos fijos (alquiler, sueldos, luz, contador) | −$2.279.750 |
-| **Resultado del mes** | **$1.546.497 a favor** |
+### Cómo sabemos que no se perdió ninguna venta
 
-⚠️ Ese margen usa el costo *actual* de cada producto (el que ya venías cargando en
-la planilla), y **el 88 % de lo vendido en julio corresponde a productos con el
-costo vencido o sin cargar** — ver la sección de abajo. El número real de julio es
-más bajo que $3.826.247. A medida que actualices los costos de lo que más se
-vende, el reporte de julio se va a ir corrigiendo solo.
+El importador se controla contra los subtotales que la propia planilla calculaba
+en cada hoja. De **482 turnos, 480 cierran al peso**. Los dos que no cierran son
+errores de la planilla, no de la app:
+
+- **7 de marzo, tarde**: la fórmula de la planilla era `=SUM(G8:G27)` y había una
+  venta real de $26.250 anotada en la fila 28. La planilla no la sumaba; la app sí.
+- **21 de julio, mañana**: la planilla anotó la misma venta de $25.500 en la
+  columna de efectivo y en la de tarjetas. La app la cuenta una sola vez.
+
+⚠️ **Dos cosas a revisar en los números del año:**
+
+1. **239 ventas por $4.227.370 no tienen el costo de compra cargado.** Ese monto
+   entra entero como ganancia, así que el margen real es más bajo que el que
+   muestra el reporte. A medida que actualices costos, se corrige solo.
+2. **Hay $1.403.000 anotados como venta que no son ventas**: una devolución de
+   Mercado Pago del 13 de mayo ($1.210.000) y otra del 21 de marzo ($193.000).
+   Están en el renglón de ventas de la planilla, sin código de producto. Se
+   dejaron como estaban para que el arqueo de esos días siga cerrando, pero
+   inflan la venta del año en un 3 %.
 
 Para cargar otro mes histórico, ver "Importar un mes ya cargado en la planilla
 vieja" más abajo.
@@ -255,12 +268,33 @@ python3 scripts/importar-historico.py "mi-planilla.xlsx" 2026 8
 ```
 
 Lee las hojas `1M`/`1T`…`31M`/`31T` y la hoja `TOTALES` de ese mes, y genera
-`public/historico-2026-08.seed.json`. El script también imprime en pantalla qué
-productos vendidos ese mes no tienen costo de compra cargado.
+`public/historico-2026-08.seed.json` más `public/arqueos-2026-08.seed.json`.
+
+Al terminar imprime un **control contra los subtotales que la propia planilla
+calculaba** en cada hoja, turno por turno. Si algún turno no cierra, lo dice con
+nombre y monto: así se distingue un error del importador de un error de la
+planilla. Además informa las filas que hubo que interpretar (pagos partidos,
+recargos por financiación, ventas anotadas dos veces) y qué productos vendidos
+ese mes no tienen costo de compra cargado.
+
+Cuando la hoja `PRODUCTOS` del mes viene rota o a medio cargar (en enero estaba
+entera en `#REF!`), el script cae al catálogo actual
+(`public/productos.seed.json`) para el costo y el nombre de cada producto. Si no,
+esas ventas quedarían con costo cero — inflando el margen — y figurando por su
+código pelado en los reportes.
 
 Después hay que agregar el mes a la lista `MESES_HISTORICOS` en `src/App.tsx` para
 que la app lo cargue solo la primera vez que se abre (no pisa datos si ya se
-estaba usando la app para cargar caja real).
+estaba usando la app para cargar caja real). Si se corrigió el importador y hay
+que **volver a traer** meses ya importados, subí `VERSION_IMPORTACION` en
+`src/db/sembrar.ts`: eso vuelve a cargar los turnos marcados como importados y
+deja intactos los que cargó una persona.
+
+Las pruebas del parser se corren aparte:
+
+```bash
+python3 scripts/importar-historico.test.py
+```
 
 ### Regenerar los íconos
 

@@ -313,6 +313,8 @@ export function desglosarGastos(movimientos: Movimiento[]): DesgloseGastos {
 export interface ResumenDeUnMes extends ResumenMes {
   /** Mes en formato yyyy-mm. */
   mes: string
+  /** El mes que todavia esta corriendo: no cerro, todavia le faltan dias. */
+  enCurso: boolean
 }
 
 export interface ResumenAnual {
@@ -323,7 +325,7 @@ export interface ResumenAnual {
   total: ResumenMes
   mejorMes: ResumenDeUnMes | null
   peorMes: ResumenDeUnMes | null
-  /** Promedio de ventas de los meses con actividad. */
+  /** Promedio de ventas de los meses con actividad, ya cerrados. */
   promedioMensual: number
 }
 
@@ -338,6 +340,7 @@ export function resumirAnio(
   anio: string,
   ventas: Venta[],
   movimientos: Movimiento[],
+  hoy: string = new Date().toISOString().slice(0, 10),
 ): ResumenAnual {
   const ventasPorMes = new Map<string, Venta[]>()
   const movimientosPorMes = new Map<string, Movimiento[]>()
@@ -357,12 +360,17 @@ export function resumirAnio(
 
   const conActividad = [...new Set([...ventasPorMes.keys(), ...movimientosPorMes.keys()])].sort()
 
+  const mesActual = hoy.slice(0, 7)
   const meses: ResumenDeUnMes[] = conActividad.map((mes) => ({
     mes,
+    enCurso: mes === mesActual,
     ...resumirMes(ventasPorMes.get(mes) ?? [], movimientosPorMes.get(mes) ?? []),
   }))
 
-  const conVentas = meses.filter((m) => m.ventasTotales > 0)
+  // El mes que todavia esta corriendo no se compara con los cerrados:
+  // le faltan dias, siempre saldria "el peor" y bajaria el promedio sin
+  // que eso signifique nada. Igual suma al total del año.
+  const conVentas = meses.filter((m) => m.ventasTotales > 0 && !m.enCurso)
   const ordenadosPorVenta = [...conVentas].sort((a, b) => b.ventasTotales - a.ventasTotales)
 
   return {

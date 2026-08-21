@@ -343,17 +343,26 @@ describe('resumirAnio', () => {
     venta({ id: 'c', fecha: '2026-08-03', total: 500, cantidad: 1, costoUnitario: 200 }),
   ]
 
+  // Se le pasa la fecha de hoy a mano: si no, el resultado cambiaria
+  // segun el dia en que se corren las pruebas.
+  const YA_CERRADO = '2026-12-15'
+
   it('arma un renglon por mes con movimiento, del mas viejo al mas nuevo', () => {
-    const a = resumirAnio('2026', ventasDelAnio, [])
+    const a = resumirAnio('2026', ventasDelAnio, [], YA_CERRADO)
     expect(a.meses.map((m) => m.mes)).toEqual(['2026-07', '2026-08'])
     expect(a.meses[0].ventasTotales).toBe(3000)
     expect(a.meses[1].ventasTotales).toBe(500)
   })
 
   it('el total del año es la suma de todo, no de los renglones', () => {
-    const a = resumirAnio('2026', ventasDelAnio, [
-      movimiento({ id: 'g', fecha: '2026-07-10', tipo: 'GASTO_CAJA_GRANDE', monto: 300, esVariable: false }),
-    ])
+    const a = resumirAnio(
+      '2026',
+      ventasDelAnio,
+      [
+        movimiento({ id: 'g', fecha: '2026-07-10', tipo: 'GASTO_CAJA_GRANDE', monto: 300, esVariable: false }),
+      ],
+      YA_CERRADO,
+    )
     expect(a.total.ventasTotales).toBe(3500)
     expect(a.total.costoMercaderia).toBe(1400)
     expect(a.total.gastosFijos).toBe(300)
@@ -362,28 +371,45 @@ describe('resumirAnio', () => {
   })
 
   it('marca el mejor mes y el mas flojo', () => {
-    const a = resumirAnio('2026', ventasDelAnio, [])
+    const a = resumirAnio('2026', ventasDelAnio, [], YA_CERRADO)
     expect(a.mejorMes?.mes).toBe('2026-07')
     expect(a.peorMes?.mes).toBe('2026-08')
   })
 
   it('con un solo mes no hay "mes mas flojo" que comparar', () => {
-    const a = resumirAnio('2026', [venta({ fecha: '2026-07-01' })], [])
+    const a = resumirAnio('2026', [venta({ fecha: '2026-07-01' })], [], YA_CERRADO)
     expect(a.mejorMes?.mes).toBe('2026-07')
     expect(a.peorMes).toBeNull()
   })
 
   it('el promedio mensual solo cuenta los meses que vendieron', () => {
-    const a = resumirAnio('2026', ventasDelAnio, [
-      // Un mes con un gasto pero sin ventas no baja el promedio.
-      movimiento({ id: 'g', fecha: '2026-09-01', tipo: 'GASTO_CAJA_GRANDE', monto: 100 }),
-    ])
+    const a = resumirAnio(
+      '2026',
+      ventasDelAnio,
+      [
+        // Un mes con un gasto pero sin ventas no baja el promedio.
+        movimiento({ id: 'g', fecha: '2026-09-01', tipo: 'GASTO_CAJA_GRANDE', monto: 100 }),
+      ],
+      YA_CERRADO,
+    )
     expect(a.meses.map((m) => m.mes)).toContain('2026-09')
     expect(a.promedioMensual).toBe(1750)
   })
 
+  it('el mes que todavia corre no compite con los cerrados', () => {
+    // Agosto lleva vendido menos que julio solo porque va por la mitad.
+    const a = resumirAnio('2026', ventasDelAnio, [], '2026-08-10')
+    expect(a.meses.find((m) => m.mes === '2026-08')?.enCurso).toBe(true)
+    expect(a.meses.find((m) => m.mes === '2026-07')?.enCurso).toBe(false)
+    // No sale elegido "el mas flojo" ni baja el promedio...
+    expect(a.peorMes).toBeNull()
+    expect(a.promedioMensual).toBe(3000)
+    // ...pero lo vendido igual suma al total del año.
+    expect(a.total.ventasTotales).toBe(3500)
+  })
+
   it('un año sin nada cargado no explota', () => {
-    const a = resumirAnio('2020', [], [])
+    const a = resumirAnio('2020', [], [], YA_CERRADO)
     expect(a.meses).toEqual([])
     expect(a.mejorMes).toBeNull()
     expect(a.promedioMensual).toBe(0)

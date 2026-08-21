@@ -123,6 +123,32 @@ def _():
     assert {"A", "B", "C"} <= {v["codigo"] for v in ventas}
 
 
+@caso("un grupo cobrado parte en efectivo y parte con tarjeta, en la fila del total")
+def _():
+    # Cuatro productos por 98.900, cobrados 12.900 en efectivo + 86.000 con
+    # tarjeta. El total mixto esta anotado en la fila de uno de ellos.
+    ventas, ef, tj, _ = procesar(
+        [
+            fila(10, "A", 1, 9700, f="TRANSFERENCIA"),
+            fila(11, "B", 1, 26200, f=12900, g=86000),
+            fila(12, "C", 1, 28000, f="TRANSFERENCIA"),
+            fila(13, "D", 1, 35000, f="TRANSFERENCIA"),
+        ]
+    )
+    assert (ef, tj) == (12900, 86000), (ef, tj)
+    assert {"A", "B", "C", "D"} <= {v["codigo"] for v in ventas}
+
+
+@caso("entrega en efectivo mas tarjeta con recargo, en una sola fila")
+def _():
+    # Un producto de 36.800 cobrado 10.000 en efectivo y 30.820 con
+    # tarjeta: 4.020 de recargo por financiacion.
+    ventas, ef, tj, avisos = procesar([fila(10, "A", 1, 36800, f=10000, g=30820)])
+    assert (ef, tj) == (10000, 30820), (ef, tj)
+    assert imp.CODIGO_AJUSTE in {v["codigo"] for v in ventas}
+    assert len(avisos) == 1
+
+
 @caso("la misma venta anotada en efectivo y en tarjetas: se cuenta una vez")
 def _():
     ventas, ef, tj, avisos = procesar([fila(16, "A", 1, 25500, f=25500, g=25500)])
