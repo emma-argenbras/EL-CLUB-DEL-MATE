@@ -6,6 +6,10 @@ name: Verificar
 on:
   pull_request:
     branches: [main]
+  # Tambien en main: asi la rama tiene su propio estado visible, y no
+  # depende de acordarse de mirar el deploy para saber si esta sana.
+  push:
+    branches: [main]
 
 jobs:
   verificar:

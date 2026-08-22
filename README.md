@@ -509,6 +509,29 @@ avisar nunca que sus datos no llegan a ningún lado.
 
 ---
 
+## Qué se revisa antes de publicar
+
+Dos workflows, y los dos corren lo mismo (`typecheck`, `test`, `build`):
+
+- **Verificar** — en cada pull request y en cada push a `main`.
+- **Publicar en GitHub Pages** — al mergear a `main`. Corre los chequeos **antes** de
+  publicar: si alguno falla, no sube nada y la app que está en el aire sigue siendo la
+  anterior.
+
+Que el deploy repita los chequeos no es al pedo: es lo que hace que un commit que
+compila pero rompe un cálculo no llegue a producción, sin depender de que nadie haya
+configurado nada en GitHub.
+
+Lo que **sí** conviene activar a mano, una sola vez, es la protección de la rama:
+**Settings → Branches → Add branch ruleset**, con `main` como target, y tildando
+*Require a pull request before merging* y *Require status checks to pass* →
+`verificar`. Eso impide además pushear directo a `main` salteándose el pull request.
+
+`npm run test:reglas` no corre en el CI: necesita el emulador de Firestore y Java. Va a
+mano cuando se toca `firestore.rules`, que de todos modos se publica a mano.
+
+---
+
 ## Para desarrollar
 
 ```bash
