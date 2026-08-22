@@ -218,10 +218,20 @@ function TurnoAbierto({ jornada }: { jornada: Jornada }) {
       </div>
 
       {pestana === 'ventas' && (
-        <PanelVentas jornada={jornada} ventas={ventas ?? []} bloqueado={cerrado} />
+        <PanelVentas
+          jornada={jornada}
+          ventas={ventas ?? []}
+          bloqueado={cerrado}
+          onIrAlCierre={() => setPestana('cierre')}
+        />
       )}
       {pestana === 'egresos' && (
-        <PanelEgresos jornada={jornada} movimientos={movimientos ?? []} bloqueado={cerrado} />
+        <PanelEgresos
+          jornada={jornada}
+          movimientos={movimientos ?? []}
+          bloqueado={cerrado}
+          onIrAlCierre={() => setPestana('cierre')}
+        />
       )}
       {pestana === 'cierre' && <PanelCierre jornada={jornada} esperado={resumen.cierreEsperado} />}
     </>
@@ -230,14 +240,39 @@ function TurnoAbierto({ jornada }: { jornada: Jornada }) {
 
 /* ------------------------------------------------------------------ */
 
+/**
+ * Lo que se ve en Ventas y en Egresos cuando el turno ya esta cerrado.
+ *
+ * Antes no habia nada: la tarjeta para cargar simplemente desaparecia.
+ * Quien entraba veia la lista de lo cargado y ninguna forma de sumar
+ * algo mas, sin una linea que explicara por que, y el boton para
+ * reabrir estaba en otra pestaña --que no hay motivo para abrir si lo
+ * que se quiere es cargar una venta--. La salida existia pero no habia
+ * como encontrarla.
+ */
+function TurnoCerradoAviso({ onIrAlCierre }: { onIrAlCierre: () => void }) {
+  return (
+    <div className="aviso aviso-ojo">
+      <strong>El turno está cerrado.</strong> Por eso no aparece nada para cargar.
+      <br />
+      Si te falta anotar algo, reabrilo, cargalo y volvé a cerrarlo.
+      <button className="boton-chico" style={{ marginTop: 10 }} onClick={onIrAlCierre}>
+        Ir a reabrir el turno
+      </button>
+    </div>
+  )
+}
+
 function PanelVentas({
   jornada,
   ventas,
   bloqueado,
+  onIrAlCierre,
 }: {
   jornada: Jornada
   ventas: import('../db/db').Venta[]
   bloqueado: boolean
+  onIrAlCierre: () => void
 }) {
   const [elegido, setElegido] = useState<Producto | null>(null)
   const [cantidad, setCantidad] = useState('1')
@@ -296,6 +331,7 @@ function PanelVentas({
 
   return (
     <>
+      {bloqueado && <TurnoCerradoAviso onIrAlCierre={onIrAlCierre} />}
       {!bloqueado && (
         <div className="tarjeta">
           <p className="tarjeta-titulo">Cargar venta</p>
@@ -433,10 +469,12 @@ function PanelEgresos({
   jornada,
   movimientos,
   bloqueado,
+  onIrAlCierre,
 }: {
   jornada: Jornada
   movimientos: import('../db/db').Movimiento[]
   bloqueado: boolean
+  onIrAlCierre: () => void
 }) {
   const [concepto, setConcepto] = useState('')
   const [monto, setMonto] = useState('')
@@ -466,6 +504,7 @@ function PanelEgresos({
 
   return (
     <>
+      {bloqueado && <TurnoCerradoAviso onIrAlCierre={onIrAlCierre} />}
       {!bloqueado && (
         <div className="tarjeta">
           <p className="tarjeta-titulo">Sacar plata de la caja</p>
