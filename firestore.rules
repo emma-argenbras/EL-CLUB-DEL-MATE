@@ -92,16 +92,49 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // El dia de hoy en hora de Argentina. request.time viene en UTC y
+    // Concordia esta en UTC-3 todo el año (el pais no cambia de hora
+    // desde 2009), asi que alcanza con restar tres horas. Se arma como
+    // texto 'aaaa-mm-dd' porque asi se guarda la fecha de la jornada.
+    function dosDigitos(n) {
+      return n < 10 ? '0' + string(n) : string(n);
+    }
+
+    function fechaDeHoy() {
+      return string((request.time - duration.value(3, 'h')).year()) + '-' +
+             dosDigitos((request.time - duration.value(3, 'h')).month()) + '-' +
+             dosDigitos((request.time - duration.value(3, 'h')).day());
+    }
+
     // Jornadas (los turnos de caja): cualquiera activo abre, carga y
-    // cierra su turno, pero el visto bueno sobre una diferencia de caja
-    // lo firma un dueño. Si un empleado pudiera firmarlo, el control no
-    // controlaria nada: quien tuvo la diferencia se la aprobaria sola.
+    // cierra su turno, con dos cosas reservadas al dueño.
+    //
+    // 1) El visto bueno sobre una diferencia de caja. Si un empleado
+    //    pudiera firmarlo, el control no controlaria nada: quien tuvo la
+    //    diferencia se la aprobaria sola.
+    //
+    // 2) Cerrar un turno de un dia que no es hoy. Un turno que quedo sin
+    //    cerrar y se cierra dias despues es una correccion sobre el
+    //    pasado, y el dueño quiere enterarse en el momento. El empleado
+    //    deja el pedido (solicitudCierre) con su conteo y el dueño lo
+    //    autoriza desde su celular.
+    //
+    // Ojo con el alcance de (2): esto cubre los dias distintos de hoy,
+    // que es lo que se puede calcular aca con certeza. El caso de cerrar
+    // el turno de la mañana cuando el de la tarde ya arranco --mismo
+    // dia-- lo maneja la app, no esta regla.
     match /negocios/el-club-del-mate/jornadas/{jornadaId} {
       allow read: if estaLogueado();
       allow create: if estoyActivo() && request.resource.data.cierreAutorizado == null;
       allow update: if estoyActivo() && (
-        soyOwner() ||
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['cierreAutorizado'])
+        soyOwner() || (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['cierreAutorizado']) &&
+          !(
+            request.resource.data.estado == 'cerrado' &&
+            resource.data.estado != 'cerrado' &&
+            resource.data.fecha != fechaDeHoy()
+          )
+        )
       );
       allow delete: if estoyActivo();
     }

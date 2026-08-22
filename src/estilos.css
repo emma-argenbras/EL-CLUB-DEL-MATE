@@ -845,3 +845,17 @@ th.num {
   background: var(--borde);
   color: var(--tinta-suave);
 }
+
+/* Un titulo de pagina con un boton chico a la derecha, en la misma
+   linea. El titulo se queda con el espacio que sobra. */
+.titulo-con-accion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.titulo-con-accion h2 {
+  margin-right: auto;
+}

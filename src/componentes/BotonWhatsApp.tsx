@@ -25,10 +25,10 @@ export function CompartirProducto({
 }
 
 /** Lo mismo, pero manda el enlace al catalogo entero. */
-export function CompartirCatalogo() {
+export function CompartirCatalogo({ chico = false }: { chico?: boolean }) {
   return (
-    <Enlace texto={mensajeCatalogo()} titulo="Compartir el catálogo por WhatsApp">
-      💬 Compartir el catálogo
+    <Enlace texto={mensajeCatalogo()} chico={chico} titulo="Compartir el catálogo por WhatsApp">
+      {chico ? '💬 Catálogo' : '💬 Compartir el catálogo'}
     </Enlace>
   )
 }

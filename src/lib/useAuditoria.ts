@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Movimiento, type Venta } from '../db/db'
+import { CLAVE_ULTIMA_SYNC } from '../sync/motor'
 import { hoyISO, mesActualISO } from './formato'
 import {
   auditar,
@@ -74,6 +75,7 @@ export function useAuditoria(): ResultadoAuditoria {
       movimientosMesAnterior,
       cuentaCorriente,
       pospuestos,
+      ultimaSync,
     ] = await Promise.all([
       db.productos.toArray(),
       db.proveedores.toArray(),
@@ -83,6 +85,7 @@ export function useAuditoria(): ResultadoAuditoria {
       db.movimientos.where('fecha').between(`${anterior}-00`, `${anterior}-32`).toArray(),
       db.movimientosProveedor.toArray(),
       db.ajustes.where('clave').startsWith(PREFIJO_POSPUESTO).toArray(),
+      db.ajustes.get(CLAVE_ULTIMA_SYNC),
     ])
 
     // Para calcular la diferencia de caja hace falta lo de cada turno
@@ -103,6 +106,7 @@ export function useAuditoria(): ResultadoAuditoria {
       movimientosMes,
       movimientosMesAnterior,
       cuentaCorriente,
+      ultimaSync: ultimaSync ? Number(ultimaSync.valor) : null,
       ventasPorJornada: agrupar(ventasDeTurnos, (v) => v.jornadaId),
       movimientosPorJornada: agrupar(movimientosDeTurnos, (m) => m.jornadaId),
       // Un hallazgo pospuesto vuelve a aparecer cuando llega la fecha.
@@ -129,6 +133,7 @@ export function useAuditoria(): ResultadoAuditoria {
       cuentaCorriente: datos.cuentaCorriente,
       estadoNube: nube.estado,
       errorNube: nube.error,
+      ultimaSync: datos.ultimaSync,
       hoy,
       mes,
     }

@@ -308,6 +308,38 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'cierre-olvidado',
+    categoria: 'Caja',
+    pregunta: 'Me olvidé de cerrar un turno, ¿lo puedo cerrar después?',
+    respuesta:
+      'Sí, pero lo tiene que autorizar un dueño. Entrá a Caja, elegí la fecha y el turno que quedó sin cerrar, andá a la pestaña "Cierre" y contá la plata como siempre. En vez de "Cerrar turno" te va a aparecer "Pedir autorización para cerrar".\n\nTe va a pedir que cuentes qué pasó. Escribilo aunque sea corto ("me olvidé de cerrar anoche"): es lo que el dueño lee para poder autorizarlo.\n\nEl conteo que hiciste queda guardado tal cual. Cuando el dueño autoriza desde su celular, el turno se cierra solo con esos billetes: no hay que volver a contar nada. Mientras tanto podés seguir trabajando y vendiendo normalmente, no te frena nada.\n\nSi el dueño no lo autoriza, te va a aparecer el motivo en esa misma pantalla y podés corregirlo y volver a pedirlo.',
+    palabrasClave: [
+      'olvide cerrar',
+      'cerrar despues',
+      'turno sin cerrar',
+      'cierre tardio',
+      'ayer',
+      'autorizacion',
+    ],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'autorizar-cierre-tardio',
+    categoria: 'Caja',
+    pregunta: '¿Cómo autorizo un turno que quedó sin cerrar?',
+    respuesta:
+      'Cuando alguien pide cerrar un turno de otro día —o el de la mañana cuando ya arrancó la tarde—, el turno NO se cierra solo: te aparece arriba de todo en Caja, con la fecha, lo que contaron, lo que debería haber, la diferencia que quedaría y el motivo que escribieron.\n\nTenés dos botones. "Autorizar y cerrar" cierra el turno con ese conteo exacto y queda firmado por vos. "No autorizar" pide un motivo, que es lo que va a leer del otro lado para corregirlo, y deja el turno abierto.\n\nNo podés editar el conteo desde acá, a propósito: el pedido es la constancia de lo que se contó en su momento. Si hay algo mal, no lo autorices y explicá qué corregir.\n\nEs lo primero que reclama el Panel, porque mientras no lo resolvés hay alguien esperándote.',
+    palabrasClave: [
+      'autorizar cierre',
+      'cierre tardio',
+      'turno sin cerrar',
+      'pedido de cierre',
+      'correccion',
+    ],
+    soloOwner: true,
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'visto-bueno-cierre',
     categoria: 'Caja',
     pregunta: '¿Cómo autorizo una diferencia de caja?',
@@ -409,7 +441,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Cómo le paso un producto a un cliente por WhatsApp?',
     respuesta:
-      'En la lista de Productos, cada producto tiene un botón 💬 al lado del precio. También aparece abajo de todo cuando abrís un producto para editarlo.\n\nAl tocarlo se abre tu WhatsApp con el mensaje ya escrito: el nombre del producto, el precio y el enlace al catálogo. Vos elegís a quién mandárselo y tocás enviar.\n\nUsa el WhatsApp que ya tenés en el celular, con tu número de siempre. No hace falta ninguna cuenta nueva ni configurar nada.',
+      'En la lista de Productos, cada producto tiene un botón 💬 al lado del precio. También aparece abajo de todo cuando abrís un producto para editarlo.\n\nY arriba de todo, al lado del título, está el botón 💬 Catálogo: ese manda el enlace al catálogo entero, para cuando alguien pregunta "¿qué tenés?" en vez de por algo puntual.\n\nAl tocarlo se abre tu WhatsApp con el mensaje ya escrito: el nombre del producto, el precio y el enlace al catálogo. Vos elegís a quién mandárselo y tocás enviar.\n\nUsa el WhatsApp que ya tenés en el celular, con tu número de siempre. No hace falta ninguna cuenta nueva ni configurar nada.',
     palabrasClave: ['whatsapp', 'wsp', 'compartir', 'mandar', 'pasar precio', 'cliente'],
     requiereSeccion: 'productos',
   },
@@ -418,7 +450,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Qué es el catálogo público y qué ven los clientes?',
     respuesta:
-      'Es una página web que puede abrir cualquiera, sin usuario ni contraseña: app.elclubdelmate.com/catalogo/. Muestra los productos con su nombre, su código y el precio de venta, con un buscador.\n\nSolo se publican esas tres cosas. El precio de compra, la rentabilidad, el proveedor y el stock NO se publican nunca.\n\nTampoco salen los productos inactivos, los archivados, los descontinuados ni los que no tienen precio cargado.',
+      'Es una página web que puede abrir cualquiera, sin usuario ni contraseña: app.elclubdelmate.com/catalogo/. Muestra los productos con su nombre, su código y el precio de venta, con un buscador.\n\nSolo se publican esas tres cosas. El precio de compra, la rentabilidad, el proveedor y el stock NO se publican nunca.\n\nTampoco salen los productos inactivos, los archivados, los descontinuados ni los que no tienen precio cargado.\n\nEse mismo catálogo es con lo que arranca un celular recién instalado, así no abre con la pantalla vacía. Los costos y los proveedores le llegan recién al iniciar sesión, desde el servidor: en un celular sin vincular no están, y eso es a propósito.',
     palabrasClave: ['catalogo', 'publico', 'clientes', 'pagina', 'web', 'link', 'enlace'],
     requiereSeccion: 'productos',
   },
@@ -649,6 +681,21 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Es lo mismo que la sincronización entre dispositivos, mirado desde otro lado: al vincular un dispositivo (en Ajustes → "Respaldo automático"), todo lo que se carga se guarda en un servidor en la nube, no solo en el celular. Eso quiere decir dos cosas a la vez: (1) es un respaldo automático, porque si el celular se rompe o se pierde, los datos siguen a salvo en el servidor; y (2) todos los dispositivos vinculados ven los mismos datos en segundos, como una venta cargada en el mostrador que aparece enseguida en tu celular.\n\nSigue funcionando exactamente igual sin internet: los cambios se guardan primero en el celular y se suben solos apenas vuelve la señal. No hace falta estar conectado para trabajar.',
     palabrasClave: ['respaldo automatico', 'backup', 'servidor', 'nube', 'sincronizacion'],
+  },
+  {
+    id: 'sync-atrasada',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Me dice que este dispositivo no sincroniza hace días, ¿perdí algo?',
+    respuesta:
+      'No. Todo lo que cargaste está guardado en el celular y sube solo apenas se vuelva a conectar. El aviso no es que se hayan perdido datos, es que mientras tanto este aparato está trabajando por su cuenta: lo que cargaste acá todavía no lo ven los demás, y lo que cargaron los demás todavía no está acá.\n\nQué hacer: fijate que el celular tenga internet y dejá la app abierta un rato. El aviso desaparece solo cuando vuelve a recibir datos.\n\nSi tenés internet y sigue igual, avisale al dueño: puede ser que se haya cerrado la sesión en este dispositivo y haya que volver a entrar.\n\nLa app avisa recién a los tres días para no molestar por un franco o un fin de semana largo.',
+    palabrasClave: [
+      'no sincroniza',
+      'desactualizado',
+      'atrasado',
+      'sin internet',
+      'no se ve en el otro celular',
+      'dias',
+    ],
   },
   {
     id: 'vincular-dispositivo',

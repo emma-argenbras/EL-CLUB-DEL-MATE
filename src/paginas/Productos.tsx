@@ -13,7 +13,7 @@ import {
 } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
-import { CompartirProducto } from '../componentes/BotonWhatsApp'
+import { CompartirCatalogo, CompartirProducto } from '../componentes/BotonWhatsApp'
 
 /** Las alertas que se pueden usar para filtrar el catalogo. */
 type Filtro =
@@ -181,7 +181,13 @@ export default function Productos() {
 
   return (
     <>
-      <h2>Productos</h2>
+      <div className="titulo-con-accion">
+        <h2>Productos</h2>
+        {/* Estaba solo en Ajustes, que un empleado no puede abrir: la
+            persona que atiende el mostrador y contesta los mensajes era
+            justamente la unica que no podia mandar el catalogo. */}
+        <CompartirCatalogo chico />
+      </div>
 
       {esOwner && solicitudes && solicitudes.length > 0 && (
         <div className="tarjeta">

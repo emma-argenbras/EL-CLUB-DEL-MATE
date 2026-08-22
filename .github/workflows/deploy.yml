@@ -29,6 +29,13 @@ jobs:
 
       - run: npm ci
 
+      # Antes de publicar, lo mismo que corre en cada pull request. Sin
+      # esto, un commit que compila pero rompe un calculo se publicaba
+      # igual: el deploy solo hacia build. Si algo de aca falla, no se
+      # sube nada y la app que esta en el aire sigue siendo la anterior.
+      - run: npm run typecheck
+      - run: npm run test
+
       - run: npm run build
         env:
           # La app queda servida en la raiz del dominio propio

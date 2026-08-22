@@ -3,12 +3,17 @@
 Genera public/catalogo.json: lo unico que ve un cliente que abre el
 catalogo publico desde WhatsApp.
 
-Por que un archivo aparte y no productos.seed.json
---------------------------------------------------
-productos.seed.json lleva el precio de compra, la rentabilidad y el
-proveedor de cada producto, porque la app los necesita para calcular el
-margen. Eso NO puede quedar a la vista de un cliente. Este script deja
-pasar solo tres campos: codigo, descripcion y precio de venta.
+Por que un archivo aparte
+-------------------------
+datos/productos.seed.json lleva el precio de compra, la rentabilidad y
+el proveedor de cada producto. Ese archivo NO se publica: vive fuera de
+public/ justamente para que no lo sirva el hosting.
+
+Lo que si se publica es esto: codigo, descripcion y precio de venta, y
+nada mas. Lo usan dos cosas a la vez --el catalogo que ve un cliente por
+WhatsApp, y el arranque de un dispositivo recien instalado, para que no
+abra con la pantalla vacia. Los costos le llegan a la app al iniciar
+sesion, desde el servidor, que es el unico lugar donde estan protegidos.
 
 Que queda afuera del catalogo
 -----------------------------
@@ -27,7 +32,7 @@ import unicodedata
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
-ORIGEN = RAIZ / "public" / "productos.seed.json"
+ORIGEN = RAIZ / "datos" / "productos.seed.json"
 DESTINO = RAIZ / "public" / "catalogo.json"
 
 
@@ -84,6 +89,8 @@ def main():
     print()
     print("Campos publicados: codigo, descripcion, precio de venta.")
     print("NO se publica: precio de compra, rentabilidad, proveedor ni stock.")
+    print()
+    print("Ojo: este archivo tambien es el que siembra un dispositivo nuevo.")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   setDoc,
   writeBatch,
@@ -20,6 +21,7 @@ import {
   db,
   engancharAutor,
   engancharSync,
+  guardarAjuste,
   type AccionCambio,
   type NombreTabla,
   type Rol,
@@ -48,6 +50,30 @@ const TABLAS: NombreTabla[] = [
  * que agregarlo en los dos lugares.
  */
 export const EMAILS_FUNDADORES = ['emmanuel@elclubdelmate.com', 'sebastian@elclubdelmate.com']
+
+/**
+ * Clave donde cada dispositivo anota cuando fue la ultima vez que
+ * recibio datos del servidor. Vive en "ajustes", que a proposito NO se
+ * sincroniza: es informacion de ESTE aparato, y justamente sirve para
+ * detectar que este aparato se quedo atras.
+ */
+export const CLAVE_ULTIMA_SYNC = 'ultimaSync'
+
+/**
+ * Cada cuanto se anota. Sin esto se escribiria en la base local con
+ * cada snapshot que llega, que en un dia normal son cientos: para saber
+ * "hace cuantos dias que no sincroniza" alcanza con la precision de
+ * unos minutos.
+ */
+const CADA_CUANTO_ANOTAR = 5 * 60 * 1000
+let ultimaAnotacion = 0
+
+async function anotarSincronizacion(): Promise<void> {
+  const ahora = Date.now()
+  if (ahora - ultimaAnotacion < CADA_CUANTO_ANOTAR) return
+  ultimaAnotacion = ahora
+  await guardarAjuste(CLAVE_ULTIMA_SYNC, String(ahora))
+}
 
 let desuscribirColecciones: Unsubscribe[] = []
 let motorIniciado = false
@@ -82,16 +108,33 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
  * que va en lotes (limite de Firestore: 500 operaciones por lote) en vez
  * de un pedido de red por cada fila, que en el primer login real se
  * volvia lentisimo y saturaba la base local con el eco de cada escritura.
+ *
+ * Solo sube lo que el servidor NO tiene todavia. Es la diferencia entre
+ * "traigo lo mio" y "piso lo de todos": un celular recien instalado
+ * arranca con el catalogo semilla, que es una foto vieja, y subirlo tal
+ * cual dejaria el catalogo del negocio con los precios de esa foto. Lo
+ * que ya esta en el servidor es de todos y manda.
+ *
+ * El costo de esto es que una edicion hecha en este dispositivo SIN
+ * sesion iniciada, sobre algo que ya existe en el servidor, no sube en
+ * este momento. Es la decision correcta: entre perder una edicion suelta
+ * y pisar el catalogo entero con datos viejos, se pierde la edicion. Con
+ * la sesion abierta no aplica: ahi cada cambio sube solo, incluso sin
+ * internet (Firestore lo encola y lo manda cuando vuelve).
  */
 async function empujarTodoLocal() {
   const firestore = obtenerFirestore()
   const operaciones: { tabla: NombreTabla; clave: string; datos: Record<string, unknown> }[] = []
 
   for (const tabla of TABLAS) {
+    const enElServidor = new Set(
+      (await getDocs(collection(firestore, 'negocios', ID_NEGOCIO, tabla))).docs.map((d) => d.id),
+    )
     const filas = await db.table(tabla).toArray()
     for (const fila of filas) {
       const clave =
         tabla === 'productos' ? (fila as { codigo: string }).codigo : (fila as { id: string }).id
+      if (enElServidor.has(clave)) continue
       operaciones.push({ tabla, clave, datos: limpiar(fila as Record<string, unknown>) })
     }
   }
@@ -159,6 +202,9 @@ function escucharColecciones() {
           if (tabla === 'usuarios') await actualizarPerfilPropio()
         }).catch((e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e))
         fijarEstadoNube({ estado: 'sincronizado', error: null, ultimaRecepcion: Date.now() })
+        anotarSincronizacion().catch(() => {
+          /* Si no se puede anotar, la app sigue: es solo para el aviso. */
+        })
       },
       (error) => {
         console.warn(`Error escuchando ${tabla}:`, error)

@@ -12,11 +12,13 @@ import {
   type Producto,
   type Turno,
 } from '../db/db'
-import { arqueoVacio, resumirJornada, sinStock, totalArqueo } from '../lib/calculos'
+import { arqueoVacio, esCierreTardio, resumirJornada, sinStock, totalArqueo } from '../lib/calculos'
 import { fechaLinda, haceCuanto, hoyISO, horaAhora, leerNumero, plata } from '../lib/formato'
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
 import CierresPendientes from '../componentes/CierresPendientes'
+import CierresTardios from '../componentes/CierresTardios'
+import { useSesion } from '../sync/useSesion'
 
 export default function Caja() {
   const [fecha, setFecha] = useState(hoyISO())
@@ -37,6 +39,7 @@ export default function Caja() {
     <>
       <h2>Caja</h2>
 
+      <CierresTardios />
       <CierresPendientes />
 
       <div className="tarjeta">
@@ -570,10 +573,62 @@ function PanelEgresos({
 /* ------------------------------------------------------------------ */
 
 function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number }) {
-  const [arqueo, setArqueo] = useState<Arqueo>(jornada.arqueoCierre ?? arqueoVacio())
+  const sesion = useSesion()
+  const [arqueo, setArqueo] = useState<Arqueo>(
+    jornada.arqueoCierre ?? jornada.solicitudCierre?.arqueo ?? arqueoVacio(),
+  )
   const contado = totalArqueo(arqueo)
   const diferencia = contado - esperado
   const cerrado = jornada.estado === 'cerrado'
+
+  // Los turnos que ya existen ese mismo dia: si la tarde ya arranco,
+  // cerrar la mañana es una correccion sobre algo que ya paso.
+  const turnosDelDia = useLiveQuery(
+    () => db.jornadas.where('fecha').equals(jornada.fecha).toArray(),
+    [jornada.fecha],
+  )
+
+  // Un dueño no se pide permiso a si mismo. Sin nube tampoco hay perfil
+  // ni empleados: la app corre en el dispositivo del dueño.
+  const necesitaPermiso =
+    sesion.perfil?.rol === 'empleado' &&
+    !!turnosDelDia &&
+    esCierreTardio(jornada, turnosDelDia)
+
+  const pedido = jornada.solicitudCierre ?? null
+  const esperandoPermiso = pedido?.estado === 'pendiente'
+
+  /**
+   * Deja pedido el cierre en vez de cerrar. El conteo queda congelado
+   * tal cual se hizo: cuando el dueño autoriza, el turno cierra con
+   * estos billetes y no con los de ese momento.
+   */
+  async function pedirCierre() {
+    const motivo = prompt(
+      `Este turno es del ${fechaLinda(jornada.fecha)} y se está cerrando después. Contale al dueño qué pasó para que pueda autorizarlo.`,
+      pedido?.motivo ?? '',
+    )
+    if (motivo === null) return
+    if (!motivo.trim()) {
+      alert('Hace falta escribir el motivo: es lo que el dueño lee para autorizar.')
+      return
+    }
+    await db.jornadas.update(jornada.id, {
+      solicitudCierre: {
+        arqueo,
+        motivo: motivo.trim(),
+        por: sesion.email ?? 'local',
+        porNombre: sesion.perfil?.nombre ?? 'Vendedor',
+        cuando: Date.now(),
+        estado: 'pendiente',
+      },
+    })
+  }
+
+  async function cancelarPedido() {
+    if (!confirm('¿Dar de baja el pedido? Vas a poder volver a pedirlo con otro conteo.')) return
+    await db.jornadas.update(jornada.id, { solicitudCierre: null })
+  }
 
   async function cerrar() {
     if (
@@ -606,6 +661,8 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
       // Una diferencia nueva vuelve a necesitar visto bueno: si se
       // reabre el turno y se cierra distinto, el de antes ya no vale.
       cierreAutorizado: null,
+      // Si habia un pedido rechazado dando vueltas, ya no aplica.
+      solicitudCierre: null,
     })
   }
 
@@ -677,9 +734,36 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
         )}
       </div>
 
+      {esperandoPermiso && pedido && (
+        <div className="aviso aviso-ojo">
+          <strong>Esperando que el dueño autorice el cierre.</strong>
+          <br />
+          Pediste cerrar con {plata(totalArqueo(pedido.arqueo))} {haceCuanto(pedido.cuando)}: «
+          {pedido.motivo}». Cuando lo autorice, el turno se cierra solo con ese conteo. Mientras
+          tanto podés seguir trabajando normalmente.
+        </div>
+      )}
+
+      {pedido?.estado === 'rechazada' && (
+        <div className="aviso aviso-error">
+          <strong>El dueño no autorizó este cierre.</strong>
+          {pedido.respuestaComentario ? <> «{pedido.respuestaComentario}»</> : null}
+          <br />
+          Revisá el conteo y volvé a pedirlo.
+        </div>
+      )}
+
       {cerrado ? (
         <button onClick={reabrir} style={{ width: '100%' }}>
           Reabrir turno
+        </button>
+      ) : esperandoPermiso ? (
+        <button onClick={cancelarPedido} style={{ width: '100%' }}>
+          Dar de baja el pedido
+        </button>
+      ) : necesitaPermiso ? (
+        <button className="boton-principal" onClick={pedirCierre}>
+          Pedir autorización para cerrar
         </button>
       ) : (
         <button className="boton-principal" onClick={cerrar}>

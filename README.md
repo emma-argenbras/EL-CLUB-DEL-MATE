@@ -258,6 +258,53 @@ y sincroniza apenas vuelve la señal.
 
 ---
 
+## Cerrar un turno tarde: lo autoriza el dueño
+
+Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
+**quedó olvidado** es otra cosa: es una corrección sobre algo que ya pasó, y el dueño
+quiere enterarse en el momento, no cuando revise el mes.
+
+La app considera tardío un cierre en dos casos, sin mirar el reloj:
+
+- el turno es de un día anterior a hoy;
+- es el turno de la mañana de hoy, pero el de la tarde ya se abrió.
+
+No se usa la hora a propósito: una mañana que se estira hasta las tres de la tarde es
+normal y adivinar por reloj daría falsas alarmas todos los días. Lo que delata la
+corrección es que el tiempo ya siguió de largo.
+
+En ese caso un empleado no ve "Cerrar turno" sino **"Pedir autorización para cerrar"**.
+Cuenta la plata como siempre, explica qué pasó, y el conteo queda congelado en el
+pedido. El dueño lo ve arriba de todo en Caja —con lo contado, lo que debería haber,
+la diferencia que quedaría y el motivo— y tiene dos botones: **Autorizar y cerrar**,
+que cierra el turno con ese conteo exacto y lo firma, o **No autorizar**, que pide un
+motivo y deja el turno abierto para corregirlo.
+
+El dueño no puede editar el conteo desde ahí. Si pudiera, el pedido dejaría de ser la
+constancia de lo que se contó y pasaría a ser una negociación.
+
+**Nada de esto frena la venta.** Mientras el pedido espera, el turno sigue abierto y se
+puede seguir trabajando: lo único que espera es la corrección.
+
+Del lado del servidor, `firestore.rules` impide que un empleado marque como cerrado un
+turno cuya fecha no sea la de hoy (calculada en hora de Argentina, UTC-3). El caso del
+mismo día —la mañana con la tarde ya abierta— lo maneja la app, no la regla.
+
+### Probar las reglas de verdad
+
+`firestore.rules` se publica a mano y no pasa por el CI, así que hay pruebas que lo
+corren contra el emulador oficial de Firestore:
+
+```bash
+npm run test:reglas
+```
+
+Necesita Java. Cubre que Gabriela pueda cerrar hoy, que no pueda cerrar ayer, que no
+se saltee el bloqueo borrando su propio pedido, que sí pueda dejarlo, y que Emmanuel
+pueda hacer las dos cosas. Si tocás las reglas, corré esto antes de pegarlas en Firebase.
+
+---
+
 ## Visto bueno sobre las diferencias de caja
 
 Cuando un turno cierra con diferencia, la app le pregunta a quien cerró si sabe a qué
@@ -298,8 +345,11 @@ Dos cosas que no necesitan ninguna cuenta nueva ni ningún servidor.
 ### Compartir un producto por WhatsApp
 
 En Productos, cada producto tiene un botón 💬 al lado del precio (y otro más grande
-al abrirlo para editar). Abre el WhatsApp que la persona ya tiene instalado, con el
-mensaje escrito:
+al abrirlo para editar), y arriba de todo hay un **💬 Catálogo** que manda el enlace
+al catálogo entero. Los dos los ve cualquiera que tenga Productos habilitado, no solo
+un dueño: quien atiende el mostrador es justamente quien contesta los mensajes.
+
+Abre el WhatsApp que la persona ya tiene instalado, con el mensaje escrito:
 
 ```
 🧉 *MATE IMPERIAL VIROLA ALPACA LISA*
@@ -340,6 +390,38 @@ npm run catalogo
 Si se editaron precios desde la app y no desde la planilla, se puede exportar el
 archivo con los precios actuales desde **Ajustes → Catálogo público → Exportar
 catálogo con los precios de hoy**, y publicarlo.
+
+### Etapa 2: contestar WhatsApp desde la app
+
+Esto **todavía no está hecho, y no es una cuestión de programarlo un rato**: choca con
+un límite del que conviene estar al tanto antes de decidir nada.
+
+La app es un sitio estático. No hay ningún servidor propio: GitHub Pages entrega
+archivos y listo. Para que un mensaje de WhatsApp *entre* a algún lado hace falta algo
+prendido las 24 horas esperando que Meta lo llame. O sea: para la etapa 2 hay que sumar
+un servidor, y eso es lo que la vuelve una decisión y no una tarea.
+
+Lo que hace falta, en orden:
+
+1. **Un número dedicado.** El número que se carga en la API de WhatsApp Business deja
+   de poder usarse en la app común de WhatsApp en el celular. Si es el número que hoy
+   usa el local, hay que decidir si se migra o se saca uno nuevo.
+2. **Cuenta de Meta Business + WhatsApp Business Platform**, o un intermediario
+   (360dialog, Twilio) que simplifica el alta a cambio de un abono.
+3. **Un servidor** que reciba los mensajes y los guarde. Puede ser chico —una función
+   en Firebase, que ya está pago y configurado, es la opción natural—, pero es
+   infraestructura nueva que hay que mantener.
+4. **Recién ahí la IA.** Con los mensajes llegando a Firestore, la app los muestra como
+   una bandeja más y un agente puede contestar lo que ya sabe: precio, si hay stock,
+   horarios. Todo lo que necesita para responder ya está en la base.
+
+Costo: Meta cobra por conversación (las que inicia el cliente son más baratas y hay una
+franja gratis mensual). El servidor, con el volumen de un local, entra cómodo en el
+plan gratuito de Firebase.
+
+**Lo que sí está listo desde ya:** el catálogo público es la base de conocimiento que
+va a usar el agente. Está en un JSON limpio, con precio actualizado, y se regenera con
+un comando. Cuando la etapa 2 arranque, no hay que armar eso de cero.
 
 ### ⚠️ Pendiente de seguridad: `productos.seed.json`
 
@@ -396,6 +478,41 @@ y `public/CNAME`) — no alcanza con una sola.
 
 ---
 
+## Qué se publica y qué no
+
+La app vive en un hosting estático (GitHub Pages). Eso quiere decir algo simple y
+fácil de olvidar: **cualquier archivo que se suba a `public/` lo puede bajar
+cualquiera que sepa la dirección**, esté logueado o no. No hay login que valga para
+un archivo estático.
+
+Por eso el catálogo está partido en dos:
+
+| Archivo | Dónde vive | Qué lleva |
+|---|---|---|
+| `datos/productos.seed.json` | fuera de `public/`, **no se publica** | catálogo completo con costo, markup y proveedor |
+| `public/catalogo.json` | publicado | código, descripción y precio de venta, nada más |
+
+`public/catalogo.json` cumple dos funciones a la vez: es lo que ve un cliente que abre
+el catálogo por WhatsApp, y es con lo que arranca un dispositivo recién instalado para
+que no abra con la pantalla vacía.
+
+**Los costos llegan al iniciar sesión, desde el servidor**, que es el único lugar donde
+están protegidos por las reglas de Firestore. Un dispositivo sin vincular queda con un
+catálogo para vender, sin los números internos — que es exactamente lo que corresponde.
+
+Los parches mensuales de precios (`public/precios-<mes>.seed.json`) siguen la misma
+regla: `scripts/actualizar-precios.py` les saca costo, markup y proveedor antes de
+escribirlos.
+
+> ⚠️ **El repositorio es público.** Mientras lo sea, todo lo que esté versionado se
+> puede leer desde GitHub —incluido el historial, así que sacar un archivo del árbol
+> no lo borra de los commits viejos— y `public/historico-*.seed.json` lleva las ventas
+> y los gastos de todo 2026. Si eso molesta, la solución de fondo es **poner el
+> repositorio en privado**, que arregla las dos cosas de una. Antes de hacerlo hay que
+> verificar que GitHub Pages siga publicando el sitio con el plan de la cuenta.
+
+---
+
 ## Los datos viven primero en el celular
 
 - **Anda perfecto sin internet.** Cada acción se guarda al toque en el dispositivo.
@@ -405,6 +522,48 @@ y `public/CNAME`) — no alcanza con una sola.
   disponibles en la nube y en los demás dispositivos vinculados.
 - Igual conviene entrar de vez en cuando a **Ajustes → Copia manual → Descargar
   copia** y guardar ese archivo en Google Drive, como respaldo extra.
+
+### Un dispositivo que se queda atrás
+
+Cada aparato anota, **en el aparato**, cuándo fue la última vez que recibió datos del
+servidor. Esa marca vive en `ajustes`, la única tabla que a propósito no sincroniza:
+justamente sirve para detectar que *este* aparato se quedó atrás, y un dato compartido
+no podría decirlo.
+
+A los **tres días** sin sincronizar, el Panel lo avisa. Tres y no uno, para no molestar
+por un franco o un fin de semana largo.
+
+El aviso lo ve cualquiera, no solo un dueño. El estado de sincronización es del
+dispositivo, y el dispositivo de un empleado lo mira un empleado: esconderle el aviso
+dejaría sin enterarse justo a la única persona que está ahí para hacer algo. El texto
+cambia según quién sea — un dueño puede reentrar desde Ajustes, un empleado avisa.
+
+Es distinto del indicador de conexión, que dice cómo está la nube **ahora**. Un celular
+al que se le cerró la sesión hace una semana puede verse "conectando" un rato y no
+avisar nunca que sus datos no llegan a ningún lado.
+
+---
+
+## Qué se revisa antes de publicar
+
+Dos workflows, y los dos corren lo mismo (`typecheck`, `test`, `build`):
+
+- **Verificar** — en cada pull request y en cada push a `main`.
+- **Publicar en GitHub Pages** — al mergear a `main`. Corre los chequeos **antes** de
+  publicar: si alguno falla, no sube nada y la app que está en el aire sigue siendo la
+  anterior.
+
+Que el deploy repita los chequeos no es al pedo: es lo que hace que un commit que
+compila pero rompe un cálculo no llegue a producción, sin depender de que nadie haya
+configurado nada en GitHub.
+
+Lo que **sí** conviene activar a mano, una sola vez, es la protección de la rama:
+**Settings → Branches → Add branch ruleset**, con `main` como target, y tildando
+*Require a pull request before merging* y *Require status checks to pass* →
+`verificar`. Eso impide además pushear directo a `main` salteándose el pull request.
+
+`npm run test:reglas` no corre en el CI: necesita el emulador de Firestore y Java. Va a
+mano cuando se toca `firestore.rules`, que de todos modos se publica a mano.
 
 ---
 

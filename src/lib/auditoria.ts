@@ -71,6 +71,13 @@ export interface DatosAuditoria {
   cuentaCorriente: MovimientoProveedor[]
   estadoNube: 'sin-configurar' | 'desconectado' | 'conectando' | 'sincronizado' | 'error'
   errorNube: string | null
+  /**
+   * Cuando fue la ultima vez que ESTE dispositivo recibio datos del
+   * servidor. null si nunca sincronizo. Se guarda en el aparato, no en
+   * la nube: es justamente lo que hay que mirar para darse cuenta de
+   * que este aparato se quedo atras.
+   */
+  ultimaSync: number | null
   /** Fecha (yyyy-mm-dd) de hoy y mes (yyyy-mm) que se audita. */
   hoy: string
   mes: string
@@ -104,7 +111,14 @@ function diasEntre(a: string, b: string): number {
 function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   // --- Turnos que quedaron abiertos de dias anteriores ---
   const abiertosViejos = datos.jornadas
-    .filter((j) => j.estado === 'abierto' && diasEntre(j.fecha, datos.hoy) >= 1)
+    .filter(
+      (j) =>
+        j.estado === 'abierto' &&
+        diasEntre(j.fecha, datos.hoy) >= 1 &&
+        // Si ya se pidio cerrarlo, no esta olvidado: esta esperando al
+        // dueño. Ese caso tiene su propio aviso, mas abajo.
+        j.solicitudCierre?.estado !== 'pendiente',
+    )
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
 
   if (abiertosViejos.length > 0) {
@@ -118,6 +132,30 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       comoSeResuelve: 'Entrá a Caja, elegí ese día y turno, contá la caja en la pestaña Cierre y cerralo.',
       ruta: '/caja',
       cantidad: abiertosViejos.length,
+      requiereSeccion: 'caja',
+    })
+  }
+
+  // --- Pedidos para cerrar un turno tarde ---
+  // Van antes que los turnos abiertos viejos a proposito: si hay un
+  // pedido, el turno esta abierto justamente porque alguien lo esta
+  // esperando a el. Reclamarle "cerra el turno" al que no puede
+  // cerrarlo seria mandarlo contra una pared.
+  const pedidosCierre = datos.jornadas.filter((j) => j.solicitudCierre?.estado === 'pendiente')
+
+  if (pedidosCierre.length > 0) {
+    const primero = pedidosCierre.reduce((a, b) => (a.fecha <= b.fecha ? a : b))
+    const quien = primero.solicitudCierre?.porNombre ?? 'Alguien'
+    hallazgos.push({
+      id: 'caja-pedidos-cierre',
+      modulo: 'caja',
+      nivel: 'critico',
+      titulo: `${pedidosCierre.length} ${plural(pedidosCierre.length, 'turno espera', 'turnos esperan')} que autorices el cierre`,
+      detalle: `El más viejo es del ${primero.fecha}: ${quien} anotó «${primero.solicitudCierre?.motivo}». Hasta que lo autorices el turno sigue abierto, y del otro lado están esperando.`,
+      comoSeResuelve: 'Entrá a Caja: los pedidos están arriba de todo, con el conteo y la diferencia que quedaría.',
+      ruta: '/caja',
+      cantidad: pedidosCierre.length,
+      soloOwner: true,
       requiereSeccion: 'caja',
     })
   }
@@ -548,7 +586,33 @@ function auditarGastos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   })
 }
 
+/** Dias que puede pasar un dispositivo sin sincronizar antes de que moleste. */
+const DIAS_SIN_SYNC = 3
+
 function auditarSistema(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
+  // --- Este dispositivo se quedo atras ---
+  // El estado de la nube dice como esta la conexion AHORA. Esto es otra
+  // cosa: cuanto hace que este aparato no recibe nada. Un celular que
+  // se quedo sin sesion hace una semana puede verse "conectando" un
+  // rato y no avisar nunca que sus datos no llegan a ningun lado.
+  if (datos.estadoNube !== 'sin-configurar' && datos.ultimaSync !== null) {
+    const dias = Math.floor((Date.parse(`${datos.hoy}T23:59:59`) - datos.ultimaSync) / 86_400_000)
+    if (dias >= DIAS_SIN_SYNC) {
+      hallazgos.push({
+        id: 'sistema-sync-atrasado',
+        modulo: 'sistema',
+        nivel: 'importante',
+        titulo: `Este dispositivo no sincroniza desde hace ${dias} días`,
+        detalle:
+          'Lo que se cargó acá en ese tiempo puede no haber llegado al resto, y lo que cargaron los demás puede no estar acá. Los datos no se pierden: suben solos cuando el aparato se vuelva a conectar.',
+        comoSeResuelve:
+          'Fijate que haya internet y abrí la app un rato. Si sos dueño y sigue igual, cerrá sesión y volvé a entrar desde Ajustes; si no, avisale al dueño.',
+        ruta: '/panel',
+        cantidad: dias,
+      })
+    }
+  }
+
   if (datos.estadoNube === 'error') {
     hallazgos.push({
       id: 'sistema-sync-error',
@@ -556,9 +620,9 @@ function auditarSistema(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       nivel: 'critico',
       titulo: 'Hay un problema sincronizando con la nube',
       detalle: datos.errorNube ?? 'Los cambios de este dispositivo pueden no estar llegando a los demás.',
-      comoSeResuelve: 'Revisá la conexión. Si sigue, cerrá sesión y volvé a entrar desde Ajustes.',
-      ruta: '/ajustes',
-      soloOwner: true,
+      comoSeResuelve:
+        'Revisá la conexión. Si sos dueño y sigue igual, cerrá sesión y volvé a entrar desde Ajustes; si no, avisale al dueño.',
+      ruta: '/panel',
     })
   }
 
@@ -569,9 +633,9 @@ function auditarSistema(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       nivel: 'importante',
       titulo: 'Este dispositivo no está sincronizando',
       detalle: 'Lo que se carga acá no se está compartiendo con los demás dispositivos ni respaldando en la nube.',
-      comoSeResuelve: 'Iniciá sesión de nuevo desde Ajustes.',
-      ruta: '/ajustes',
-      soloOwner: true,
+      comoSeResuelve:
+        'Si sos dueño, iniciá sesión de nuevo desde Ajustes. Si no, avisale al dueño: lo que cargues acá no está llegando al resto.',
+      ruta: '/panel',
     })
   }
 }
@@ -649,7 +713,7 @@ export const CONTROLES: {
    */
   noSePudoCorrer?: (datos: DatosAuditoria) => boolean
   /** Por que no se pudo correr, para explicarlo en la revision. */
-  porque?: string
+  porque?: string | ((datos: DatosAuditoria) => string)
 }[] = [
   {
     id: 'caja-turnos-abiertos',
@@ -663,6 +727,14 @@ export const CONTROLES: {
     modulo: 'caja',
     que: 'Que la caja contada al cerrar coincida con lo que debería haber',
     bien: 'Todos los cierres del mes dieron exactos',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'caja-pedidos-cierre',
+    modulo: 'caja',
+    que: 'Que nadie esté esperando que autorices cerrar un turno',
+    bien: 'No hay pedidos de cierre esperándote',
+    soloOwner: true,
     requiereSeccion: 'caja',
   },
   {
@@ -781,6 +853,17 @@ export const CONTROLES: {
     requiereSeccion: 'gastos',
   },
   {
+    id: 'sistema-sync-atrasado',
+    modulo: 'sistema',
+    que: 'Que este dispositivo esté al día con el servidor',
+    bien: 'Este dispositivo sincronizó hace poco',
+    noSePudoCorrer: (d) => d.estadoNube === 'sin-configurar' || d.ultimaSync === null,
+    porque: (d) =>
+      d.estadoNube === 'sin-configurar'
+        ? 'El respaldo automático todavía no está activado'
+        : 'Este dispositivo todavía no sincronizó nunca',
+  },
+  {
     id: 'sistema-sync-error',
     modulo: 'sistema',
     que: 'Que la sincronización con el servidor funcione',
@@ -846,7 +929,8 @@ export function revisionCompleta(
         modulo: c.modulo,
         que: c.que,
         estado: 'no-corrio' as const,
-        resultado: c.porque ?? 'No se pudo revisar',
+        resultado:
+          (typeof c.porque === 'function' ? c.porque(datos) : c.porque) ?? 'No se pudo revisar',
       }
     }
     return {

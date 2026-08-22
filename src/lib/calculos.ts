@@ -1,5 +1,6 @@
 import {
   type Arqueo,
+  type Jornada,
   type Movimiento,
   type Producto,
   type Venta,
@@ -111,6 +112,32 @@ export function resumirJornada(
     cierreEsperado: cajaInicial + efectivo - egresosCaja - aCajaGrande,
     ventasSinCosto,
   }
+}
+
+/**
+ * Si cerrar este turno AHORA es un cierre tardio, es decir una
+ * correccion sobre algo que ya paso y no el cierre normal del turno que
+ * se acaba de trabajar.
+ *
+ * Son tardios dos casos:
+ *   - el turno es de un dia anterior a hoy;
+ *   - es el turno de la mañana de hoy, pero el de la tarde ya se abrio.
+ *
+ * No se mira la hora: un turno de mañana que se estira hasta las tres de
+ * la tarde es normal, y adivinar por reloj daria falsas alarmas todos
+ * los dias. Lo que delata la correccion es que el tiempo ya siguio de
+ * largo: cambio el dia, o ya arranco el turno siguiente.
+ *
+ * @param turnosDelDia los turnos que ya existen para esa misma fecha.
+ */
+export function esCierreTardio(
+  jornada: Pick<Jornada, 'fecha' | 'turno'>,
+  turnosDelDia: Pick<Jornada, 'turno'>[],
+  hoy = new Date().toISOString().slice(0, 10),
+): boolean {
+  if (jornada.fecha < hoy) return true
+  if (jornada.fecha > hoy) return false
+  return jornada.turno === 'M' && turnosDelDia.some((t) => t.turno === 'T')
 }
 
 export interface ResumenMes {
