@@ -104,7 +104,14 @@ function diasEntre(a: string, b: string): number {
 function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   // --- Turnos que quedaron abiertos de dias anteriores ---
   const abiertosViejos = datos.jornadas
-    .filter((j) => j.estado === 'abierto' && diasEntre(j.fecha, datos.hoy) >= 1)
+    .filter(
+      (j) =>
+        j.estado === 'abierto' &&
+        diasEntre(j.fecha, datos.hoy) >= 1 &&
+        // Si ya se pidio cerrarlo, no esta olvidado: esta esperando al
+        // dueño. Ese caso tiene su propio aviso, mas abajo.
+        j.solicitudCierre?.estado !== 'pendiente',
+    )
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
 
   if (abiertosViejos.length > 0) {
@@ -118,6 +125,30 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       comoSeResuelve: 'Entrá a Caja, elegí ese día y turno, contá la caja en la pestaña Cierre y cerralo.',
       ruta: '/caja',
       cantidad: abiertosViejos.length,
+      requiereSeccion: 'caja',
+    })
+  }
+
+  // --- Pedidos para cerrar un turno tarde ---
+  // Van antes que los turnos abiertos viejos a proposito: si hay un
+  // pedido, el turno esta abierto justamente porque alguien lo esta
+  // esperando a el. Reclamarle "cerra el turno" al que no puede
+  // cerrarlo seria mandarlo contra una pared.
+  const pedidosCierre = datos.jornadas.filter((j) => j.solicitudCierre?.estado === 'pendiente')
+
+  if (pedidosCierre.length > 0) {
+    const primero = pedidosCierre.reduce((a, b) => (a.fecha <= b.fecha ? a : b))
+    const quien = primero.solicitudCierre?.porNombre ?? 'Alguien'
+    hallazgos.push({
+      id: 'caja-pedidos-cierre',
+      modulo: 'caja',
+      nivel: 'critico',
+      titulo: `${pedidosCierre.length} ${plural(pedidosCierre.length, 'turno espera', 'turnos esperan')} que autorices el cierre`,
+      detalle: `El más viejo es del ${primero.fecha}: ${quien} anotó «${primero.solicitudCierre?.motivo}». Hasta que lo autorices el turno sigue abierto, y del otro lado están esperando.`,
+      comoSeResuelve: 'Entrá a Caja: los pedidos están arriba de todo, con el conteo y la diferencia que quedaría.',
+      ruta: '/caja',
+      cantidad: pedidosCierre.length,
+      soloOwner: true,
       requiereSeccion: 'caja',
     })
   }
@@ -663,6 +694,14 @@ export const CONTROLES: {
     modulo: 'caja',
     que: 'Que la caja contada al cerrar coincida con lo que debería haber',
     bien: 'Todos los cierres del mes dieron exactos',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'caja-pedidos-cierre',
+    modulo: 'caja',
+    que: 'Que nadie esté esperando que autorices cerrar un turno',
+    bien: 'No hay pedidos de cierre esperándote',
+    soloOwner: true,
     requiereSeccion: 'caja',
   },
   {

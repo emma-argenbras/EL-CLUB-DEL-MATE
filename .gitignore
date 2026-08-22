@@ -13,3 +13,8 @@ datos-originales/
 *.xlsx
 tsconfig.tsbuildinfo
 scripts/__pycache__/
+
+# Emulador de Firestore (pruebas de reglas)
+.firebase/
+firebase-debug.log
+firestore-debug.log

@@ -308,6 +308,38 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'cierre-olvidado',
+    categoria: 'Caja',
+    pregunta: 'Me olvidé de cerrar un turno, ¿lo puedo cerrar después?',
+    respuesta:
+      'Sí, pero lo tiene que autorizar un dueño. Entrá a Caja, elegí la fecha y el turno que quedó sin cerrar, andá a la pestaña "Cierre" y contá la plata como siempre. En vez de "Cerrar turno" te va a aparecer "Pedir autorización para cerrar".\n\nTe va a pedir que cuentes qué pasó. Escribilo aunque sea corto ("me olvidé de cerrar anoche"): es lo que el dueño lee para poder autorizarlo.\n\nEl conteo que hiciste queda guardado tal cual. Cuando el dueño autoriza desde su celular, el turno se cierra solo con esos billetes: no hay que volver a contar nada. Mientras tanto podés seguir trabajando y vendiendo normalmente, no te frena nada.\n\nSi el dueño no lo autoriza, te va a aparecer el motivo en esa misma pantalla y podés corregirlo y volver a pedirlo.',
+    palabrasClave: [
+      'olvide cerrar',
+      'cerrar despues',
+      'turno sin cerrar',
+      'cierre tardio',
+      'ayer',
+      'autorizacion',
+    ],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'autorizar-cierre-tardio',
+    categoria: 'Caja',
+    pregunta: '¿Cómo autorizo un turno que quedó sin cerrar?',
+    respuesta:
+      'Cuando alguien pide cerrar un turno de otro día —o el de la mañana cuando ya arrancó la tarde—, el turno NO se cierra solo: te aparece arriba de todo en Caja, con la fecha, lo que contaron, lo que debería haber, la diferencia que quedaría y el motivo que escribieron.\n\nTenés dos botones. "Autorizar y cerrar" cierra el turno con ese conteo exacto y queda firmado por vos. "No autorizar" pide un motivo, que es lo que va a leer del otro lado para corregirlo, y deja el turno abierto.\n\nNo podés editar el conteo desde acá, a propósito: el pedido es la constancia de lo que se contó en su momento. Si hay algo mal, no lo autorices y explicá qué corregir.\n\nEs lo primero que reclama el Panel, porque mientras no lo resolvés hay alguien esperándote.',
+    palabrasClave: [
+      'autorizar cierre',
+      'cierre tardio',
+      'turno sin cerrar',
+      'pedido de cierre',
+      'correccion',
+    ],
+    soloOwner: true,
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'visto-bueno-cierre',
     categoria: 'Caja',
     pregunta: '¿Cómo autorizo una diferencia de caja?',

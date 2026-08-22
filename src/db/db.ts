@@ -170,6 +170,31 @@ export interface VistoBuenoCierre {
   comentario: string | null
 }
 
+/**
+ * Un pedido para cerrar un turno tarde: quien atendio se olvido de
+ * cerrar y lo quiere hacer despues, cuando ya arranco otro turno o ya
+ * paso el dia.
+ *
+ * Guarda el conteo tal como lo hizo esa persona en el momento de pedir.
+ * Cuando el dueño autoriza, el turno se cierra con EXACTAMENTE ese
+ * conteo: si el dueño pudiera retocarlo, el pedido dejaria de ser una
+ * constancia de lo que se conto y pasaria a ser una negociacion.
+ */
+export interface SolicitudCierre {
+  /** El conteo de billetes que hizo quien pide, congelado. */
+  arqueo: Arqueo
+  /** Por que se cierra tarde. Obligatorio: es lo que el dueño lee. */
+  motivo: string
+  por: string
+  porNombre: string
+  cuando: number
+  estado: 'pendiente' | 'rechazada'
+  /** Solo cuando el dueño rechaza: quien y por que. */
+  respuestaPorNombre?: string | null
+  respuestaCuando?: number | null
+  respuestaComentario?: string | null
+}
+
 export interface Jornada {
   id: string
   /** Fecha en formato yyyy-mm-dd. */
@@ -196,6 +221,12 @@ export interface Jornada {
    * Solo un dueño lo puede escribir (ver firestore.rules).
    */
   cierreAutorizado?: VistoBuenoCierre | null
+  /**
+   * Pedido de cierre tardio esperando --o rechazado por-- el dueño.
+   * Mientras hay uno pendiente, el turno sigue abierto: la app no lo
+   * cierra sola. Solo un dueño lo puede resolver (ver firestore.rules).
+   */
+  solicitudCierre?: SolicitudCierre | null
   notas: string | null
   creadoEn?: number
   actualizadoEn?: number

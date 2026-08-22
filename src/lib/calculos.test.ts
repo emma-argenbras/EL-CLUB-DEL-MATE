@@ -4,6 +4,7 @@ import {
   arqueoVacio,
   costoDesactualizado,
   desglosarGastos,
+  esCierreTardio,
   margenPorcentual,
   margenUnitario,
   precioBajoCosto,
@@ -533,5 +534,36 @@ describe('un producto descontinuado deja de reclamar mantenimiento', () => {
 
   it('pero si se vende por debajo del costo sigue avisando: eso es plata que sale hoy', () => {
     expect(precioBajoCosto({ ...muerto, precioCompra: 2000, precioVenta: 1500 })).toBe(true)
+  })
+})
+
+describe('esCierreTardio', () => {
+  const HOY = '2026-08-22'
+
+  it('el turno de hoy que todavia no tiene turno siguiente no es tardio', () => {
+    expect(esCierreTardio({ fecha: HOY, turno: 'M' }, [{ turno: 'M' }], HOY)).toBe(false)
+  })
+
+  it('el turno de la tarde de hoy nunca es tardio: no hay turno despues', () => {
+    expect(esCierreTardio({ fecha: HOY, turno: 'T' }, [{ turno: 'M' }, { turno: 'T' }], HOY)).toBe(
+      false,
+    )
+  })
+
+  it('cerrar la mañana cuando la tarde ya arranco es tardio', () => {
+    expect(esCierreTardio({ fecha: HOY, turno: 'M' }, [{ turno: 'M' }, { turno: 'T' }], HOY)).toBe(
+      true,
+    )
+  })
+
+  it('cualquier turno de un dia anterior es tardio', () => {
+    expect(esCierreTardio({ fecha: '2026-08-21', turno: 'T' }, [{ turno: 'T' }], HOY)).toBe(true)
+    expect(esCierreTardio({ fecha: '2026-07-30', turno: 'M' }, [{ turno: 'M' }], HOY)).toBe(true)
+  })
+
+  it('un turno con fecha futura no es tardio', () => {
+    // Puede pasar si alguien se equivoca de fecha al abrir. Es un error,
+    // pero no es una correccion sobre el pasado: no va por autorizacion.
+    expect(esCierreTardio({ fecha: '2026-08-23', turno: 'M' }, [{ turno: 'M' }], HOY)).toBe(false)
   })
 })

@@ -9,8 +9,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test": "vitest run",
-    "catalogo": "python3 scripts/generar-catalogo-publico.py"
+    "test": "vitest run src",
+    "catalogo": "python3 scripts/generar-catalogo-publico.py",
+    "test:reglas": "firebase emulators:exec --only firestore \"vitest run --config vitest.reglas.config.ts\""
   },
   "dependencies": {
     "dexie": "^4.0.11",
@@ -21,10 +22,12 @@
     "react-router-dom": "^6.28.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/node": "^26.2.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "firebase-tools": "^15.28.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vite-plugin-pwa": "^0.21.1",

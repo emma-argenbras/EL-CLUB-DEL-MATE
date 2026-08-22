@@ -258,6 +258,53 @@ y sincroniza apenas vuelve la señal.
 
 ---
 
+## Cerrar un turno tarde: lo autoriza el dueño
+
+Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
+**quedó olvidado** es otra cosa: es una corrección sobre algo que ya pasó, y el dueño
+quiere enterarse en el momento, no cuando revise el mes.
+
+La app considera tardío un cierre en dos casos, sin mirar el reloj:
+
+- el turno es de un día anterior a hoy;
+- es el turno de la mañana de hoy, pero el de la tarde ya se abrió.
+
+No se usa la hora a propósito: una mañana que se estira hasta las tres de la tarde es
+normal y adivinar por reloj daría falsas alarmas todos los días. Lo que delata la
+corrección es que el tiempo ya siguió de largo.
+
+En ese caso un empleado no ve "Cerrar turno" sino **"Pedir autorización para cerrar"**.
+Cuenta la plata como siempre, explica qué pasó, y el conteo queda congelado en el
+pedido. El dueño lo ve arriba de todo en Caja —con lo contado, lo que debería haber,
+la diferencia que quedaría y el motivo— y tiene dos botones: **Autorizar y cerrar**,
+que cierra el turno con ese conteo exacto y lo firma, o **No autorizar**, que pide un
+motivo y deja el turno abierto para corregirlo.
+
+El dueño no puede editar el conteo desde ahí. Si pudiera, el pedido dejaría de ser la
+constancia de lo que se contó y pasaría a ser una negociación.
+
+**Nada de esto frena la venta.** Mientras el pedido espera, el turno sigue abierto y se
+puede seguir trabajando: lo único que espera es la corrección.
+
+Del lado del servidor, `firestore.rules` impide que un empleado marque como cerrado un
+turno cuya fecha no sea la de hoy (calculada en hora de Argentina, UTC-3). El caso del
+mismo día —la mañana con la tarde ya abierta— lo maneja la app, no la regla.
+
+### Probar las reglas de verdad
+
+`firestore.rules` se publica a mano y no pasa por el CI, así que hay pruebas que lo
+corren contra el emulador oficial de Firestore:
+
+```bash
+npm run test:reglas
+```
+
+Necesita Java. Cubre que Gabriela pueda cerrar hoy, que no pueda cerrar ayer, que no
+se saltee el bloqueo borrando su propio pedido, que sí pueda dejarlo, y que Emmanuel
+pueda hacer las dos cosas. Si tocás las reglas, corré esto antes de pegarlas en Firebase.
+
+---
+
 ## Visto bueno sobre las diferencias de caja
 
 Cuando un turno cierra con diferencia, la app le pregunta a quien cerró si sabe a qué
