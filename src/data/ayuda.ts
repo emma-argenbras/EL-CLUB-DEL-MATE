@@ -308,6 +308,22 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'turno-cerrado-sin-querer',
+    categoria: 'Caja',
+    pregunta: 'Cerré el turno y me falta cargar algo, ¿qué hago?',
+    respuesta:
+      'Reabrilo. En la pestaña "Cierre", abajo de todo, está el botón "Reabrir turno". Cargá lo que falte y volvé a cerrarlo como siempre.\n\nSi estás en Ventas o en Egresos y no te aparece nada para cargar, es por eso: el turno está cerrado. Ahí mismo tenés un botón que te lleva directo a reabrirlo.\n\nReabrir no borra nada de lo que ya cargaste. Y si el turno cerrado tenía diferencia, al volver a cerrarlo la app te vuelve a preguntar, porque el número puede haber cambiado.\n\nOjo con una cosa: si el turno es de un día anterior, reabrirlo se puede, pero para volver a cerrarlo vas a necesitar la autorización del dueño.',
+    palabrasClave: [
+      'reabrir',
+      'cerre sin querer',
+      'me falta cargar',
+      'turno cerrado',
+      'no me deja cargar',
+      'no aparece nada',
+    ],
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'cierre-olvidado',
     categoria: 'Caja',
     pregunta: 'Me olvidé de cerrar un turno, ¿lo puedo cerrar después?',
