@@ -11,7 +11,8 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run src",
     "catalogo": "python3 scripts/generar-catalogo-publico.py",
-    "test:reglas": "firebase emulators:exec --only firestore \"vitest run --config vitest.reglas.config.ts\""
+    "test:reglas": "firebase emulators:exec --only firestore \"vitest run --config vitest.reglas.config.ts\"",
+    "revisar-publicos": "python3 scripts/revisar-publicos.py"
   },
   "dependencies": {
     "dexie": "^4.0.11",
