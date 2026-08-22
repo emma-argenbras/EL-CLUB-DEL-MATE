@@ -490,7 +490,10 @@ Por eso el catálogo está partido en dos:
 | Archivo | Dónde vive | Qué lleva |
 |---|---|---|
 | `datos/productos.seed.json` | fuera de `public/`, **no se publica** | catálogo completo con costo, markup y proveedor |
+| `datos/historico-<mes>.seed.json` | fuera de `public/`, **no se publica** | ventas, gastos y turnos de cada mes de 2026 |
+| `datos/arqueos-<mes>.seed.json` | fuera de `public/`, **no se publica** | conteo de billetes de cada turno |
 | `public/catalogo.json` | publicado | código, descripción y precio de venta, nada más |
+| `public/precios-<mes>.seed.json` | publicado | solo cambios de precio de venta |
 
 `public/catalogo.json` cumple dos funciones a la vez: es lo que ve un cliente que abre
 el catálogo por WhatsApp, y es con lo que arranca un dispositivo recién instalado para
@@ -504,12 +507,42 @@ Los parches mensuales de precios (`public/precios-<mes>.seed.json`) siguen la mi
 regla: `scripts/actualizar-precios.py` les saca costo, markup y proveedor antes de
 escribirlos.
 
-> ⚠️ **El repositorio es público.** Mientras lo sea, todo lo que esté versionado se
-> puede leer desde GitHub —incluido el historial, así que sacar un archivo del árbol
-> no lo borra de los commits viejos— y `public/historico-*.seed.json` lleva las ventas
-> y los gastos de todo 2026. Si eso molesta, la solución de fondo es **poner el
-> repositorio en privado**, que arregla las dos cosas de una. Antes de hacerlo hay que
-> verificar que GitHub Pages siga publicando el sitio con el plan de la cuenta.
+Los meses históricos tampoco se publican. Un dispositivo que ya los importó no los
+vuelve a pedir (la marca del import lo corta antes), y uno recién instalado los recibe
+del servidor al iniciar sesión. Si el archivo no está, la app lo saltea en silencio:
+faltar es lo esperado, no un error.
+
+### La regla, verificada sola
+
+Esto ya se escapó dos veces —el catálogo con los costos y el historial de ventas de
+todo el año— y las dos veces se encontró de casualidad. Así que dejó de ser una
+convención y pasó a ser un chequeo:
+
+```bash
+npm run revisar-publicos
+```
+
+`scripts/revisar-publicos.py` recorre todos los JSON de `public/` y falla si encuentra
+precio de compra, markup, proveedor, stock, ventas, gastos, turnos o arqueos. Corre en
+cada pull request, y **el deploy lo corre otra vez sobre `dist/`** —lo que realmente se
+sube, no lo que hay en `public/`— justo antes de publicar. Si algo se coló, no se
+publica nada.
+
+Para agregar un campo a la lista, está en `PROHIBIDAS` arriba del script, cada uno con
+el motivo escrito al lado.
+
+> ⚠️ **El repositorio es público.** Nada de esto se sirve ya desde
+> `app.elclubdelmate.com`, pero mientras el repositorio sea público todo lo versionado
+> se puede leer desde GitHub, **incluido el historial**: sacar un archivo del árbol no
+> lo borra de los commits viejos. Los archivos de `datos/` siguen ahí, y también las
+> versiones anteriores de los de `public/`.
+>
+> Lo único que cierra eso es **poner el repositorio en privado** (Settings → General →
+> Danger Zone → Change repository visibility). Antes de hacerlo hay que verificar que
+> GitHub Pages siga publicando el sitio con el plan de la cuenta: en las cuentas
+> gratuitas, Pages desde un repositorio privado puede requerir plan pago. Si el sitio
+> se cae, se vuelve a poner público y se piensa otra salida — no se pierde nada, pero
+> conviene no hacerlo en pleno horario de atención.
 
 ---
 
@@ -546,7 +579,8 @@ avisar nunca que sus datos no llegan a ningún lado.
 
 ## Qué se revisa antes de publicar
 
-Dos workflows, y los dos corren lo mismo (`typecheck`, `test`, `build`):
+Dos workflows, y los dos corren lo mismo (`typecheck`, `test`, `build`,
+`revisar-publicos`):
 
 - **Verificar** — en cada pull request y en cada push a `main`.
 - **Publicar en GitHub Pages** — al mergear a `main`. Corre los chequeos **antes** de

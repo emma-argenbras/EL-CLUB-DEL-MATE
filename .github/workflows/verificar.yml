@@ -26,3 +26,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+      # Que no se cuele nada privado en lo que se publica. Ya paso dos
+      # veces y las dos se encontro de casualidad; ahora falla el CI.
+      - run: npm run revisar-publicos

@@ -37,6 +37,26 @@ async function bajarJSON<T>(archivo: string): Promise<T> {
 }
 
 /**
+ * Igual que bajarJSON, pero devuelve null si el archivo no esta
+ * publicado, en vez de reventar.
+ *
+ * Los meses viejos de la planilla ya no se publican: son las ventas y
+ * los gastos de todo el año, y el sitio es estatico, asi que cualquiera
+ * con la direccion los podia bajar. Los dispositivos que ya los
+ * importaron ni llegan aca (la marca del import los corta antes), y uno
+ * recien instalado los recibe del servidor al iniciar sesion. Faltar no
+ * es un error: es lo esperado.
+ */
+async function bajarJSONSiEsta<T>(archivo: string): Promise<T | null> {
+  const respuesta = await fetch(`${import.meta.env.BASE_URL}${archivo}`)
+  if (respuesta.status === 404) return null
+  if (!respuesta.ok) {
+    throw new Error(`No se pudo leer ${archivo} (${respuesta.status})`)
+  }
+  return (await respuesta.json()) as T
+}
+
+/**
  * La primera vez que se abre la app carga el catalogo, para que un
  * dispositivo recien instalado no arranque con la pantalla vacia.
  *
@@ -124,7 +144,8 @@ export async function sincronizarMesImportado(mes: string): Promise<{
   const clave = `historico_${mes}_version`
   if ((await leerAjuste(clave)) === VERSION_IMPORTACION) return resultado
 
-  const datos = await bajarJSON<HistoricoMes>(`historico-${mes}.seed.json`)
+  const datos = await bajarJSONSiEsta<HistoricoMes>(`historico-${mes}.seed.json`)
+  if (!datos) return resultado
 
   // Los gastos de caja grande no cuelgan de ningun turno: se reconocen
   // por fecha + concepto + monto para no cargarlos dos veces.
@@ -223,7 +244,8 @@ export async function aplicarPreciosNuevos(mes: string): Promise<{
   const clave = `precios_${mes}_aplicados`
   if ((await leerAjuste(clave)) === 'si') return resultado
 
-  const parche = await bajarJSON<ParchePrecios>(`precios-${mes}.seed.json`)
+  const parche = await bajarJSONSiEsta<ParchePrecios>(`precios-${mes}.seed.json`)
+  if (!parche) return resultado
 
   // comoRemoto: es la misma lista de precios para todos los dispositivos,
   // asi que cada uno la aplica igual por su cuenta. No tiene sentido
