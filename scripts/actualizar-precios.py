@@ -5,7 +5,7 @@ fuente de verdad de la lista de precios) al catalogo de la app.
 
 Genera dos archivos:
 
-  public/productos.seed.json      catalogo completo, para una instalacion nueva
+  datos/productos.seed.json      catalogo completo con costos (NO se publica)
   public/precios-<mes>.seed.json  parche para las apps que ya estan en uso
 
 El parche guarda, por producto, el valor ANTERIOR y el NUEVO de cada
@@ -46,7 +46,7 @@ except ImportError:
     sys.exit("Falta openpyxl. Instalalo con: pip install openpyxl")
 
 RAIZ = Path(__file__).resolve().parent.parent
-SEED = RAIZ / "public" / "productos.seed.json"
+SEED = RAIZ / "datos" / "productos.seed.json"
 
 # Campos que se traen de la planilla. El resto (stock, archivado, notas)
 # es de la app y no se toca nunca.
@@ -177,7 +177,32 @@ def main():
         json.dumps(catalogo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
 
-    parche = {"mes": mes, "cambios": cambios, "nuevos": nuevos}
+    # El parche se publica en un hosting estatico, asi que cualquiera con
+    # la direccion lo puede bajar: el costo, el markup y el proveedor NO
+    # pueden viajar ahi. Esos campos llegan a la app por el servidor, al
+    # iniciar sesion, protegidos por las reglas de Firestore. El precio
+    # de venta si va: ya es publico en el catalogo de todos modos.
+    SECRETOS = {"precioCompra", "rentabilidad", "proveedor", "fechaCompra"}
+
+    cambios_publicos = []
+    for c in cambios:
+        nuevo_limpio = {k: v for k, v in c["nuevo"].items() if k not in SECRETOS}
+        if not nuevo_limpio:
+            continue
+        cambios_publicos.append({
+            "codigo": c["codigo"],
+            "anterior": {k: v for k, v in c["anterior"].items() if k not in SECRETOS},
+            "nuevo": nuevo_limpio,
+        })
+
+    nuevos_publicos = []
+    for prod in nuevos:
+        limpio = dict(prod)
+        for campo in SECRETOS:
+            limpio[campo] = None
+        nuevos_publicos.append(limpio)
+
+    parche = {"mes": mes, "cambios": cambios_publicos, "nuevos": nuevos_publicos}
     destino = RAIZ / "public" / f"precios-{mes}.seed.json"
     destino.write_text(
         json.dumps(parche, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
@@ -186,13 +211,14 @@ def main():
     print(f"Productos en la base       : {len(filas_por_codigo)}")
     print(f"Productos en el catalogo   : {len(catalogo)}")
     print(f"Productos con cambios      : {len(cambios)}")
+    print(f"  de los que se publican   : {len(cambios_publicos)} (sin costo ni proveedor)")
     for campo in CAMPOS:
         if resumen[campo]:
             print(f"    {campo:20s} {resumen[campo]}")
     print(f"Productos nuevos           : {len(nuevos)}")
     for p in nuevos:
         print(f"    {p['codigo']:12s} {p['descripcion'][:40]:42s} costo {p['precioCompra']}")
-    print(f"Archivos generados         : public/productos.seed.json")
+    print(f"Archivos generados         : datos/productos.seed.json")
     print(f"                             {destino.relative_to(RAIZ)}")
 
     if duplicados:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Importa la hoja PRODUCTOS de la planilla de Excel/Google Sheets
-y genera src/data/productos.seed.json, que la app usa para sembrar
+y genera datos/productos.seed.json, la fuente con costos que NO se publica
 la base de datos local la primera vez que se abre.
 
 Uso:
@@ -25,7 +25,7 @@ except ImportError:
     sys.exit("Falta openpyxl. Instalalo con: pip install openpyxl")
 
 RAIZ = Path(__file__).resolve().parent.parent
-SALIDA = RAIZ / "public" / "productos.seed.json"
+SALIDA = RAIZ / "datos" / "productos.seed.json"
 
 
 def texto(valor):

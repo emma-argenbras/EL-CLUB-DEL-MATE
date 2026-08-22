@@ -450,7 +450,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Qué es el catálogo público y qué ven los clientes?',
     respuesta:
-      'Es una página web que puede abrir cualquiera, sin usuario ni contraseña: app.elclubdelmate.com/catalogo/. Muestra los productos con su nombre, su código y el precio de venta, con un buscador.\n\nSolo se publican esas tres cosas. El precio de compra, la rentabilidad, el proveedor y el stock NO se publican nunca.\n\nTampoco salen los productos inactivos, los archivados, los descontinuados ni los que no tienen precio cargado.',
+      'Es una página web que puede abrir cualquiera, sin usuario ni contraseña: app.elclubdelmate.com/catalogo/. Muestra los productos con su nombre, su código y el precio de venta, con un buscador.\n\nSolo se publican esas tres cosas. El precio de compra, la rentabilidad, el proveedor y el stock NO se publican nunca.\n\nTampoco salen los productos inactivos, los archivados, los descontinuados ni los que no tienen precio cargado.\n\nEse mismo catálogo es con lo que arranca un celular recién instalado, así no abre con la pantalla vacía. Los costos y los proveedores le llegan recién al iniciar sesión, desde el servidor: en un celular sin vincular no están, y eso es a propósito.',
     palabrasClave: ['catalogo', 'publico', 'clientes', 'pagina', 'web', 'link', 'enlace'],
     requiereSeccion: 'productos',
   },

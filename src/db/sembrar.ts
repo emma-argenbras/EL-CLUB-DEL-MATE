@@ -14,8 +14,18 @@ import {
 const CLAVE_SEMILLA = 'catalogo_sembrado'
 
 /**
- * El catalogo original (1336 productos exportados de la planilla)
- * vive en un archivo aparte y no dentro del JS de la app:
+ * Un producto tal como viene del catalogo publico. Los nombres son de
+ * una letra porque el mismo archivo lo baja el celular de un cliente.
+ */
+interface ProductoPublico {
+  /** codigo */ c: string
+  /** descripcion */ d: string
+  /** precio de venta */ p: number
+  /** texto normalizado para buscar */ b: string
+}
+
+/**
+ * El catalogo vive en un archivo aparte y no dentro del JS de la app:
  * asi la app abre rapido y el archivo se baja una sola vez.
  */
 async function bajarJSON<T>(archivo: string): Promise<T> {
@@ -27,9 +37,21 @@ async function bajarJSON<T>(archivo: string): Promise<T> {
 }
 
 /**
- * La primera vez que se abre la app carga el catalogo que venia
- * de la planilla de Google Sheets. Si ya hay productos cargados,
- * no los pisa: manda lo que edito el usuario.
+ * La primera vez que se abre la app carga el catalogo, para que un
+ * dispositivo recien instalado no arranque con la pantalla vacia.
+ *
+ * Carga SOLO codigo, descripcion y precio de venta. El costo, la
+ * rentabilidad y el proveedor no viajan en este archivo a proposito:
+ * la app se publica en un hosting estatico, asi que cualquier archivo
+ * que se sube queda a la vista de cualquiera que sepa la direccion. Los
+ * numeros con los que se calcula el margen no pueden estar ahi.
+ *
+ * Esos datos llegan al iniciar sesion, desde el servidor, que es el
+ * unico lugar donde estan protegidos por las reglas de Firestore. Un
+ * dispositivo sin vincular queda con un catalogo para vender, sin los
+ * numeros internos --que es exactamente lo que corresponde.
+ *
+ * Si ya hay productos cargados no toca nada: manda lo que hay.
  */
 export async function sembrarCatalogo(): Promise<number> {
   if ((await leerAjuste(CLAVE_SEMILLA)) === 'si') return 0
@@ -39,20 +61,24 @@ export async function sembrarCatalogo(): Promise<number> {
     return 0
   }
 
-  const productos = await bajarJSON<Producto[]>('productos.seed.json')
+  const publicos = await bajarJSON<ProductoPublico[]>('catalogo.json')
+  const productos: Producto[] = publicos.map((p) => ({
+    codigo: p.c,
+    descripcion: p.d,
+    proveedor: null,
+    proveedorId: null,
+    fechaCompra: null,
+    precioCompra: null,
+    rentabilidad: null,
+    precioVenta: p.p,
+    fechaPrecioVenta: null,
+    busqueda: p.b,
+    stock: null,
+    activo: true,
+  }))
   await db.productos.bulkPut(productos)
-  await derivarProveedoresDesdeProductos()
   await guardarAjuste(CLAVE_SEMILLA, 'si')
-  await guardarAjuste('catalogo_origen', 'JULIO 2026 nueva ECDM - CON BASE DE DATOS')
-  return productos.length
-}
-
-/** Vuelve a cargar el catalogo original, pisando lo que haya con el mismo codigo. */
-export async function resembrarCatalogo(): Promise<number> {
-  const productos = await bajarJSON<Producto[]>('productos.seed.json')
-  await db.productos.bulkPut(productos)
-  await derivarProveedoresDesdeProductos()
-  await guardarAjuste(CLAVE_SEMILLA, 'si')
+  await guardarAjuste('catalogo_origen', 'catalogo publico (sin costos)')
   return productos.length
 }
 

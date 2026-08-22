@@ -8,7 +8,6 @@ import {
   type SeccionId,
   type Usuario,
 } from '../db/db'
-import { resembrarCatalogo } from '../db/sembrar'
 import { haceCuanto, hoyISO, normalizar, numero } from '../lib/formato'
 import CampoContrasena from '../componentes/CampoContrasena'
 import { CompartirCatalogo } from '../componentes/BotonWhatsApp'
@@ -193,17 +192,6 @@ export default function Ajustes() {
     URL.revokeObjectURL(url)
   }
 
-  async function recargarCatalogo() {
-    if (!confirm('Vuelve a cargar el catálogo original de la planilla. Los productos que hayas editado con el mismo código se pisan. ¿Seguís?')) return
-    setTrabajando(true)
-    try {
-      const n = await resembrarCatalogo()
-      setMensaje({ tipo: 'ok', texto: `Catálogo recargado: ${n} productos.` })
-    } finally {
-      setTrabajando(false)
-    }
-  }
-
   async function borrarTodo() {
     if (!confirm('Esto borra TODO: ventas, turnos, gastos y catálogo. ¿Seguro?')) return
     if (!confirm('Última confirmación. No se puede deshacer.')) return
@@ -279,13 +267,6 @@ export default function Ajustes() {
         </div>
         <button style={{ width: '100%', marginTop: 6 }} onClick={exportarVentasCSV}>
           Exportar ventas a CSV (para Excel)
-        </button>
-      </div>
-
-      <div className="tarjeta">
-        <p className="tarjeta-titulo">Catálogo</p>
-        <button style={{ width: '100%' }} onClick={recargarCatalogo} disabled={trabajando}>
-          Recargar catálogo original
         </button>
       </div>
 

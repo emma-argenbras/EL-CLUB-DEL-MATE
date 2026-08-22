@@ -10,6 +10,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   setDoc,
   writeBatch,
@@ -107,16 +108,33 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
  * que va en lotes (limite de Firestore: 500 operaciones por lote) en vez
  * de un pedido de red por cada fila, que en el primer login real se
  * volvia lentisimo y saturaba la base local con el eco de cada escritura.
+ *
+ * Solo sube lo que el servidor NO tiene todavia. Es la diferencia entre
+ * "traigo lo mio" y "piso lo de todos": un celular recien instalado
+ * arranca con el catalogo semilla, que es una foto vieja, y subirlo tal
+ * cual dejaria el catalogo del negocio con los precios de esa foto. Lo
+ * que ya esta en el servidor es de todos y manda.
+ *
+ * El costo de esto es que una edicion hecha en este dispositivo SIN
+ * sesion iniciada, sobre algo que ya existe en el servidor, no sube en
+ * este momento. Es la decision correcta: entre perder una edicion suelta
+ * y pisar el catalogo entero con datos viejos, se pierde la edicion. Con
+ * la sesion abierta no aplica: ahi cada cambio sube solo, incluso sin
+ * internet (Firestore lo encola y lo manda cuando vuelve).
  */
 async function empujarTodoLocal() {
   const firestore = obtenerFirestore()
   const operaciones: { tabla: NombreTabla; clave: string; datos: Record<string, unknown> }[] = []
 
   for (const tabla of TABLAS) {
+    const enElServidor = new Set(
+      (await getDocs(collection(firestore, 'negocios', ID_NEGOCIO, tabla))).docs.map((d) => d.id),
+    )
     const filas = await db.table(tabla).toArray()
     for (const fila of filas) {
       const clave =
         tabla === 'productos' ? (fila as { codigo: string }).codigo : (fila as { id: string }).id
+      if (enElServidor.has(clave)) continue
       operaciones.push({ tabla, clave, datos: limpiar(fila as Record<string, unknown>) })
     }
   }

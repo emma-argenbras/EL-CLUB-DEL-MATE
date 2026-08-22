@@ -494,7 +494,7 @@ def main():
     # pero se acerca muchisimo mas que cero.
     rellenados = 0
     nombres = {}
-    catalogo = RAIZ / "public" / "productos.seed.json"
+    catalogo = RAIZ / "datos" / "productos.seed.json"
     if catalogo.exists():
         for p in json.loads(catalogo.read_text(encoding="utf-8")):
             codigo = (p.get("codigo") or "").upper()

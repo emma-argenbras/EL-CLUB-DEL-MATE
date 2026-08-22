@@ -443,6 +443,41 @@ y `public/CNAME`) — no alcanza con una sola.
 
 ---
 
+## Qué se publica y qué no
+
+La app vive en un hosting estático (GitHub Pages). Eso quiere decir algo simple y
+fácil de olvidar: **cualquier archivo que se suba a `public/` lo puede bajar
+cualquiera que sepa la dirección**, esté logueado o no. No hay login que valga para
+un archivo estático.
+
+Por eso el catálogo está partido en dos:
+
+| Archivo | Dónde vive | Qué lleva |
+|---|---|---|
+| `datos/productos.seed.json` | fuera de `public/`, **no se publica** | catálogo completo con costo, markup y proveedor |
+| `public/catalogo.json` | publicado | código, descripción y precio de venta, nada más |
+
+`public/catalogo.json` cumple dos funciones a la vez: es lo que ve un cliente que abre
+el catálogo por WhatsApp, y es con lo que arranca un dispositivo recién instalado para
+que no abra con la pantalla vacía.
+
+**Los costos llegan al iniciar sesión, desde el servidor**, que es el único lugar donde
+están protegidos por las reglas de Firestore. Un dispositivo sin vincular queda con un
+catálogo para vender, sin los números internos — que es exactamente lo que corresponde.
+
+Los parches mensuales de precios (`public/precios-<mes>.seed.json`) siguen la misma
+regla: `scripts/actualizar-precios.py` les saca costo, markup y proveedor antes de
+escribirlos.
+
+> ⚠️ **El repositorio es público.** Mientras lo sea, todo lo que esté versionado se
+> puede leer desde GitHub —incluido el historial, así que sacar un archivo del árbol
+> no lo borra de los commits viejos— y `public/historico-*.seed.json` lleva las ventas
+> y los gastos de todo 2026. Si eso molesta, la solución de fondo es **poner el
+> repositorio en privado**, que arregla las dos cosas de una. Antes de hacerlo hay que
+> verificar que GitHub Pages siga publicando el sitio con el plan de la cuenta.
+
+---
+
 ## Los datos viven primero en el celular
 
 - **Anda perfecto sin internet.** Cada acción se guarda al toque en el dispositivo.
