@@ -13,7 +13,7 @@ import {
   type Turno,
 } from '../db/db'
 import { arqueoVacio, resumirJornada, sinStock, totalArqueo } from '../lib/calculos'
-import { fechaLinda, hoyISO, horaAhora, leerNumero, plata } from '../lib/formato'
+import { fechaLinda, haceCuanto, hoyISO, horaAhora, leerNumero, plata } from '../lib/formato'
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
 import CierresPendientes from '../componentes/CierresPendientes'
@@ -647,6 +647,32 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
             {diferencia > 0
               ? 'Sobra plata en la caja: puede haber una venta sin cargar.'
               : 'Falta plata en la caja: puede haber un egreso sin registrar.'}
+          </p>
+        )}
+        {/* Que pasa con la diferencia despues de cerrar. Sin esto, quien
+            cierra deja la caja descuadrada y no se entera nunca de si
+            alguien la miro: el visto bueno se veia solo del lado del
+            dueño. */}
+        {cerrado && diferencia !== 0 && (
+          <div className="fila" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+            <span className="fila-etiqueta">
+              {jornada.cierreAutorizado ? (
+                <>
+                  Visto bueno de {jornada.cierreAutorizado.porNombre} ·{' '}
+                  {haceCuanto(jornada.cierreAutorizado.cuando)}
+                  {jornada.cierreAutorizado.comentario
+                    ? ` · «${jornada.cierreAutorizado.comentario}»`
+                    : ''}
+                </>
+              ) : (
+                'Queda esperando el visto bueno del dueño. El turno igual está cerrado.'
+              )}
+            </span>
+          </div>
+        )}
+        {cerrado && jornada.notaCierre && (
+          <p className="silencio" style={{ marginTop: 4 }}>
+            Lo que se anotó al cerrar: «{jornada.notaCierre}»
           </p>
         )}
       </div>
