@@ -281,7 +281,13 @@ owner puede tocar `cierreAutorizado`.
 > Database → Reglas → Publicar** cada vez que cambia. Hasta que eso se haga, el
 > bloqueo existe solo en la pantalla.
 
-Mientras queden cierres sin revisar, el Panel lo reclama.
+Mientras queden cierres sin revisar, el Panel lo reclama. No hay que pedir nada: cualquier
+cierre con diferencia entra solo en esa lista, aunque quien cerró no haya escrito ninguna
+explicación.
+
+El circuito se ve de los dos lados. En el turno ya cerrado, debajo de la diferencia, quien
+cerró lee «Queda esperando el visto bueno del dueño» mientras nadie lo miró, y después el
+nombre de quién lo dio, cuándo y el comentario que haya dejado.
 
 ---
 
