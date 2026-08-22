@@ -276,6 +276,11 @@ sola. Está bloqueado en `firestore.rules`, no solo en la pantalla: la regla de
 `jornadas` deja que cualquiera activo abra, cargue y cierre su turno, pero solo un
 owner puede tocar `cierreAutorizado`.
 
+> ⚠️ **Las reglas no se publican con el deploy.** El workflow de GitHub Actions solo
+> sube la app; `firestore.rules` hay que pegarlo a mano en **Firebase → Firestore
+> Database → Reglas → Publicar** cada vez que cambia. Hasta que eso se haga, el
+> bloqueo existe solo en la pantalla.
+
 Mientras queden cierres sin revisar, el Panel lo reclama.
 
 ---
