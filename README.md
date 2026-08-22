@@ -345,8 +345,11 @@ Dos cosas que no necesitan ninguna cuenta nueva ni ningún servidor.
 ### Compartir un producto por WhatsApp
 
 En Productos, cada producto tiene un botón 💬 al lado del precio (y otro más grande
-al abrirlo para editar). Abre el WhatsApp que la persona ya tiene instalado, con el
-mensaje escrito:
+al abrirlo para editar), y arriba de todo hay un **💬 Catálogo** que manda el enlace
+al catálogo entero. Los dos los ve cualquiera que tenga Productos habilitado, no solo
+un dueño: quien atiende el mostrador es justamente quien contesta los mensajes.
+
+Abre el WhatsApp que la persona ya tiene instalado, con el mensaje escrito:
 
 ```
 🧉 *MATE IMPERIAL VIROLA ALPACA LISA*
@@ -387,6 +390,38 @@ npm run catalogo
 Si se editaron precios desde la app y no desde la planilla, se puede exportar el
 archivo con los precios actuales desde **Ajustes → Catálogo público → Exportar
 catálogo con los precios de hoy**, y publicarlo.
+
+### Etapa 2: contestar WhatsApp desde la app
+
+Esto **todavía no está hecho, y no es una cuestión de programarlo un rato**: choca con
+un límite del que conviene estar al tanto antes de decidir nada.
+
+La app es un sitio estático. No hay ningún servidor propio: GitHub Pages entrega
+archivos y listo. Para que un mensaje de WhatsApp *entre* a algún lado hace falta algo
+prendido las 24 horas esperando que Meta lo llame. O sea: para la etapa 2 hay que sumar
+un servidor, y eso es lo que la vuelve una decisión y no una tarea.
+
+Lo que hace falta, en orden:
+
+1. **Un número dedicado.** El número que se carga en la API de WhatsApp Business deja
+   de poder usarse en la app común de WhatsApp en el celular. Si es el número que hoy
+   usa el local, hay que decidir si se migra o se saca uno nuevo.
+2. **Cuenta de Meta Business + WhatsApp Business Platform**, o un intermediario
+   (360dialog, Twilio) que simplifica el alta a cambio de un abono.
+3. **Un servidor** que reciba los mensajes y los guarde. Puede ser chico —una función
+   en Firebase, que ya está pago y configurado, es la opción natural—, pero es
+   infraestructura nueva que hay que mantener.
+4. **Recién ahí la IA.** Con los mensajes llegando a Firestore, la app los muestra como
+   una bandeja más y un agente puede contestar lo que ya sabe: precio, si hay stock,
+   horarios. Todo lo que necesita para responder ya está en la base.
+
+Costo: Meta cobra por conversación (las que inicia el cliente son más baratas y hay una
+franja gratis mensual). El servidor, con el volumen de un local, entra cómodo en el
+plan gratuito de Firebase.
+
+**Lo que sí está listo desde ya:** el catálogo público es la base de conocimiento que
+va a usar el agente. Está en un JSON limpio, con precio actualizado, y se regenera con
+un comando. Cuando la etapa 2 arranque, no hay que armar eso de cero.
 
 ### ⚠️ Pendiente de seguridad: `productos.seed.json`
 

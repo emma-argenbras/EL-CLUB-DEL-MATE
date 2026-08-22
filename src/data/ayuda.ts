@@ -441,7 +441,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Cómo le paso un producto a un cliente por WhatsApp?',
     respuesta:
-      'En la lista de Productos, cada producto tiene un botón 💬 al lado del precio. También aparece abajo de todo cuando abrís un producto para editarlo.\n\nAl tocarlo se abre tu WhatsApp con el mensaje ya escrito: el nombre del producto, el precio y el enlace al catálogo. Vos elegís a quién mandárselo y tocás enviar.\n\nUsa el WhatsApp que ya tenés en el celular, con tu número de siempre. No hace falta ninguna cuenta nueva ni configurar nada.',
+      'En la lista de Productos, cada producto tiene un botón 💬 al lado del precio. También aparece abajo de todo cuando abrís un producto para editarlo.\n\nY arriba de todo, al lado del título, está el botón 💬 Catálogo: ese manda el enlace al catálogo entero, para cuando alguien pregunta "¿qué tenés?" en vez de por algo puntual.\n\nAl tocarlo se abre tu WhatsApp con el mensaje ya escrito: el nombre del producto, el precio y el enlace al catálogo. Vos elegís a quién mandárselo y tocás enviar.\n\nUsa el WhatsApp que ya tenés en el celular, con tu número de siempre. No hace falta ninguna cuenta nueva ni configurar nada.',
     palabrasClave: ['whatsapp', 'wsp', 'compartir', 'mandar', 'pasar precio', 'cliente'],
     requiereSeccion: 'productos',
   },
