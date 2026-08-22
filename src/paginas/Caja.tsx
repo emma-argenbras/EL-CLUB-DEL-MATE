@@ -16,6 +16,7 @@ import { arqueoVacio, resumirJornada, sinStock, totalArqueo } from '../lib/calcu
 import { fechaLinda, hoyISO, horaAhora, leerNumero, plata } from '../lib/formato'
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
+import CierresPendientes from '../componentes/CierresPendientes'
 
 export default function Caja() {
   const [fecha, setFecha] = useState(hoyISO())
@@ -35,6 +36,8 @@ export default function Caja() {
   return (
     <>
       <h2>Caja</h2>
+
+      <CierresPendientes />
 
       <div className="tarjeta">
         <div className="campo">
@@ -581,10 +584,28 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
       )
     )
       return
+
+    // Cuando la caja no da justa se pide una explicacion, pero NO se
+    // frena el cierre: la persona tiene que poder terminar su turno e
+    // irse. Lo que queda pendiente es el visto bueno del dueño.
+    let nota: string | null = jornada.notaCierre ?? null
+    if (diferencia !== 0) {
+      const escrito = prompt(
+        `¿Sabés a qué se debe la diferencia de ${plata(diferencia)}? Contale al dueño lo que te acordás (podés dejarlo vacío).`,
+        nota ?? '',
+      )
+      // Cancelar el cartel no cancela el cierre: solo deja la nota como estaba.
+      if (escrito !== null) nota = escrito.trim() || null
+    }
+
     await db.jornadas.update(jornada.id, {
       estado: 'cerrado',
       arqueoCierre: arqueo,
       horaCierre: horaAhora(),
+      notaCierre: nota,
+      // Una diferencia nueva vuelve a necesitar visto bueno: si se
+      // reabre el turno y se cierra distinto, el de antes ya no vale.
+      cierreAutorizado: null,
     })
   }
 

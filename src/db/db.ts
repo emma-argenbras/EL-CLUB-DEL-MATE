@@ -156,6 +156,20 @@ export interface MovimientoProveedor {
   actualizadoEn?: number
 }
 
+/**
+ * El dueño miro una diferencia de caja y la dio por buena.
+ *
+ * No es una correccion: la diferencia queda como fue. Es la constancia
+ * de que alguien con responsabilidad la vio y la acepto, con quien y
+ * cuando, para que no quede flotando sin dueño.
+ */
+export interface VistoBuenoCierre {
+  por: string
+  porNombre: string
+  cuando: number
+  comentario: string | null
+}
+
 export interface Jornada {
   id: string
   /** Fecha en formato yyyy-mm-dd. */
@@ -170,6 +184,18 @@ export interface Jornada {
   /** Conteo de billetes al abrir y al cerrar. */
   arqueoApertura: Arqueo | null
   arqueoCierre: Arqueo | null
+  /**
+   * Lo que anoto quien cerro, cuando la caja no dio justa: "le di mal
+   * el vuelto a un cliente", "faltaba plata desde la mañana". Sirve
+   * para que el dueño entienda antes de preguntar.
+   */
+  notaCierre?: string | null
+  /**
+   * El visto bueno del dueño sobre la diferencia de este cierre.
+   * Mientras esta en null, el cierre figura pendiente de revisar.
+   * Solo un dueño lo puede escribir (ver firestore.rules).
+   */
+  cierreAutorizado?: VistoBuenoCierre | null
   notas: string | null
   creadoEn?: number
   actualizadoEn?: number

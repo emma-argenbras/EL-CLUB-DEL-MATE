@@ -489,3 +489,60 @@ describe('un control que no se pudo correr no cuenta como aprobado', () => {
     expect(revision.filter((c) => c.estado === 'no-corrio').length).toBe(0)
   })
 })
+
+describe('visto bueno del dueño sobre las diferencias de caja', () => {
+  const arqueo = (total: number) => ({ billetes: { '1000': total / 1000 }, monedas: 0 })
+
+  const cierre = (fecha: string, sobra: number, autorizado = false): Jornada => ({
+    id: fecha,
+    fecha,
+    turno: 'M',
+    estado: 'cerrado',
+    cajaInicial: 10000,
+    arqueoApertura: arqueo(10000),
+    // Sin ventas ni movimientos, lo esperado es la caja inicial.
+    arqueoCierre: arqueo(10000 + sobra),
+    notas: null,
+    vendedor: null,
+    horaApertura: null,
+    horaCierre: null,
+    cierreAutorizado: autorizado
+      ? { por: 'e@x.com', porNombre: 'Emma', cuando: Date.now(), comentario: null }
+      : null,
+  })
+
+  it('una diferencia sin revisar se reclama, con su monto', () => {
+    const h = buscar(
+      auditar(datos({ jornadas: [cierre('2026-08-05', 3000)] })),
+      'caja-cierres-sin-visto-bueno',
+    )
+    expect(h?.cantidad).toBe(1)
+    expect(h?.monto).toBe(3000)
+  })
+
+  it('con el visto bueno dado deja de reclamarse', () => {
+    const hallazgos = auditar(datos({ jornadas: [cierre('2026-08-05', 3000, true)] }))
+    expect(hallazgos.map((h) => h.id)).not.toContain('caja-cierres-sin-visto-bueno')
+  })
+
+  it('la diferencia autorizada sigue figurando en el resumen del mes', () => {
+    // El visto bueno no borra la diferencia: la deja con dueño.
+    const h = buscar(
+      auditar(datos({ jornadas: [cierre('2026-08-05', 3000, true)] })),
+      'caja-diferencias',
+    )
+    expect(h?.cantidad).toBe(1)
+  })
+
+  it('un cierre que dio justo no necesita visto bueno de nadie', () => {
+    const hallazgos = auditar(datos({ jornadas: [cierre('2026-08-05', 0)] }))
+    expect(hallazgos.map((h) => h.id)).not.toContain('caja-cierres-sin-visto-bueno')
+    expect(hallazgos.map((h) => h.id)).not.toContain('caja-diferencias')
+  })
+
+  it('solo lo ve un dueño: no es algo que el empleado pueda resolver', () => {
+    const todos = auditar(datos({ jornadas: [cierre('2026-08-05', 3000)] }))
+    const deEmpleado = hallazgosVisibles(todos, false, ['caja'])
+    expect(deEmpleado.map((h) => h.id)).not.toContain('caja-cierres-sin-visto-bueno')
+  })
+})

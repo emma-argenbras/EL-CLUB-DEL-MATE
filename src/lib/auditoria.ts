@@ -129,6 +129,8 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   let conDiferencia = 0
   let sumaAbsoluta = 0
   let peor: { jornada: Jornada; diferencia: number } | null = null
+  let sinVistoBueno = 0
+  let sumaSinVistoBueno = 0
 
   for (const jornada of cerradasDelMes) {
     const resumen = resumirJornada(
@@ -141,6 +143,30 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
     conDiferencia++
     sumaAbsoluta += Math.abs(diferencia)
     if (!peor || Math.abs(diferencia) > Math.abs(peor.diferencia)) peor = { jornada, diferencia }
+    if (!jornada.cierreAutorizado) {
+      sinVistoBueno++
+      sumaSinVistoBueno += Math.abs(diferencia)
+    }
+  }
+
+  // Una diferencia que el dueño ya miro y dio por buena deja de ser un
+  // pendiente: sigue existiendo, pero ya tiene dueño. Lo que hay que
+  // reclamar es la que todavia nadie reviso.
+  if (sinVistoBueno > 0) {
+    hallazgos.push({
+      id: 'caja-cierres-sin-visto-bueno',
+      modulo: 'caja',
+      nivel: 'importante',
+      titulo: `${sinVistoBueno} ${plural(sinVistoBueno, 'cierre con diferencia espera', 'cierres con diferencia esperan')} tu visto bueno`,
+      detalle: `Suman ${plata(sumaSinVistoBueno)}. Darles el visto bueno no cambia la diferencia: deja la constancia de que la miró un dueño, con quién y cuándo.`,
+      comoSeResuelve:
+        'Entrá a Caja: arriba de todo están los cierres pendientes, con lo que anotó quien cerró el turno.',
+      ruta: '/caja',
+      cantidad: sinVistoBueno,
+      monto: sumaSinVistoBueno,
+      soloOwner: true,
+      requiereSeccion: 'caja',
+    })
   }
 
   if (peor && conDiferencia > 0) {
@@ -637,6 +663,14 @@ export const CONTROLES: {
     modulo: 'caja',
     que: 'Que la caja contada al cerrar coincida con lo que debería haber',
     bien: 'Todos los cierres del mes dieron exactos',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'caja-cierres-sin-visto-bueno',
+    modulo: 'caja',
+    que: 'Que un dueño haya mirado cada diferencia de caja',
+    bien: 'Todas las diferencias del mes tienen el visto bueno de un dueño',
+    soloOwner: true,
     requiereSeccion: 'caja',
   },
   {

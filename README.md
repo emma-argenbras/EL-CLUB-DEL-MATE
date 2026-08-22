@@ -258,6 +258,28 @@ y sincroniza apenas vuelve la señal.
 
 ---
 
+## Visto bueno sobre las diferencias de caja
+
+Cuando un turno cierra con diferencia, la app le pregunta a quien cerró si sabe a qué
+se debió, y **cierra igual**: el turno nunca se frena esperando una autorización, la
+persona tiene que poder terminar e irse.
+
+Lo que queda pendiente es el **visto bueno del dueño**. En Caja, arriba de todo, un
+dueño ve los cierres con diferencia sin revisar —fecha, turno, cuánto faltó o sobró,
+quién cerró y lo que anotó— y les da el visto bueno con un comentario opcional.
+
+El visto bueno **no corrige la diferencia**: queda registrada como fue. Deja la
+constancia de que alguien con responsabilidad la miró, con nombre y fecha.
+
+Un empleado no puede firmarlo — si pudiera, quien tuvo la diferencia se la aprobaría
+sola. Está bloqueado en `firestore.rules`, no solo en la pantalla: la regla de
+`jornadas` deja que cualquiera activo abra, cargue y cierre su turno, pero solo un
+owner puede tocar `cierreAutorizado`.
+
+Mientras queden cierres sin revisar, el Panel lo reclama.
+
+---
+
 ## WhatsApp y catálogo público
 
 Dos cosas que no necesitan ninguna cuenta nueva ni ningún servidor.
