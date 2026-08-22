@@ -92,6 +92,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Jornadas (los turnos de caja): cualquiera activo abre, carga y
+    // cierra su turno, pero el visto bueno sobre una diferencia de caja
+    // lo firma un dueño. Si un empleado pudiera firmarlo, el control no
+    // controlaria nada: quien tuvo la diferencia se la aprobaria sola.
+    match /negocios/el-club-del-mate/jornadas/{jornadaId} {
+      allow read: if estaLogueado();
+      allow create: if estoyActivo() && request.resource.data.cierreAutorizado == null;
+      allow update: if estoyActivo() && (
+        soyOwner() ||
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['cierreAutorizado'])
+      );
+      allow delete: if estoyActivo();
+    }
+
     // Todo lo demas del negocio (caja, ventas, gastos, proveedores): la
     // lectura alcanza con estar logueado (mismo motivo que en productos),
     // pero escribir requiere estar activo. La separacion de que ve cada
@@ -101,11 +115,13 @@ service cloud.firestore {
       allow read: if estaLogueado() &&
         coleccion != 'usuarios' &&
         coleccion != 'historialProductos' &&
-        coleccion != 'productos';
+        coleccion != 'productos' &&
+        coleccion != 'jornadas';
       allow write: if estoyActivo() &&
         coleccion != 'usuarios' &&
         coleccion != 'historialProductos' &&
-        coleccion != 'productos';
+        coleccion != 'productos' &&
+        coleccion != 'jornadas';
     }
   }
 }

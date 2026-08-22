@@ -298,6 +298,25 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
 
+  {
+    id: 'cierre-con-diferencia',
+    categoria: 'Caja',
+    pregunta: 'La caja no me da justa al cerrar, ¿qué hago?',
+    respuesta:
+      'Cerrá igual. El turno nunca se frena esperando que alguien te autorice: contás la plata que hay de verdad, la app te muestra la diferencia y cerrás.\n\nCuando la caja no da justa, la app te pregunta si sabés a qué se debió. Escribí lo que te acordés —"le di mal un vuelto", "faltaba desde la mañana"— o dejalo vacío si no sabés. Eso le llega al dueño junto con la diferencia.\n\nDespués el dueño lo mira y le da el visto bueno. Vos no tenés que hacer nada más.',
+    palabrasClave: ['diferencia', 'no cierra', 'falta plata', 'sobra plata', 'cierre'],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'visto-bueno-cierre',
+    categoria: 'Caja',
+    pregunta: '¿Cómo autorizo una diferencia de caja?',
+    respuesta:
+      'Entrá a Caja: si hay cierres con diferencia sin revisar, aparecen arriba de todo con la fecha, el turno, cuánto faltó o sobró, quién cerró y lo que anotó esa persona.\n\nTocás "Visto bueno" y podés dejar un comentario. Eso NO cambia la diferencia —queda registrada como fue— sino que deja la constancia de que la miraste vos, con tu nombre y la fecha.\n\nSolo un dueño puede darlo. Un empleado no puede aprobarse su propia diferencia: si pudiera, el control no controlaría nada. Está bloqueado también del lado del servidor, no solo en la pantalla.\n\nMientras queden cierres sin revisar, el Panel te lo recuerda.',
+    palabrasClave: ['visto bueno', 'autorizar', 'diferencia de caja', 'aprobar cierre'],
+    soloOwner: true,
+    requiereSeccion: 'caja',
+  },
   // ---------- Productos ----------
   {
     id: 'buscar-producto',
