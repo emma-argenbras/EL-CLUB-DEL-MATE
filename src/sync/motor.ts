@@ -20,6 +20,7 @@ import {
   db,
   engancharAutor,
   engancharSync,
+  guardarAjuste,
   type AccionCambio,
   type NombreTabla,
   type Rol,
@@ -48,6 +49,30 @@ const TABLAS: NombreTabla[] = [
  * que agregarlo en los dos lugares.
  */
 export const EMAILS_FUNDADORES = ['emmanuel@elclubdelmate.com', 'sebastian@elclubdelmate.com']
+
+/**
+ * Clave donde cada dispositivo anota cuando fue la ultima vez que
+ * recibio datos del servidor. Vive en "ajustes", que a proposito NO se
+ * sincroniza: es informacion de ESTE aparato, y justamente sirve para
+ * detectar que este aparato se quedo atras.
+ */
+export const CLAVE_ULTIMA_SYNC = 'ultimaSync'
+
+/**
+ * Cada cuanto se anota. Sin esto se escribiria en la base local con
+ * cada snapshot que llega, que en un dia normal son cientos: para saber
+ * "hace cuantos dias que no sincroniza" alcanza con la precision de
+ * unos minutos.
+ */
+const CADA_CUANTO_ANOTAR = 5 * 60 * 1000
+let ultimaAnotacion = 0
+
+async function anotarSincronizacion(): Promise<void> {
+  const ahora = Date.now()
+  if (ahora - ultimaAnotacion < CADA_CUANTO_ANOTAR) return
+  ultimaAnotacion = ahora
+  await guardarAjuste(CLAVE_ULTIMA_SYNC, String(ahora))
+}
 
 let desuscribirColecciones: Unsubscribe[] = []
 let motorIniciado = false
@@ -159,6 +184,9 @@ function escucharColecciones() {
           if (tabla === 'usuarios') await actualizarPerfilPropio()
         }).catch((e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e))
         fijarEstadoNube({ estado: 'sincronizado', error: null, ultimaRecepcion: Date.now() })
+        anotarSincronizacion().catch(() => {
+          /* Si no se puede anotar, la app sigue: es solo para el aviso. */
+        })
       },
       (error) => {
         console.warn(`Error escuchando ${tabla}:`, error)

@@ -97,6 +97,8 @@ function datos(parcial: Partial<DatosAuditoria> = {}): DatosAuditoria {
     cuentaCorriente: [],
     estadoNube: 'sincronizado',
     errorNube: null,
+    // Sincronizo hoy mismo: un negocio sano no tiene el aviso de atraso.
+    ultimaSync: Date.parse('2026-08-11T12:00:00'),
     hoy: '2026-08-11',
     mes: '2026-08',
     ...parcial,
@@ -472,9 +474,10 @@ describe('un control que no se pudo correr no cuenta como aprobado', () => {
     const entrada = datos({ estadoNube: 'sin-configurar' })
     const revision = revisionCompleta(auditar(entrada), true, undefined, entrada)
     const sync = revision.filter((c) => c.modulo === 'sistema')
-    expect(sync.length).toBe(2)
+    expect(sync.length).toBe(3)
     expect(sync.every((c) => c.estado === 'no-corrio')).toBe(true)
-    expect(sync[0].resultado).toContain('todavía no está activado')
+    // Ninguno se puede revisar y todos dicen el mismo motivo real.
+    expect(sync.every((c) => c.resultado.includes('todavía no está activado'))).toBe(true)
   })
 
   it('con la nube andando, esos mismos controles dan bien', () => {
@@ -544,5 +547,45 @@ describe('visto bueno del dueño sobre las diferencias de caja', () => {
     const todos = auditar(datos({ jornadas: [cierre('2026-08-05', 3000)] }))
     const deEmpleado = hallazgosVisibles(todos, false, ['caja'])
     expect(deEmpleado.map((h) => h.id)).not.toContain('caja-cierres-sin-visto-bueno')
+  })
+})
+
+describe('sistema: un dispositivo que se quedo atras', () => {
+  it('no avisa nada si sincronizo hoy', () => {
+    expect(buscar(auditar(datos()), 'sistema-sync-atrasado')).toBeUndefined()
+  })
+
+  it('no avisa a los dos dias: puede ser un franco', () => {
+    const hallazgos = auditar(datos({ ultimaSync: Date.parse('2026-08-09T12:00:00') }))
+    expect(buscar(hallazgos, 'sistema-sync-atrasado')).toBeUndefined()
+  })
+
+  it('avisa a los tres dias, con cuantos son', () => {
+    const hallazgos = auditar(datos({ ultimaSync: Date.parse('2026-08-08T12:00:00') }))
+    const aviso = buscar(hallazgos, 'sistema-sync-atrasado')
+    expect(aviso?.titulo).toContain('3 días')
+  })
+
+  it('aclara que los datos no se pierden', () => {
+    const hallazgos = auditar(datos({ ultimaSync: Date.parse('2026-07-20T12:00:00') }))
+    expect(buscar(hallazgos, 'sistema-sync-atrasado')?.detalle).toContain('no se pierden')
+  })
+
+  it('no avisa si el dispositivo nunca sincronizo: no hay con que comparar', () => {
+    const hallazgos = auditar(datos({ ultimaSync: null }))
+    expect(buscar(hallazgos, 'sistema-sync-atrasado')).toBeUndefined()
+  })
+
+  it('no avisa si la nube ni siquiera esta configurada', () => {
+    const hallazgos = auditar(
+      datos({ estadoNube: 'sin-configurar', ultimaSync: Date.parse('2026-01-01T12:00:00') }),
+    )
+    expect(buscar(hallazgos, 'sistema-sync-atrasado')).toBeUndefined()
+  })
+
+  it('el aviso lo ve tambien un empleado: el celular es el suyo', () => {
+    const hallazgos = auditar(datos({ ultimaSync: Date.parse('2026-08-01T12:00:00') }))
+    const aviso = buscar(hallazgos, 'sistema-sync-atrasado')
+    expect(aviso?.soloOwner).toBeFalsy()
   })
 })

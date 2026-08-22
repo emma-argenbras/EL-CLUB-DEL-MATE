@@ -453,6 +453,25 @@ y `public/CNAME`) — no alcanza con una sola.
 - Igual conviene entrar de vez en cuando a **Ajustes → Copia manual → Descargar
   copia** y guardar ese archivo en Google Drive, como respaldo extra.
 
+### Un dispositivo que se queda atrás
+
+Cada aparato anota, **en el aparato**, cuándo fue la última vez que recibió datos del
+servidor. Esa marca vive en `ajustes`, la única tabla que a propósito no sincroniza:
+justamente sirve para detectar que *este* aparato se quedó atrás, y un dato compartido
+no podría decirlo.
+
+A los **tres días** sin sincronizar, el Panel lo avisa. Tres y no uno, para no molestar
+por un franco o un fin de semana largo.
+
+El aviso lo ve cualquiera, no solo un dueño. El estado de sincronización es del
+dispositivo, y el dispositivo de un empleado lo mira un empleado: esconderle el aviso
+dejaría sin enterarse justo a la única persona que está ahí para hacer algo. El texto
+cambia según quién sea — un dueño puede reentrar desde Ajustes, un empleado avisa.
+
+Es distinto del indicador de conexión, que dice cómo está la nube **ahora**. Un celular
+al que se le cerró la sesión hace una semana puede verse "conectando" un rato y no
+avisar nunca que sus datos no llegan a ningún lado.
+
 ---
 
 ## Para desarrollar

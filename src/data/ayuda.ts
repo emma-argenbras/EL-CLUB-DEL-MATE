@@ -683,6 +683,21 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['respaldo automatico', 'backup', 'servidor', 'nube', 'sincronizacion'],
   },
   {
+    id: 'sync-atrasada',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Me dice que este dispositivo no sincroniza hace días, ¿perdí algo?',
+    respuesta:
+      'No. Todo lo que cargaste está guardado en el celular y sube solo apenas se vuelva a conectar. El aviso no es que se hayan perdido datos, es que mientras tanto este aparato está trabajando por su cuenta: lo que cargaste acá todavía no lo ven los demás, y lo que cargaron los demás todavía no está acá.\n\nQué hacer: fijate que el celular tenga internet y dejá la app abierta un rato. El aviso desaparece solo cuando vuelve a recibir datos.\n\nSi tenés internet y sigue igual, avisale al dueño: puede ser que se haya cerrado la sesión en este dispositivo y haya que volver a entrar.\n\nLa app avisa recién a los tres días para no molestar por un franco o un fin de semana largo.',
+    palabrasClave: [
+      'no sincroniza',
+      'desactualizado',
+      'atrasado',
+      'sin internet',
+      'no se ve en el otro celular',
+      'dias',
+    ],
+  },
+  {
     id: 'vincular-dispositivo',
     categoria: 'Sincronización y respaldo',
     pregunta: '¿Cómo entro en un dispositivo nuevo?',
