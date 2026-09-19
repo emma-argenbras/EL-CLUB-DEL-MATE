@@ -207,3 +207,64 @@ describe('la fecha de hoy que calcula la regla', () => {
     expect(hoyArgentina()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })
+
+/**
+ * El turno que Gabriela abria y se le borraba.
+ *
+ * La app crea la jornada SIN el campo cierreAutorizado --no lo pone,
+ * directamente no esta en el objeto-- y limpiar() en motor.ts solo
+ * recorre las claves que existen, asi que el documento que sale para
+ * Firestore tampoco lo tiene.
+ *
+ * La regla decia: request.resource.data.cierreAutorizado == null.
+ * En las reglas de Firestore, leer un campo que no existe es un error de
+ * evaluacion, y un error deniega. O sea que abrir un turno quedaba
+ * rechazado por el servidor.
+ *
+ * Y el sintoma es peor que un cartel de error: Firestore guarda la
+ * escritura optimista en su cache local, el servidor la rechaza, y al
+ * revertirla emite un cambio 'removed'. El motor lo aplica borrando la
+ * fila de la base local. Por eso la caja se cargaba y desaparecia.
+ */
+describe('abrir un turno (el caso de la caja que se borraba)', () => {
+  const SIN_CAMPO = {
+    id: 'j-nueva',
+    fecha: hoyArgentina(),
+    turno: 'M',
+    estado: 'abierto',
+    vendedor: 'Gabriela',
+    cajaInicial: 15000,
+    horaApertura: '09:00',
+    horaCierre: null,
+    arqueoApertura: { billetes: { '1000': 15 }, monedas: 0 },
+    arqueoCierre: null,
+    notas: null,
+    // Ojo: no hay cierreAutorizado. Es exactamente lo que manda la app.
+  }
+
+  it('un empleado puede abrir un turno como lo crea la app, sin el campo', async () => {
+    await assertSucceeds(setDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j-nueva`), SIN_CAMPO))
+  })
+
+  it('un dueño tambien', async () => {
+    await assertSucceeds(setDoc(doc(comoEmma(), `${NEGOCIO}/jornadas/j-nueva`), SIN_CAMPO))
+  })
+
+  it('con el campo en null explicito sigue andando', async () => {
+    await assertSucceeds(
+      setDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j-nueva`), {
+        ...SIN_CAMPO,
+        cierreAutorizado: null,
+      }),
+    )
+  })
+
+  it('pero nadie puede crear un turno ya firmado', async () => {
+    await assertFails(
+      setDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j-nueva`), {
+        ...SIN_CAMPO,
+        cierreAutorizado: { por: 'x', porNombre: 'X', cuando: Date.now(), comentario: null },
+      }),
+    )
+  })
+})
