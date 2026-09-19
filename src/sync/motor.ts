@@ -75,6 +75,20 @@ async function anotarSincronizacion(): Promise<void> {
   await guardarAjuste(CLAVE_ULTIMA_SYNC, String(ahora))
 }
 
+/**
+ * Claves cuya escritura el servidor rechazo hace poco.
+ *
+ * Firestore revierte su cache local cuando una escritura se rechaza, y
+ * esa reversion llega al listener como un 'removed'. Sin esta lista no
+ * hay forma de distinguir eso de un borrado real hecho por otra persona,
+ * y la app terminaba borrando localmente lo que la persona acababa de
+ * cargar.
+ *
+ * Se limpian solas: si el problema se arregla y el dato sube bien, el
+ * eco siguiente ya no es un rechazo.
+ */
+const rechazosRecientes = new Set<string>()
+
 let desuscribirColecciones: Unsubscribe[] = []
 let motorIniciado = false
 
@@ -94,12 +108,36 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
 
   const referencia = doc(firestore, 'negocios', ID_NEGOCIO, tabla, clave)
   if (accion === 'borrar') {
-    deleteDoc(referencia).catch((e) => console.warn(`No se pudo sincronizar el borrado en ${tabla}:`, e))
+    deleteDoc(referencia).catch((e) => avisarRechazo(tabla, clave, e))
   } else {
     setDoc(referencia, limpiar(doc_ as Record<string, unknown>)).catch((e) =>
-      console.warn(`No se pudo sincronizar ${tabla}:`, e),
+      avisarRechazo(tabla, clave, e),
     )
   }
+}
+
+/**
+ * Cuando el servidor rechaza una escritura.
+ *
+ * Esto pasaba en silencio: un console.warn que nadie mira. Y el rechazo
+ * no es inocuo --Firestore revierte la escritura optimista de su cache y
+ * eso llega como un cambio 'removed', o sea que el dato desaparece de la
+ * pantalla-- asi que quedaba como "lo cargue y se borro", sin ninguna
+ * pista de por que. Una vez costo varias semanas de trabajo de una
+ * persona: cargaba la caja de la mañana y se le iba.
+ *
+ * Ahora el estado de la nube pasa a 'error' con el motivo, que es lo que
+ * el Panel y la campana ya muestran. No arregla la causa, pero la hace
+ * visible el primer dia en vez de a las tres semanas.
+ */
+function avisarRechazo(tabla: NombreTabla, clave: string, error: unknown): void {
+  const mensaje = error instanceof Error ? error.message : String(error)
+  rechazosRecientes.add(`${tabla}/${clave}`)
+  console.warn(`El servidor rechazo un cambio en ${tabla}:`, error)
+  fijarEstadoNube({
+    estado: 'error',
+    error: `El servidor rechazó un cambio en ${tabla}. Lo que cargaste puede no haberse guardado. (${mensaje})`,
+  })
 }
 
 /**
@@ -194,8 +232,17 @@ function escucharColecciones() {
             // primer login real.
             if (cambio.doc.metadata.hasPendingWrites) continue
             if (cambio.type === 'removed') {
+              // Un 'removed' puede ser dos cosas muy distintas: alguien
+              // borro el dato de verdad, o el servidor rechazo una
+              // escritura de ESTE dispositivo y Firestore esta
+              // revirtiendo su cache. En el segundo caso, borrar la fila
+              // local es destruir lo que la persona acaba de cargar por
+              // un problema de permisos. Ante la duda no se borra: el
+              // dato queda y el estado de la nube ya quedo en error.
+              if (rechazosRecientes.has(`${tabla}/${cambio.doc.id}`)) continue
               await db.table(tabla).delete(cambio.doc.id)
             } else {
+              rechazosRecientes.delete(`${tabla}/${cambio.doc.id}`)
               await db.table(tabla).put({ ...cambio.doc.data() })
             }
           }

@@ -105,6 +105,13 @@ function AbrirTurno({ fecha, turno }: { fecha: string; turno: Turno }) {
         horaCierre: null,
         arqueoApertura: arqueo,
         arqueoCierre: null,
+        // Explicitos y en null desde el arranque. Son opcionales en el
+        // tipo, pero un campo ausente y un campo en null no son lo mismo
+        // para las reglas de Firestore, y esa diferencia ya costo que
+        // cada turno que se abria fuera rechazado por el servidor.
+        notaCierre: null,
+        cierreAutorizado: null,
+        solicitudCierre: null,
         notas: null,
       })
     } finally {
