@@ -5,6 +5,7 @@ import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { mesLindo } from './lib/formato'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
+import { marcarArranqueDelHistorial } from './db/db'
 import { estaAlMando } from './sync/permisos'
 import { useSesion } from './sync/useSesion'
 import Panel from './paginas/Panel'
@@ -62,6 +63,10 @@ export default function App() {
     ;(async () => {
       setPaso('Cargando el catálogo de productos…')
       await sembrarCatalogo()
+      // Deja la constancia de desde cuando el historial registra de
+      // verdad: la tabla existio dos meses sin grabar nada, y el
+      // silencio de ese tramo no puede leerse como "no se toco nada".
+      await marcarArranqueDelHistorial()
       // La primera vez son ocho meses de planilla: conviene ir contando
       // en que va, para que no parezca que se colgo.
       for (const mes of MESES_HISTORICOS) {

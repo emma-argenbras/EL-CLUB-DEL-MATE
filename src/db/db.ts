@@ -670,11 +670,7 @@ class BaseECDM extends Dexie {
         if (avisarSync || entradasHistorial.length > 0) {
           const final = { ...obj, ...combinados }
           this.onsuccess = () => {
-            if (entradasHistorial.length > 0) {
-              db.historialProductos.bulkAdd(entradasHistorial).catch((e) =>
-                console.warn('No se pudo guardar el historial del producto:', e),
-              )
-            }
+            anotarEnHistorial(entradasHistorial)
             if (avisarSync) alCambiar!(nombre, 'guardar', String(clave), final)
           }
         }
@@ -694,6 +690,92 @@ class BaseECDM extends Dexie {
 }
 
 export const db = new BaseECDM()
+
+/**
+ * Guarda renglones de historial sin pelearse con la transaccion en curso.
+ *
+ * El problema que arregla: `db.productos.update(...)` abre una
+ * transaccion que incluye SOLO la tabla productos. Escribir desde ahi en
+ * historialProductos --que no esta en el alcance-- hace que Dexie tire
+ * NotFoundError. El gancho lo intentaba igual y el error terminaba en un
+ * console.warn, asi que la edicion se guardaba, el historial no, y nadie
+ * se enteraba. La tabla estuvo dos meses en la app con cero registros
+ * por esto.
+ *
+ * La solucion no es declarar las dos tablas en cada uno de los diez
+ * lugares que editan un producto: alcanza con que alguien agregue el
+ * once y vuelve el agujero. Se espera a que la transaccion commitee y
+ * recien ahi se escribe, en una transaccion aparte.
+ *
+ * Esperar al commit tambien es lo correcto por otro motivo: si la
+ * edicion se termina revirtiendo, no queda un renglon de historial
+ * diciendo que paso algo que no paso.
+ */
+/**
+ * Id fijo del renglon que marca desde cuando el historial registra de
+ * verdad. Fijo a proposito: todos los dispositivos escriben el mismo, y
+ * al ser la misma clave no se duplica ni queda uno por aparato.
+ */
+export const ID_ARRANQUE_HISTORIAL = 'historial-arranca-2026-10-11'
+
+/**
+ * El dia en que el historial empezo a funcionar.
+ *
+ * Es una constante y no Date.now() porque cada dispositivo escribe el
+ * mismo renglon: con la hora de cada uno, la fecha del arranque
+ * cambiaria segun quien abrio la app ultimo.
+ *
+ * Y es la MEDIANOCHE de ese dia, no una hora cualquiera: el renglon
+ * tiene que quedar ordenado antes que todos los cambios reales. Con el
+ * mediodia, una edicion hecha a la mañana del mismo dia aparecia antes
+ * del arranque, que es justo la confusion que este renglon viene a
+ * evitar.
+ */
+const CUANDO_ARRANCO_EL_HISTORIAL = Date.parse('2026-10-11T00:00:00-03:00')
+
+/**
+ * Deja constancia de que el historial arranca en una fecha, y que antes
+ * de eso no hay registro.
+ *
+ * Hace falta porque la tabla existio dos meses sin grabar nada (ver
+ * anotarEnHistorial): sin este renglon, dentro de unos meses el silencio
+ * anterior se lee como "no se toco nada", que es lo contrario de lo que
+ * paso. Un registro que miente por omision es peor que no tenerlo.
+ *
+ * Se usa put y no add: si dos dispositivos lo escriben, la clave es la
+ * misma y queda un solo renglon.
+ */
+export async function marcarArranqueDelHistorial(): Promise<void> {
+  await comoRemoto(async () => {
+    await db.historialProductos.put({
+      id: ID_ARRANQUE_HISTORIAL,
+      codigo: '—',
+      campo: 'Arranque del historial',
+      valorAnterior: 'Antes de esta fecha no hay registro de cambios.',
+      valorNuevo: 'Desde acá queda registrado quién cambió qué, y cuándo.',
+      quien: 'sistema',
+      quienNombre: 'El Club del Mate',
+      cuando: CUANDO_ARRANCO_EL_HISTORIAL,
+    })
+  })
+}
+
+function anotarEnHistorial(entradas: HistorialProducto[]): void {
+  if (entradas.length === 0) return
+
+  const guardar = () => {
+    db.historialProductos
+      .bulkAdd(entradas)
+      .catch((e) => console.warn('No se pudo guardar el historial:', e))
+  }
+
+  const transaccion = Dexie.currentTransaction
+  if (transaccion) {
+    transaccion.on('complete', guardar)
+  } else {
+    guardar()
+  }
+}
 
 /**
  * Agrupa por nombre (normalizado) los productos que todavia no tienen
