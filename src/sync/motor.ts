@@ -41,6 +41,10 @@ const TABLAS: NombreTabla[] = [
   'usuarios',
   'historialProductos',
   'movimientosProveedor',
+  // El historial sincroniza: el dueño tiene que ver en su pantalla los
+  // cambios que hizo otra persona en otro dispositivo, que es el punto
+  // de tener un historial.
+  'historial',
 ]
 
 /**

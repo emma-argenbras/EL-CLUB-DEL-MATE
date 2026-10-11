@@ -95,6 +95,59 @@ export interface Producto {
 }
 
 /** Una edicion de un producto, para poder ver quien cambio que y cuando. */
+/**
+ * Que paso con el documento.
+ *
+ * "archivo" es aparte de "borro" a proposito: en esta app casi nada se
+ * borra de verdad --un producto se archiva, un proveedor se desactiva--
+ * y mezclarlos haria que el historial diga "borrado" sobre algo que
+ * sigue existiendo.
+ */
+export type AccionHistorial = 'creo' | 'edito' | 'archivo' | 'borro'
+
+/**
+ * Un renglon del historial de modificaciones.
+ *
+ * Reemplaza a HistorialProducto, que solo cubria productos y solo
+ * ediciones. Esta tabla cubre las ocho entidades del negocio y las tres
+ * cosas que se les pueden hacer.
+ *
+ * Es un registro: se agregan renglones y nunca se editan ni se borran,
+ * por ningun rol, ni siquiera un dueño (ver firestore.rules). Un
+ * historial que se puede retocar no sirve como historial.
+ */
+export interface EntradaHistorial {
+  id: string
+  /** En que tabla paso. */
+  tabla: NombreTabla
+  /** La clave del documento: el codigo de un producto, el id de un turno. */
+  clave: string
+  accion: AccionHistorial
+  /**
+   * Que es el documento, en palabras, guardado en el momento del cambio.
+   *
+   * Sin esto, un renglon dice "ventas / a3f9-21bc / creo", que no le
+   * sirve a nadie. Y no se puede resolver despues: si el documento se
+   * borro, ya no hay de donde sacar el nombre.
+   */
+  queEs: string
+  /** Solo en 'edito': que campo cambio. En los demas, null. */
+  campo: string | null
+  valorAnterior: unknown
+  valorNuevo: unknown
+  quien: string
+  quienNombre: string
+  /** Con que rol lo hizo. Null en los renglones que no los tenian. */
+  quienRol: Rol | null
+  cuando: number
+  /**
+   * De que operacion vino, cuando no fue una edicion suelta a mano:
+   * "Importación Excel 11/10". Null en lo normal.
+   */
+  motivo: string | null
+}
+
+/** @deprecated Reemplazada por EntradaHistorial. Queda para la migracion. */
 export interface HistorialProducto {
   id: string
   codigo: string
@@ -387,6 +440,7 @@ export type NombreTabla =
   | 'usuarios'
   | 'historialProductos'
   | 'movimientosProveedor'
+  | 'historial'
 
 export type AccionCambio = 'guardar' | 'borrar'
 
@@ -408,6 +462,8 @@ export function engancharSync(
 export interface Autor {
   email: string
   nombre: string
+  /** Con que rol hizo el cambio. Lo guarda el historial. */
+  rol?: Rol
 }
 
 let obtenerAutor: (() => Autor | null) | null = null
@@ -445,6 +501,7 @@ class BaseECDM extends Dexie {
   proveedores!: Table<Proveedor, string>
   usuarios!: Table<Usuario, string>
   historialProductos!: Table<HistorialProducto, string>
+  historial!: Table<EntradaHistorial, string>
   movimientosProveedor!: Table<MovimientoProveedor, string>
 
   constructor() {
@@ -577,19 +634,122 @@ class BaseECDM extends Dexie {
       movimientosProveedor: 'id, proveedorId, fecha, tipo',
     })
 
-    // Campos de Producto que interesa dejar anotados en el historial cuando
-    // cambian: el resto (busqueda, actualizadoEn, etc.) son derivados o
-    // ya se ven en otro lado.
-    const CAMPOS_HISTORIAL_PRODUCTO = [
-      'descripcion',
-      'precioCompra',
-      'fechaCompra',
-      'precioVenta',
-      'proveedorId',
-      'stock',
-      'archivado',
-      'descontinuado',
-    ] as const
+    // v6: el historial pasa a cubrir las ocho entidades y no solo
+    // productos. Tabla nueva en vez de ensanchar la vieja, porque
+    // "historialProductos" con ventas y turnos adentro es un nombre que
+    // miente, y los nombres que mienten se pagan despues.
+    //
+    // Indices: cuando (para ordenar y filtrar por fecha), quien (filtro
+    // por usuario), tabla (filtro por tipo) y [tabla+clave] para ver la
+    // historia de un producto o un turno puntual.
+    this.version(6)
+      .stores({
+        productos: 'codigo, descripcion, proveedor, proveedorId, busqueda, activo, archivado',
+        jornadas: 'id, [fecha+turno], fecha, estado',
+        ventas: 'id, jornadaId, fecha, codigo, medioPago',
+        movimientos: 'id, fecha, tipo, categoria, jornadaId',
+        ajustes: 'clave',
+        proveedores: 'id, nombre, activo',
+        usuarios: 'id, email, rol',
+        historialProductos: 'id, codigo, cuando',
+        movimientosProveedor: 'id, proveedorId, fecha, tipo',
+        historial: 'id, cuando, quien, tabla, [tabla+clave]',
+      })
+      .upgrade(async (tx) => {
+        // Lo que haya en la tabla vieja se pasa a la nueva, para no
+        // perder lo poco que alcanzo a grabarse desde que se arreglo.
+        const viejas = await tx.table('historialProductos').toArray()
+        if (viejas.length === 0) return
+        await tx.table('historial').bulkPut(
+          viejas.map((v: HistorialProducto) => ({
+            id: v.id,
+            tabla: 'productos' as NombreTabla,
+            clave: v.codigo,
+            accion: 'edito' as AccionHistorial,
+            queEs: v.codigo,
+            campo: v.campo,
+            valorAnterior: v.valorAnterior,
+            valorNuevo: v.valorNuevo,
+            quien: v.quien,
+            quienNombre: v.quienNombre,
+            quienRol: null,
+            cuando: v.cuando,
+            motivo: null,
+          })),
+        )
+      })
+
+    // Que campos se anotan cuando cambian, por tabla. El resto
+    // (busqueda, actualizadoEn, los derivados) son ruido: ya se ven en
+    // otro lado o no los decidio una persona.
+    //
+    // En jornadas estan los tres momentos que importan: estado cubre el
+    // cierre, cierreAutorizado la autorizacion, y la apertura queda como
+    // un 'creo'.
+    const CAMPOS_POR_TABLA: Record<NombreTabla, readonly string[]> = {
+      productos: [
+        'descripcion',
+        'precioCompra',
+        'fechaCompra',
+        'precioVenta',
+        'fechaPrecioVenta',
+        'rentabilidad',
+        'proveedorId',
+        'stock',
+        'activo',
+        'archivado',
+        'descontinuado',
+        'solicitudBorrado',
+      ],
+      jornadas: [
+        'estado',
+        'cajaInicial',
+        'arqueoApertura',
+        'arqueoCierre',
+        'vendedor',
+        'notaCierre',
+        'cierreAutorizado',
+        'solicitudCierre',
+      ],
+      ventas: ['codigo', 'descripcion', 'cantidad', 'precioUnitario', 'medioPago'],
+      movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable'],
+      proveedores: ['nombre', 'contacto', 'activo', 'notas'],
+      movimientosProveedor: ['tipo', 'monto', 'fecha', 'concepto'],
+      usuarios: ['nombre', 'email', 'rol', 'activo', 'secciones'],
+      // Las dos tablas de historial no se registran a si mismas: un
+      // registro del registro no agrega nada y crece sin freno.
+      historialProductos: [],
+      historial: [],
+    }
+
+    /**
+     * Que es el documento, en palabras. Se guarda en el renglon, no se
+     * resuelve despues: si el documento se borro, ya no hay de donde
+     * sacarle el nombre.
+     */
+    function describir(tabla: NombreTabla, clave: string, fila: Record<string, unknown>): string {
+      const texto = (k: string) => (fila[k] == null ? '' : String(fila[k]))
+      switch (tabla) {
+        case 'productos':
+          return texto('descripcion') || clave
+        case 'jornadas': {
+          const turno = texto('turno') === 'M' ? 'mañana' : 'tarde'
+          return `Turno del ${texto('fecha')} a la ${turno}`
+        }
+        case 'ventas':
+          return `Venta de ${texto('descripcion') || texto('codigo') || 'algo'}`
+        case 'movimientos':
+          return texto('concepto') || texto('tipo') || clave
+        case 'proveedores':
+          return texto('nombre') || clave
+        case 'movimientosProveedor':
+          return `${texto('tipo') === 'PAGO' ? 'Pago a' : 'Compra a'} proveedor`
+        case 'usuarios':
+          return texto('nombre') || texto('email') || clave
+        default:
+          return clave
+      }
+    }
 
     // Estos ganchos son el corazon de la sincronizacion: cada vez que se
     // crea, edita o borra un producto/jornada/venta/movimiento/proveedor/
@@ -606,6 +766,7 @@ class BaseECDM extends Dexie {
       'usuarios',
       'historialProductos',
       'movimientosProveedor',
+      'historial',
     ] as const) {
       const tabla: Table<Record<string, unknown>, string> = this.table(nombre)
 
@@ -622,8 +783,33 @@ class BaseECDM extends Dexie {
           const autor = obtenerAutor?.()
           if (autor && !registro.creadoPor) registro.creadoPor = autor.email
         }
-        if (!aplicandoCambioRemoto && alCambiar) {
-          this.onsuccess = (claveFinal) => alCambiar!(nombre, 'guardar', String(claveFinal), registro)
+
+        const autorCrea = aplicandoCambioRemoto ? null : (obtenerAutor?.() ?? null)
+        const avisarSyncCrea = !aplicandoCambioRemoto && Boolean(alCambiar)
+
+        if (autorCrea || avisarSyncCrea) {
+          this.onsuccess = (claveFinal) => {
+            if (autorCrea && nombre !== 'historialProductos' && nombre !== 'historial') {
+              anotarEnHistorial([
+                {
+                  id: nuevoId(),
+                  tabla: nombre,
+                  clave: String(claveFinal),
+                  accion: 'creo',
+                  queEs: describir(nombre, String(claveFinal), registro),
+                  campo: null,
+                  valorAnterior: null,
+                  valorNuevo: null,
+                  quien: autorCrea.email,
+                  quienNombre: autorCrea.nombre,
+                  quienRol: autorCrea.rol ?? null,
+                  cuando: Date.now(),
+                  motivo: motivoActual,
+                },
+              ])
+            }
+            if (avisarSyncCrea) alCambiar!(nombre, 'guardar', String(claveFinal), registro)
+          }
         }
       })
 
@@ -641,26 +827,39 @@ class BaseECDM extends Dexie {
         // Anotamos quien edito y guardamos un renglon de historial por cada
         // campo que cambio, para poder responder "quien tocó esto y cuándo"
         // sin ambigüedad.
-        const entradasHistorial: HistorialProducto[] = []
-        if (nombre === 'productos' && !aplicandoCambioRemoto) {
+        const entradasHistorial: EntradaHistorial[] = []
+        if (!aplicandoCambioRemoto && nombre !== 'historialProductos' && nombre !== 'historial') {
           const autor = obtenerAutor?.()
           if (autor) {
-            combinados.actualizadoPor = autor.email
-            const modsProducto = mods as Partial<Producto>
-            for (const campo of CAMPOS_HISTORIAL_PRODUCTO) {
-              if (!(campo in modsProducto)) continue
-              const antes = (obj as unknown as Producto)[campo]
-              const despues = modsProducto[campo]
-              if (antes === despues) continue
+            if (nombre === 'productos') combinados.actualizadoPor = autor.email
+            const cambios = mods as Record<string, unknown>
+            const antesTodo = obj as Record<string, unknown>
+            // Archivar no es borrar, pero tampoco es una edicion mas: en
+            // esta app es la forma de sacar algo de circulacion, asi que
+            // se marca distinto para que se lea de un vistazo.
+            const archivando =
+              ('archivado' in cambios && cambios.archivado === true) ||
+              ('activo' in cambios && cambios.activo === false)
+
+            for (const campo of CAMPOS_POR_TABLA[nombre]) {
+              if (!(campo in cambios)) continue
+              const antes = antesTodo[campo]
+              const despues = cambios[campo]
+              if (mismoValor(antes, despues)) continue
               entradasHistorial.push({
                 id: nuevoId(),
-                codigo: String(clave),
+                tabla: nombre,
+                clave: String(clave),
+                accion: archivando ? 'archivo' : 'edito',
+                queEs: describir(nombre, String(clave), antesTodo),
                 campo,
                 valorAnterior: antes ?? null,
                 valorNuevo: despues ?? null,
                 quien: autor.email,
                 quienNombre: autor.nombre,
+                quienRol: autor.rol ?? null,
                 cuando: Date.now(),
+                motivo: motivoActual,
               })
             }
           }
@@ -680,9 +879,37 @@ class BaseECDM extends Dexie {
       tabla.hook('deleting', function (
         this: DeletingHookContext<Record<string, unknown>, string>,
         clave,
+        obj,
       ) {
-        if (!aplicandoCambioRemoto && alCambiar) {
-          this.onsuccess = () => alCambiar!(nombre, 'borrar', String(clave), null)
+        const autorBorra = aplicandoCambioRemoto ? null : (obtenerAutor?.() ?? null)
+        const avisarSyncBorra = !aplicandoCambioRemoto && Boolean(alCambiar)
+
+        if (autorBorra || avisarSyncBorra) {
+          this.onsuccess = () => {
+            if (autorBorra && nombre !== 'historialProductos' && nombre !== 'historial') {
+              // Lo que se guarda es el documento ENTERO como estaba, no
+              // solo su clave: una vez borrado no hay de donde sacarlo, y
+              // "se borro la venta a3f9" sin mas no le sirve a nadie.
+              anotarEnHistorial([
+                {
+                  id: nuevoId(),
+                  tabla: nombre,
+                  clave: String(clave),
+                  accion: 'borro',
+                  queEs: describir(nombre, String(clave), obj as Record<string, unknown>),
+                  campo: null,
+                  valorAnterior: obj ?? null,
+                  valorNuevo: null,
+                  quien: autorBorra.email,
+                  quienNombre: autorBorra.nombre,
+                  quienRol: autorBorra.rol ?? null,
+                  cuando: Date.now(),
+                  motivo: motivoActual,
+                },
+              ])
+            }
+            if (avisarSyncBorra) alCambiar!(nombre, 'borrar', String(clave), null)
+          }
         }
       })
     }
@@ -711,6 +938,53 @@ export const db = new BaseECDM()
  * edicion se termina revirtiendo, no queda un renglon de historial
  * diciendo que paso algo que no paso.
  */
+/**
+ * De que operacion vienen los cambios que se estan haciendo ahora.
+ *
+ * Una edicion a mano no tiene motivo. Una importacion si: los 800
+ * renglones que deja tienen que poder leerse como un bloque y no como
+ * 800 ediciones sueltas de la misma persona en el mismo segundo.
+ */
+let motivoActual: string | null = null
+
+/**
+ * Corre algo dejando anotado en el historial de donde vinieron los
+ * cambios.
+ *
+ * Se restaura en un finally: si la operacion falla, el motivo no queda
+ * pegado contaminando las ediciones que vengan despues.
+ */
+export async function conMotivo<T>(motivo: string, fn: () => Promise<T>): Promise<T> {
+  const anterior = motivoActual
+  motivoActual = motivo
+  try {
+    return await fn()
+  } finally {
+    motivoActual = anterior
+  }
+}
+
+/**
+ * Si dos valores son el mismo para el historial.
+ *
+ * No alcanza con ===: los campos que mas importan de una jornada son
+ * objetos (el arqueo, el visto bueno), y dos objetos distintos con el
+ * mismo contenido darian un renglon de historial que dice que algo
+ * cambio cuando no cambio nada.
+ */
+function mismoValor(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a == null || b == null) return a == null && b == null
+  if (typeof a === 'object' || typeof b === 'object') {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b)
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
 /**
  * Id fijo del renglon que marca desde cuando el historial registra de
  * verdad. Fijo a proposito: todos los dispositivos escriben el mismo, y
@@ -747,26 +1021,60 @@ const CUANDO_ARRANCO_EL_HISTORIAL = Date.parse('2026-10-11T00:00:00-03:00')
  */
 export async function marcarArranqueDelHistorial(): Promise<void> {
   await comoRemoto(async () => {
-    await db.historialProductos.put({
+    await db.historial.put({
       id: ID_ARRANQUE_HISTORIAL,
-      codigo: '—',
-      campo: 'Arranque del historial',
+      tabla: 'historial',
+      clave: ID_ARRANQUE_HISTORIAL,
+      accion: 'creo',
+      queEs: 'Arranque del historial',
+      campo: null,
       valorAnterior: 'Antes de esta fecha no hay registro de cambios.',
       valorNuevo: 'Desde acá queda registrado quién cambió qué, y cuándo.',
       quien: 'sistema',
       quienNombre: 'El Club del Mate',
+      quienRol: null,
       cuando: CUANDO_ARRANCO_EL_HISTORIAL,
+      motivo: null,
     })
   })
 }
 
-function anotarEnHistorial(entradas: HistorialProducto[]): void {
+/**
+ * Cuantas escrituras de historial estan en el aire.
+ *
+ * Se incrementa SINCRONICAMENTE cuando el gancho decide anotar algo
+ * --todavia dentro de la transaccion-- y se decrementa cuando la
+ * escritura termino. Asi, para cuando el `await` de la edicion vuelve,
+ * el contador ya refleja lo que falta.
+ */
+let historialPendiente = 0
+
+/**
+ * Espera a que terminen de aterrizar los renglones de historial.
+ *
+ * Hace falta porque el historial se escribe a proposito DESPUES de que
+ * la transaccion que lo genero haya commiteado, asi que entre la edicion
+ * y el renglon hay un salto. Quien necesite leer el historial
+ * inmediatamente despues de editar --las pruebas, y el importador
+ * cuando informa cuantos cambios dejo-- tiene que esperar esto.
+ */
+export async function historialAlDia(): Promise<void> {
+  for (let vueltas = 0; vueltas < 200 && historialPendiente > 0; vueltas++) {
+    await new Promise((listo) => setTimeout(listo, 0))
+  }
+}
+
+function anotarEnHistorial(entradas: EntradaHistorial[]): void {
   if (entradas.length === 0) return
 
+  historialPendiente++
   const guardar = () => {
-    db.historialProductos
+    db.historial
       .bulkAdd(entradas)
       .catch((e) => console.warn('No se pudo guardar el historial:', e))
+      .finally(() => {
+        historialPendiente--
+      })
   }
 
   const transaccion = Dexie.currentTransaction
