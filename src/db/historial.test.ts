@@ -1,6 +1,13 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { db, engancharAutor, nuevoId, type Producto } from './db'
+import {
+  db,
+  engancharAutor,
+  ID_ARRANQUE_HISTORIAL,
+  marcarArranqueDelHistorial,
+  nuevoId,
+  type Producto,
+} from './db'
 
 /**
  * El historial de modificaciones, probado contra una IndexedDB de verdad
@@ -136,5 +143,53 @@ describe('historial de productos', () => {
   it('un id nuevo nunca repite el de otra entrada', async () => {
     const ids = new Set(Array.from({ length: 500 }, () => nuevoId()))
     expect(ids.size).toBe(500)
+  })
+})
+
+describe('el renglon que dice desde cuando el historial registra', () => {
+  it('queda con la fecha del arranque y se explica solo', async () => {
+    await marcarArranqueDelHistorial()
+    const marca = await db.historialProductos.get(ID_ARRANQUE_HISTORIAL)
+    expect(marca).toBeDefined()
+    expect(marca!.valorAnterior).toContain('no hay registro')
+    expect(new Date(marca!.cuando).toISOString().slice(0, 10)).toBe('2026-10-11')
+  })
+
+  it('no se duplica aunque lo escriban varios dispositivos', async () => {
+    await marcarArranqueDelHistorial()
+    await marcarArranqueDelHistorial()
+    await marcarArranqueDelHistorial()
+    expect(await db.historialProductos.count()).toBe(1)
+  })
+
+  it('la fecha no se mueve si lo reescribe otro dispositivo despues', async () => {
+    await marcarArranqueDelHistorial()
+    const primera = (await db.historialProductos.get(ID_ARRANQUE_HISTORIAL))!.cuando
+    await marcarArranqueDelHistorial()
+    const segunda = (await db.historialProductos.get(ID_ARRANQUE_HISTORIAL))!.cuando
+    expect(segunda).toBe(primera)
+  })
+
+  it('no se confunde con un cambio real: queda ordenado antes que todo', async () => {
+    await marcarArranqueDelHistorial()
+    await db.productos.add({
+      codigo: 'TM015',
+      descripcion: 'MATE',
+      proveedor: null,
+      proveedorId: null,
+      fechaCompra: null,
+      precioCompra: 1,
+      rentabilidad: 1,
+      precioVenta: 2,
+      fechaPrecioVenta: null,
+      busqueda: 'tm015 mate',
+      stock: 1,
+      activo: true,
+    })
+    await db.productos.update('TM015', { precioVenta: 3 })
+
+    const todo = await db.historialProductos.orderBy('cuando').toArray()
+    expect(todo).toHaveLength(2)
+    expect(todo[0].id).toBe(ID_ARRANQUE_HISTORIAL)
   })
 })

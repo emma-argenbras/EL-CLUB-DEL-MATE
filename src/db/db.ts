@@ -711,6 +711,55 @@ export const db = new BaseECDM()
  * edicion se termina revirtiendo, no queda un renglon de historial
  * diciendo que paso algo que no paso.
  */
+/**
+ * Id fijo del renglon que marca desde cuando el historial registra de
+ * verdad. Fijo a proposito: todos los dispositivos escriben el mismo, y
+ * al ser la misma clave no se duplica ni queda uno por aparato.
+ */
+export const ID_ARRANQUE_HISTORIAL = 'historial-arranca-2026-10-11'
+
+/**
+ * El dia en que el historial empezo a funcionar.
+ *
+ * Es una constante y no Date.now() porque cada dispositivo escribe el
+ * mismo renglon: con la hora de cada uno, la fecha del arranque
+ * cambiaria segun quien abrio la app ultimo.
+ *
+ * Y es la MEDIANOCHE de ese dia, no una hora cualquiera: el renglon
+ * tiene que quedar ordenado antes que todos los cambios reales. Con el
+ * mediodia, una edicion hecha a la mañana del mismo dia aparecia antes
+ * del arranque, que es justo la confusion que este renglon viene a
+ * evitar.
+ */
+const CUANDO_ARRANCO_EL_HISTORIAL = Date.parse('2026-10-11T00:00:00-03:00')
+
+/**
+ * Deja constancia de que el historial arranca en una fecha, y que antes
+ * de eso no hay registro.
+ *
+ * Hace falta porque la tabla existio dos meses sin grabar nada (ver
+ * anotarEnHistorial): sin este renglon, dentro de unos meses el silencio
+ * anterior se lee como "no se toco nada", que es lo contrario de lo que
+ * paso. Un registro que miente por omision es peor que no tenerlo.
+ *
+ * Se usa put y no add: si dos dispositivos lo escriben, la clave es la
+ * misma y queda un solo renglon.
+ */
+export async function marcarArranqueDelHistorial(): Promise<void> {
+  await comoRemoto(async () => {
+    await db.historialProductos.put({
+      id: ID_ARRANQUE_HISTORIAL,
+      codigo: '—',
+      campo: 'Arranque del historial',
+      valorAnterior: 'Antes de esta fecha no hay registro de cambios.',
+      valorNuevo: 'Desde acá queda registrado quién cambió qué, y cuándo.',
+      quien: 'sistema',
+      quienNombre: 'El Club del Mate',
+      cuando: CUANDO_ARRANCO_EL_HISTORIAL,
+    })
+  })
+}
+
 function anotarEnHistorial(entradas: HistorialProducto[]): void {
   if (entradas.length === 0) return
 
