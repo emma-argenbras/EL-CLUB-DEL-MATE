@@ -166,6 +166,14 @@ export interface MovimientoProveedor {
 export interface VistoBuenoCierre {
   por: string
   porNombre: string
+  /**
+   * Con que rol se firmo. Un encargado autoriza de verdad, pero la
+   * constancia tiene que decir que fue un encargado y no dar a entender
+   * que lo miro un dueño: para eso sirve una constancia.
+   *
+   * Opcional porque las firmas anteriores a esto no lo tienen.
+   */
+  porRol?: Rol
   cuando: number
   comentario: string | null
 }
@@ -312,7 +320,19 @@ export interface Ajuste {
  * del dia a dia y mantiene los costos al dia, pero no ve numeros de
  * ganancia ni puede borrar cosas sin autorizacion.
  */
-export type Rol = 'owner' | 'empleado'
+/**
+ * owner    : dueño. Ademas de todo lo del encargado, es el unico que
+ *            puede borrar los datos, importar un respaldo y decidir
+ *            quien mas es dueño.
+ * encargado: maneja la operacion completa --ganancias, autorizaciones,
+ *            precios, proveedores, gastos y el equipo-- sin poder
+ *            destruir el negocio ni repartirlo.
+ * empleado : el dia a dia del mostrador, con las secciones que se le
+ *            habiliten.
+ *
+ * Quien puede hacer que esta en src/sync/permisos.ts, en un solo lugar.
+ */
+export type Rol = 'owner' | 'encargado' | 'empleado'
 
 /**
  * Secciones que un owner puede prender o apagar para un empleado en

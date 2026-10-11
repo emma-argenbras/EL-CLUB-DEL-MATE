@@ -13,6 +13,7 @@ import {
 } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
+import { estaAlMando } from '../sync/permisos'
 import { CompartirCatalogo, CompartirProducto } from '../componentes/BotonWhatsApp'
 
 /** Las alertas que se pueden usar para filtrar el catalogo. */
@@ -62,7 +63,7 @@ function filtroDeLaURL(parametros: URLSearchParams): Filtro {
 export default function Productos() {
   const [parametros] = useSearchParams()
   const sesion = useSesion()
-  const esOwner = sesion.perfil?.rol === 'owner'
+  const esOwner = estaAlMando(sesion.perfil)
   const [consulta, setConsulta] = useState('')
   const [editando, setEditando] = useState<Producto | null>(null)
   const [creando, setCreando] = useState(false)
@@ -470,7 +471,7 @@ function FormularioProducto({
   onSalir: () => void
 }) {
   const sesion = useSesion()
-  const esOwner = sesion.perfil?.rol === 'owner'
+  const esOwner = estaAlMando(sesion.perfil)
   const nuevo = !producto
   const [codigo, setCodigo] = useState(producto?.codigo ?? '')
   const [descripcion, setDescripcion] = useState(producto?.descripcion ?? '')

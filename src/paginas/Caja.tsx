@@ -19,6 +19,7 @@ import BuscadorProducto from '../componentes/BuscadorProducto'
 import CierresPendientes from '../componentes/CierresPendientes'
 import CierresTardios from '../componentes/CierresTardios'
 import { useSesion } from '../sync/useSesion'
+import { ETIQUETA_ROL } from '../sync/permisos'
 
 export default function Caja() {
   const [fecha, setFecha] = useState(hoyISO())
@@ -761,8 +762,11 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
             <span className="fila-etiqueta">
               {jornada.cierreAutorizado ? (
                 <>
-                  Visto bueno de {jornada.cierreAutorizado.porNombre} ·{' '}
-                  {haceCuanto(jornada.cierreAutorizado.cuando)}
+                  Visto bueno de {jornada.cierreAutorizado.porNombre}
+                  {jornada.cierreAutorizado.porRol
+                    ? ` (${ETIQUETA_ROL[jornada.cierreAutorizado.porRol]})`
+                    : ''}{' '}
+                  · {haceCuanto(jornada.cierreAutorizado.cuando)}
                   {jornada.cierreAutorizado.comentario
                     ? ` · «${jornada.cierreAutorizado.comentario}»`
                     : ''}

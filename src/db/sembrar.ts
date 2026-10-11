@@ -53,7 +53,20 @@ async function bajarJSONSiEsta<T>(archivo: string): Promise<T | null> {
   if (!respuesta.ok) {
     throw new Error(`No se pudo leer ${archivo} (${respuesta.status})`)
   }
-  return (await respuesta.json()) as T
+
+  // Mirar el status no alcanza. Un servidor con fallback de SPA --el
+  // preview de Vite, y cualquier hosting configurado asi-- responde un
+  // archivo que no existe con 200 y el index.html entero. Ahi el status
+  // dice "todo bien", el parseo explota con un SyntaxError y se cae el
+  // arranque completo de la app: cartel de error en cada dispositivo
+  // nuevo. Lo que decide es si lo que llego es JSON de verdad.
+  const tipo = respuesta.headers.get('content-type') ?? ''
+  if (!tipo.includes('json')) return null
+  try {
+    return (await respuesta.json()) as T
+  } catch {
+    return null
+  }
 }
 
 /**

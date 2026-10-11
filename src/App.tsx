@@ -5,6 +5,7 @@ import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { mesLindo } from './lib/formato'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
+import { estaAlMando } from './sync/permisos'
 import { useSesion } from './sync/useSesion'
 import Panel from './paginas/Panel'
 import Caja from './paginas/Caja'
@@ -101,15 +102,15 @@ export default function App() {
     return <PantallaSinPerfil email={sesion.email} />
   }
 
-  const esEmpleado = sesion.perfil?.rol === 'empleado'
+  const alMando = estaAlMando(sesion.perfil)
   const visibles = seccionesVisibles(sesion.perfil)
   const puedeVer = (s: SeccionId) => visibles.includes(s)
 
   const secciones = [
     ...SECCIONES_CONFIGURABLES.filter(puedeVer).map((s) => NAV_POR_SECCION[s]),
-    ...(esEmpleado
-      ? [{ ruta: '/mi-actividad', icono: '⭐', texto: 'Mi día' }]
-      : [{ ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes' }]),
+    ...(alMando
+      ? [{ ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes' }]
+      : [{ ruta: '/mi-actividad', icono: '⭐', texto: 'Mi día' }]),
   ]
 
   return (
@@ -173,7 +174,7 @@ export default function App() {
           <Route path="/mi-actividad" element={<MiActividad />} />
           <Route
             path="/ajustes"
-            element={esEmpleado ? <Navigate to="/mi-actividad" replace /> : <Ajustes />}
+            element={alMando ? <Ajustes /> : <Navigate to="/mi-actividad" replace />}
           />
           <Route path="/ayuda" element={<Ayuda />} />
           <Route path="*" element={<Navigate to="/caja" replace />} />

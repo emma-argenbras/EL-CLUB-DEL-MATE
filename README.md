@@ -238,11 +238,39 @@ contraseña** — ya no hay un login compartido entre dispositivos.
   una contraseña inicial y el rol, y con eso esa persona ya puede iniciar
   sesión en cualquier dispositivo. No hace falta volver a tocar Firebase ni
   este repositorio para eso.
-- Un **dueño** ve y maneja todo. Un **empleado** opera Caja, Productos,
-  Proveedores y Gastos igual, mantiene los costos de compra al día, pero no
-  ve el margen de ganancia del negocio (tiene "Mi día" en vez de Reportes),
-  no puede cambiar el precio de venta, y para archivar un producto necesita
-  que un dueño lo autorice.
+Hay **tres roles**:
+
+| | Dueño/a | Encargado/a | Empleado/a |
+|---|---|---|---|
+| Caja, Productos, Proveedores, Gastos | sí | sí | sí |
+| Reportes con el margen | sí | sí | no (tiene "Mi día") |
+| Cambiar el precio de venta / archivar | sí | sí | no (pide autorización) |
+| Autorizar cierres tardíos y firmar diferencias | sí | sí | no |
+| Dar de alta y manejar al equipo | sí | sí (menos dueños) | no |
+| **Borrar todos los datos** | sí | **no** | no |
+| **Importar un respaldo** | sí | **no** | no |
+| **Crear, editar o desactivar un dueño** | sí | **no** | no |
+
+El corte entre dueño y encargado no es "cuánto confío": es que esas tres
+cosas pueden **destruir el negocio o repartirlo**, y no se delegan. Importar
+un respaldo está del lado del dueño porque pisa el catálogo, los turnos y las
+ventas con lo que diga el archivo: quien puede importar puede borrar, solo
+que más despacio.
+
+Un encargado tampoco puede **ascenderse a sí mismo** ni **degradar a un dueño**
+para después tocarlo. La regla mira el rol de los dos lados —el que el
+documento tiene ahora y el que tendría después—, porque mirar solo uno dejaba
+pasar justo esos dos atajos. Hay seis pruebas contra el emulador para eso, y
+verifiqué que las seis se ponen en rojo si se afloja el candado.
+
+Cuando un encargado autoriza algo, la constancia guarda **su nombre y su rol**
+(`cierreAutorizado.porRol`): dice que lo miró un encargado, no que lo miró un
+dueño. Para eso sirve una constancia.
+
+Quién puede hacer qué vive en un solo archivo,
+[`src/sync/permisos.ts`](./src/sync/permisos.ts), con un nombre por permiso.
+Antes era `rol === 'owner'` repetido en diez pantallas, que con dos roles se
+aguantaba y con tres no.
 - Un dueño puede **desactivar** a cualquiera (incluso a otro dueño) desde
   **Ajustes → Usuarios del equipo → Desactivar**, sin borrar nada de lo que
   esa persona cargó. Si estaba usando la app en ese momento se le cierra la

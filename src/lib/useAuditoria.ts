@@ -12,6 +12,7 @@ import {
 import { seccionesVisibles } from '../sync/sesion'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { useSesion } from '../sync/useSesion'
+import { estaAlMando } from '../sync/permisos'
 
 /** Prefijo de la clave con que se guarda un hallazgo pospuesto. */
 const PREFIJO_POSPUESTO = 'pospuesto_'
@@ -58,7 +59,7 @@ export interface ResultadoAuditoria {
 export function useAuditoria(): ResultadoAuditoria {
   const sesion = useSesion()
   const nube = useEstadoNube()
-  const esOwner = sesion.perfil?.rol === 'owner'
+  const esOwner = estaAlMando(sesion.perfil)
   const secciones = seccionesVisibles(sesion.perfil)
 
   const hoy = hoyISO()

@@ -19,7 +19,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
-import { doc, setDoc, updateDoc } from 'firebase/firestore'
+import { deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const NEGOCIO = 'negocios/el-club-del-mate'
@@ -91,6 +91,11 @@ beforeEach(async () => {
       rol: 'empleado',
       activo: true,
     })
+    await setDoc(doc(db, `${NEGOCIO}/usuarios/uid-sandra`), {
+      nombre: 'Sandra',
+      rol: 'encargado',
+      activo: true,
+    })
   })
 })
 
@@ -100,10 +105,36 @@ function comoGabi() {
   }).firestore()
 }
 
+function comoSandra() {
+  return entorno.authenticatedContext('uid-sandra', {
+    email: 'ventas@elclubdelmate.com',
+  }).firestore()
+}
+
 function comoEmma() {
   return entorno.authenticatedContext('uid-emma', {
     email: 'emmanuel@elclubdelmate.com',
   }).firestore()
+}
+
+async function sembrarProducto(extra: Record<string, unknown> = {}) {
+  await entorno.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `${NEGOCIO}/productos/TM015`), {
+      codigo: 'TM015',
+      descripcion: 'MATE IMPERIAL VIROLA ALPACA',
+      proveedor: null,
+      proveedorId: null,
+      fechaCompra: null,
+      precioCompra: 20000,
+      rentabilidad: 1.3,
+      precioVenta: 45000,
+      fechaPrecioVenta: null,
+      busqueda: 'tm015 mate imperial virola alpaca',
+      stock: 3,
+      activo: true,
+      ...extra,
+    })
+  })
 }
 
 async function sembrarJornada(fecha: string, extra: Record<string, unknown> = {}) {
@@ -264,6 +295,147 @@ describe('abrir un turno (el caso de la caja que se borraba)', () => {
       setDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j-nueva`), {
         ...SIN_CAMPO,
         cierreAutorizado: { por: 'x', porNombre: 'X', cuando: Date.now(), comentario: null },
+      }),
+    )
+  })
+})
+
+/**
+ * El rol de encargado: puede manejar la operacion completa, pero no
+ * destruir el negocio ni repartirlo.
+ *
+ * Las dos mitades importan por igual. Si lo que PUEDE no funciona,
+ * Sandra no puede trabajar; si lo que NO PUEDE no esta bloqueado, el
+ * rol no sirve para nada y el limite es un cartel en la pantalla.
+ */
+describe('encargado: lo que SI puede', () => {
+  it('cierra un turno de otro dia, como un dueño', async () => {
+    await sembrarJornada(ayerArgentina())
+    await assertSucceeds(updateDoc(doc(comoSandra(), `${NEGOCIO}/jornadas/j1`), CIERRE))
+  })
+
+  it('firma el visto bueno de una diferencia', async () => {
+    await sembrarJornada(hoyArgentina(), { estado: 'cerrado', ...CIERRE })
+    await assertSucceeds(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/jornadas/j1`), {
+        cierreAutorizado: {
+          por: 'ventas@elclubdelmate.com',
+          porNombre: 'Sandra',
+          porRol: 'encargado',
+          cuando: Date.now(),
+          comentario: null,
+        },
+      }),
+    )
+  })
+
+  it('cambia el precio de venta de un producto', async () => {
+    await sembrarProducto()
+    await assertSucceeds(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/productos/TM015`), { precioVenta: 48000 }),
+    )
+  })
+
+  it('archiva un producto sin pedir permiso', async () => {
+    await sembrarProducto()
+    await assertSucceeds(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/productos/TM015`), { archivado: true }),
+    )
+  })
+
+  it('da de alta a un empleado', async () => {
+    await assertSucceeds(
+      setDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-nuevo`), {
+        nombre: 'Alguien',
+        rol: 'empleado',
+        activo: true,
+      }),
+    )
+  })
+
+  it('desactiva a un empleado', async () => {
+    await assertSucceeds(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-gabi`), { activo: false }),
+    )
+  })
+})
+
+describe('encargado: lo que NO puede', () => {
+  it('NO puede crear un dueño', async () => {
+    await assertFails(
+      setDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-nuevo`), {
+        nombre: 'Otro dueño',
+        rol: 'owner',
+        activo: true,
+      }),
+    )
+  })
+
+  it('NO puede ascenderse a dueña', async () => {
+    await assertFails(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-sandra`), { rol: 'owner' }),
+    )
+  })
+
+  it('NO puede ascender a un empleado a dueño', async () => {
+    await assertFails(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-gabi`), { rol: 'owner' }),
+    )
+  })
+
+  it('NO puede desactivar a un dueño', async () => {
+    await assertFails(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-emma`), { activo: false }),
+    )
+  })
+
+  it('NO puede degradar a un dueño para despues tocarlo', async () => {
+    // El atajo obvio: si solo se mirara el rol que QUEDA, bajar al dueño
+    // a empleado pasaria, y con eso queda a merced del encargado.
+    await assertFails(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-emma`), { rol: 'empleado' }),
+    )
+  })
+
+  it('NO puede borrar a un dueño', async () => {
+    await assertFails(deleteDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-emma`)))
+  })
+})
+
+describe('empleado: el rol nuevo no le aflojo nada', () => {
+  it('sigue sin poder firmar su propia diferencia', async () => {
+    await sembrarJornada(hoyArgentina(), { estado: 'cerrado', ...CIERRE })
+    await assertFails(
+      updateDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j1`), {
+        cierreAutorizado: {
+          por: 'x',
+          porNombre: 'X',
+          porRol: 'empleado',
+          cuando: Date.now(),
+          comentario: null,
+        },
+      }),
+    )
+  })
+
+  it('sigue sin poder cerrar el turno de ayer', async () => {
+    await sembrarJornada(ayerArgentina())
+    await assertFails(updateDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j1`), CIERRE))
+  })
+
+  it('sigue sin poder tocar el precio de venta', async () => {
+    await sembrarProducto()
+    await assertFails(
+      updateDoc(doc(comoGabi(), `${NEGOCIO}/productos/TM015`), { precioVenta: 48000 }),
+    )
+  })
+
+  it('NO puede crear un encargado para darse permisos por la ventana', async () => {
+    await assertFails(
+      setDoc(doc(comoGabi(), `${NEGOCIO}/usuarios/uid-nuevo`), {
+        nombre: 'Yo mismo',
+        rol: 'encargado',
+        activo: true,
       }),
     )
   })
