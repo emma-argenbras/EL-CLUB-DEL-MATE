@@ -670,11 +670,7 @@ class BaseECDM extends Dexie {
         if (avisarSync || entradasHistorial.length > 0) {
           const final = { ...obj, ...combinados }
           this.onsuccess = () => {
-            if (entradasHistorial.length > 0) {
-              db.historialProductos.bulkAdd(entradasHistorial).catch((e) =>
-                console.warn('No se pudo guardar el historial del producto:', e),
-              )
-            }
+            anotarEnHistorial(entradasHistorial)
             if (avisarSync) alCambiar!(nombre, 'guardar', String(clave), final)
           }
         }
@@ -694,6 +690,43 @@ class BaseECDM extends Dexie {
 }
 
 export const db = new BaseECDM()
+
+/**
+ * Guarda renglones de historial sin pelearse con la transaccion en curso.
+ *
+ * El problema que arregla: `db.productos.update(...)` abre una
+ * transaccion que incluye SOLO la tabla productos. Escribir desde ahi en
+ * historialProductos --que no esta en el alcance-- hace que Dexie tire
+ * NotFoundError. El gancho lo intentaba igual y el error terminaba en un
+ * console.warn, asi que la edicion se guardaba, el historial no, y nadie
+ * se enteraba. La tabla estuvo dos meses en la app con cero registros
+ * por esto.
+ *
+ * La solucion no es declarar las dos tablas en cada uno de los diez
+ * lugares que editan un producto: alcanza con que alguien agregue el
+ * once y vuelve el agujero. Se espera a que la transaccion commitee y
+ * recien ahi se escribe, en una transaccion aparte.
+ *
+ * Esperar al commit tambien es lo correcto por otro motivo: si la
+ * edicion se termina revirtiendo, no queda un renglon de historial
+ * diciendo que paso algo que no paso.
+ */
+function anotarEnHistorial(entradas: HistorialProducto[]): void {
+  if (entradas.length === 0) return
+
+  const guardar = () => {
+    db.historialProductos
+      .bulkAdd(entradas)
+      .catch((e) => console.warn('No se pudo guardar el historial:', e))
+  }
+
+  const transaccion = Dexie.currentTransaction
+  if (transaccion) {
+    transaccion.on('complete', guardar)
+  } else {
+    guardar()
+  }
+}
 
 /**
  * Agrupa por nombre (normalizado) los productos que todavia no tienen
