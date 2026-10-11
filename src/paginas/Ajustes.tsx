@@ -13,6 +13,7 @@ import CampoContrasena from '../componentes/CampoContrasena'
 import { CompartirCatalogo } from '../componentes/BotonWhatsApp'
 import {
   ETIQUETA_ROL,
+  QUE_HACE_CADA_ROL,
   puedeBorrarTodo,
   puedeImportarRespaldo,
   puedeTocarUsuarioConRol,
@@ -567,13 +568,6 @@ function EditorSecciones({
       </button>
     </div>
   )
-}
-
-/** Lo que hace cada rol, en una linea, para el selector del alta. */
-const QUE_HACE_CADA_ROL: Record<Rol, string> = {
-  empleado: 'Empleado/a — opera la caja, no ve ganancias',
-  encargado: 'Encargado/a — maneja todo, sin borrar datos ni tocar dueños',
-  owner: 'Dueño/a — maneja todo, sin límites',
 }
 
 function FormularioUsuario({

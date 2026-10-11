@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ETIQUETA_ROL,
+  QUE_HACE_CADA_ROL,
   esDueno,
   estaAlMando,
   puedeBorrarTodo,
@@ -97,5 +98,28 @@ describe('los tres roles tienen nombre para mostrar', () => {
     expect(ETIQUETA_ROL.owner).toBe('Dueño/a')
     expect(ETIQUETA_ROL.encargado).toBe('Encargado/a')
     expect(ETIQUETA_ROL.empleado).toBe('Empleado/a')
+  })
+})
+
+describe('el alta de usuarios ofrece el rol de encargado', () => {
+  it('un dueño ve las tres opciones, encargado entre ellas', () => {
+    const opciones = rolesQuePuedeAsignar(DUENO).map((r) => QUE_HACE_CADA_ROL[r])
+    expect(opciones).toHaveLength(3)
+    expect(opciones.some((o) => o.startsWith('Encargado/a'))).toBe(true)
+  })
+
+  it('ninguna opcion del menu queda vacia', () => {
+    // Un rol sin etiqueta sale como una opcion en blanco, imposible de
+    // elegir a ciegas. Vale para los tres roles y para cualquiera nuevo.
+    for (const perfil of [DUENO, ENCARGADA]) {
+      for (const rol of rolesQuePuedeAsignar(perfil)) {
+        expect(QUE_HACE_CADA_ROL[rol]).toBeTruthy()
+      }
+    }
+  })
+
+  it('a un encargado el menu no le ofrece dueño', () => {
+    const opciones = rolesQuePuedeAsignar(ENCARGADA).map((r) => QUE_HACE_CADA_ROL[r])
+    expect(opciones.some((o) => o.startsWith('Dueño/a'))).toBe(false)
   })
 })

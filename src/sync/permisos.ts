@@ -25,6 +25,18 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
 }
 
 /**
+ * Lo que hace cada rol, en una linea. Lo usa el selector del alta de
+ * usuarios. Vive aca y no en la pantalla para que una prueba pueda
+ * verificar que ningun rol quedo sin texto: un rol sin etiqueta sale en
+ * el menu como una opcion vacia, que es imposible de elegir a ciegas.
+ */
+export const QUE_HACE_CADA_ROL: Record<Rol, string> = {
+  empleado: 'Empleado/a — opera la caja, no ve ganancias',
+  encargado: 'Encargado/a — maneja todo, sin borrar datos ni tocar dueños',
+  owner: 'Dueño/a — maneja todo, sin límites',
+}
+
+/**
  * Esta al mando del negocio: ve los numeros de ganancia, autoriza
  * cierres, da el visto bueno a las diferencias y edita precios,
  * productos, proveedores y gastos.
