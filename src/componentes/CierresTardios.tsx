@@ -3,6 +3,7 @@ import { db, type Jornada, type Venta, type Movimiento } from '../db/db'
 import { resumirJornada, totalArqueo } from '../lib/calculos'
 import { fechaLinda, haceCuanto, horaAhora, plata } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
+import { estaAlMando } from '../sync/permisos'
 
 interface Pedido {
   jornada: Jornada
@@ -27,7 +28,7 @@ interface Pedido {
  */
 export default function CierresTardios() {
   const sesion = useSesion()
-  const esOwner = sesion.perfil?.rol === 'owner'
+  const esOwner = estaAlMando(sesion.perfil)
 
   const pedidos = useLiveQuery(async (): Promise<Pedido[]> => {
     if (!esOwner) return []
@@ -79,6 +80,9 @@ export default function CierresTardios() {
       cierreAutorizado: {
         por: sesion.email ?? 'local',
         porNombre: sesion.perfil?.nombre ?? 'Dueño',
+        // Un encargado autoriza de verdad, pero la constancia tiene que
+        // decir que fue un encargado: para eso sirve una constancia.
+        porRol: sesion.perfil?.rol ?? 'owner',
         cuando: Date.now(),
         comentario: comentario.trim() || null,
       },

@@ -8,6 +8,7 @@ import {
 } from '../data/ayuda'
 import { seccionesVisibles } from '../sync/sesion'
 import { useSesion } from '../sync/useSesion'
+import { estaAlMando } from '../sync/permisos'
 
 export default function Ayuda() {
   const [consulta, setConsulta] = useState('')
@@ -17,7 +18,7 @@ export default function Ayuda() {
   // Un empleado ve solo lo que le compete: sin preguntas de dueño ni de
   // secciones que tiene apagadas.
   const disponibles = useMemo(() => {
-    const esOwner = !sesion.perfil || sesion.perfil.rol === 'owner'
+    const esOwner = estaAlMando(sesion.perfil)
     return ayudaParaPerfil(AYUDA, esOwner, seccionesVisibles(sesion.perfil))
   }, [sesion.perfil])
 

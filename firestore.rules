@@ -50,6 +50,19 @@ service cloud.firestore {
       return estoyActivo() && miPerfil().rol == 'owner';
     }
 
+    function soyEncargado() {
+      return estoyActivo() && miPerfil().rol == 'encargado';
+    }
+
+    // Al mando del negocio: un dueño o un encargado. Casi todo lo que
+    // antes era "solo un owner" es en realidad esto. Lo que queda
+    // reservado al dueño son las tres cosas que pueden destruir o
+    // repartir el negocio entero: borrar los datos, pisarlos con un
+    // respaldo, y decidir quien mas es dueño.
+    function estoyAlMando() {
+      return soyOwner() || soyEncargado();
+    }
+
     // Perfiles de usuario: quien es cada quien y que rol tiene. Un
     // fundador puede crear SU PROPIO perfil como owner (arranque de la
     // cuenta); despues de eso, solo un owner ya existente puede crear,
@@ -57,13 +70,32 @@ service cloud.firestore {
     // cortarle el acceso a alguien). La lectura queda abierta a cualquiera
     // logueado (incluso desactivado) para que la app pueda mostrarle por
     // que se quedo afuera.
+    // Un encargado puede dar de alta y manejar al equipo, pero no a los
+    // dueños: ni los crea, ni los edita, ni les apaga el acceso, ni se
+    // asciende a si mismo. Si pudiera cualquiera de esas cosas, el
+    // limite de su propio rol seria una formalidad.
+    //
+    // Se mira el rol de los DOS lados: el que tiene el documento ahora y
+    // el que tendria despues. Mirar solo uno dejaria pasar la mitad
+    // (ascender a alguien, o degradar a un dueño para despues tocarlo).
+    function elObjetivoNoEsDueno() {
+      return resource == null || resource.data.get('rol', '') != 'owner';
+    }
+
+    function noQuedaComoDueno() {
+      return request.resource == null || request.resource.data.get('rol', '') != 'owner';
+    }
+
     match /negocios/el-club-del-mate/usuarios/{uid} {
       allow read: if estaLogueado();
       allow create: if estaLogueado() && (
         (request.auth.uid == uid && esFundador() && request.resource.data.rol == 'owner') ||
-        soyOwner()
+        soyOwner() ||
+        (soyEncargado() && noQuedaComoDueno())
       );
-      allow update, delete: if soyOwner();
+      allow update: if soyOwner() ||
+        (soyEncargado() && elObjetivoNoEsDueno() && noQuedaComoDueno());
+      allow delete: if soyOwner() || (soyEncargado() && elObjetivoNoEsDueno());
     }
 
     // Historial de ediciones de productos: es un registro, no se edita ni
@@ -86,7 +118,7 @@ service cloud.firestore {
       allow read: if estaLogueado();
       allow create: if estoyActivo();
       allow update: if estoyActivo() && (
-        soyOwner() ||
+        estoyAlMando() ||
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['archivado', 'precioVenta'])
       );
       allow delete: if false;
@@ -134,7 +166,7 @@ service cloud.firestore {
       allow create: if estoyActivo() &&
         request.resource.data.get('cierreAutorizado', null) == null;
       allow update: if estoyActivo() && (
-        soyOwner() || (
+        estoyAlMando() || (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['cierreAutorizado']) &&
           !(
             request.resource.data.get('estado', '') == 'cerrado' &&

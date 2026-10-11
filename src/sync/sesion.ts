@@ -5,6 +5,7 @@ import {
   type SeccionId,
 } from '../db/db'
 import { nubeConfigurada } from './config'
+import { estaAlMando } from './permisos'
 
 /**
  * Estado reactivo de "quien esta usando la app ahora", sin depender del
@@ -57,14 +58,16 @@ export function obtenerSesion(): Sesion {
   return sesion
 }
 
-export function esOwner(s: Sesion = sesion): boolean {
-  return s.perfil?.rol === 'owner'
-}
-
-/** Que secciones puede ver el perfil actual: un owner las ve todas. */
+/**
+ * Que secciones puede ver el perfil actual.
+ *
+ * Quien esta al mando las ve todas; a un empleado se le habilitan una
+ * por una. Las secciones son visibilidad, no permisos: lo que cada rol
+ * puede HACER esta en sync/permisos.ts.
+ */
 export function seccionesVisibles(perfil: Perfil | null): SeccionId[] {
-  if (!perfil || perfil.rol === 'owner') {
+  if (estaAlMando(perfil)) {
     return [...SECCIONES_CONFIGURABLES]
   }
-  return perfil.secciones ?? SECCIONES_POR_DEFECTO_EMPLEADO
+  return perfil?.secciones ?? SECCIONES_POR_DEFECTO_EMPLEADO
 }

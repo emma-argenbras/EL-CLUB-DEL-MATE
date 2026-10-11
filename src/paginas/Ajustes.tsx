@@ -11,6 +11,14 @@ import {
 import { haceCuanto, hoyISO, normalizar, numero } from '../lib/formato'
 import CampoContrasena from '../componentes/CampoContrasena'
 import { CompartirCatalogo } from '../componentes/BotonWhatsApp'
+import {
+  ETIQUETA_ROL,
+  QUE_HACE_CADA_ROL,
+  puedeBorrarTodo,
+  puedeImportarRespaldo,
+  puedeTocarUsuarioConRol,
+  rolesQuePuedeAsignar,
+} from '../sync/permisos'
 import { URL_CATALOGO } from '../lib/whatsapp'
 import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
@@ -42,6 +50,7 @@ interface Respaldo extends Partial<Record<TablaRespaldo, unknown[]>> {
 }
 
 export default function Ajustes() {
+  const sesion = useSesion()
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [trabajando, setTrabajando] = useState(false)
 
@@ -252,19 +261,24 @@ export default function Ajustes() {
             Descargar copia
           </button>
         </div>
-        <div className="campo" style={{ marginTop: 10 }}>
-          <label htmlFor="archivo">Importar un respaldo</label>
-          <input
-            id="archivo"
-            type="file"
-            accept="application/json,.json"
-            onChange={(e) => {
-              const archivo = e.target.files?.[0]
-              if (archivo) importar(archivo)
-              e.target.value = ''
-            }}
-          />
-        </div>
+        {/* Importar pisa el catalogo, los turnos y las ventas con lo que
+            diga el archivo: quien puede importar puede borrar, solo que
+            mas despacio. Va con el mismo candado que la zona peligrosa. */}
+        {puedeImportarRespaldo(sesion.perfil) && (
+          <div className="campo" style={{ marginTop: 10 }}>
+            <label htmlFor="archivo">Importar un respaldo</label>
+            <input
+              id="archivo"
+              type="file"
+              accept="application/json,.json"
+              onChange={(e) => {
+                const archivo = e.target.files?.[0]
+                if (archivo) importar(archivo)
+                e.target.value = ''
+              }}
+            />
+          </div>
+        )}
         <button style={{ width: '100%', marginTop: 6 }} onClick={exportarVentasCSV}>
           Exportar ventas a CSV (para Excel)
         </button>
@@ -297,12 +311,14 @@ export default function Ajustes() {
         </p>
       </div>
 
-      <div className="tarjeta">
-        <p className="tarjeta-titulo">Zona peligrosa</p>
-        <button className="boton-peligro" style={{ width: '100%' }} onClick={borrarTodo}>
-          Borrar todos los datos
-        </button>
-      </div>
+      {puedeBorrarTodo(sesion.perfil) && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Zona peligrosa</p>
+          <button className="boton-peligro" style={{ width: '100%' }} onClick={borrarTodo}>
+            Borrar todos los datos
+          </button>
+        </div>
+      )}
     </>
   )
 }
@@ -367,11 +383,6 @@ function TarjetaRespaldo() {
 }
 
 /* ------------------------------------------------------------------ */
-
-const ETIQUETA_ROL: Record<Rol, string> = {
-  owner: 'Dueño/a',
-  empleado: 'Empleado/a',
-}
 
 const ETIQUETA_SECCION: Record<SeccionId, string> = {
   panel: '🧭 Panel (revisión automática y pendientes)',
@@ -475,7 +486,7 @@ function TarjetaUsuarios() {
                 <span className={u.rol === 'owner' ? 'chip chip-banco' : 'chip'}>
                   {ETIQUETA_ROL[u.rol]}
                 </span>
-                {u.rol === 'empleado' && (
+                {u.rol === 'empleado' && puedeTocarUsuarioConRol(sesion.perfil, u.rol) && (
                   <button
                     className="boton-chico"
                     onClick={() => setEditando(editando === u.id ? null : u.id)}
@@ -483,7 +494,9 @@ function TarjetaUsuarios() {
                     {editando === u.id ? 'Cerrar' : 'Qué ve'}
                   </button>
                 )}
-                {u.id !== sesion.uid && (
+                {/* Un encargado no le apaga el acceso a un dueño: si
+                    pudiera, el limite de su rol seria una formalidad. */}
+                {u.id !== sesion.uid && puedeTocarUsuarioConRol(sesion.perfil, u.rol) && (
                   <button className="boton-chico" onClick={() => cambiarActivo(u)}>
                     {u.activo === false ? 'Reactivar' : 'Desactivar'}
                   </button>
@@ -564,10 +577,15 @@ function FormularioUsuario({
   onSalir: () => void
   onCreado: (nombre: string) => void
 }) {
+  const sesion = useSesion()
+  // Solo los roles que esta persona puede asignar. Un encargado no crea
+  // dueños, asi que la opcion no esta ni en la lista.
+  const asignables = rolesQuePuedeAsignar(sesion.perfil)
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [contrasena, setContrasena] = useState('')
   const [rol, setRol] = useState<Rol>('empleado')
+
   const [secciones, setSecciones] = useState<SeccionId[]>(SECCIONES_POR_DEFECTO_EMPLEADO)
   const [error, setError] = useState('')
   const [trabajando, setTrabajando] = useState(false)
@@ -629,8 +647,11 @@ function FormularioUsuario({
       <div className="campo">
         <label htmlFor="u-rol">Rol</label>
         <select id="u-rol" value={rol} onChange={(e) => setRol(e.target.value as Rol)}>
-          <option value="empleado">Empleado/a — opera la caja, no ve ganancias</option>
-          <option value="owner">Dueño/a — ve y maneja todo</option>
+          {asignables.map((r) => (
+            <option key={r} value={r}>
+              {QUE_HACE_CADA_ROL[r]}
+            </option>
+          ))}
         </select>
       </div>
       {rol === 'empleado' && <SelectorSecciones value={secciones} onChange={setSecciones} />}

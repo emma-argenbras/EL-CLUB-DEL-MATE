@@ -9,6 +9,7 @@ import ListaHallazgos from '../componentes/ListaHallazgos'
 import RevisionCompleta from '../componentes/RevisionCompleta'
 import { seccionesVisibles } from '../sync/sesion'
 import { useSesion } from '../sync/useSesion'
+import { estaAlMando } from '../sync/permisos'
 
 const ORDEN_MODULOS: ModuloAuditoria[] = ['caja', 'productos', 'proveedores', 'gastos', 'sistema']
 
@@ -29,7 +30,7 @@ function semaforo(puntaje: number): { emoji: string; texto: string; clase: strin
  */
 export default function Panel() {
   const sesion = useSesion()
-  const esOwner = sesion.perfil?.rol === 'owner'
+  const esOwner = estaAlMando(sesion.perfil)
   const { cargando, hallazgos, pospuestos, datos: datosAuditoria } = useAuditoria()
   const mes = mesActualISO()
 

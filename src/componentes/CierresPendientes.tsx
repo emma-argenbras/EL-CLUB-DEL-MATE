@@ -3,6 +3,7 @@ import { db, type Jornada, type Venta, type Movimiento } from '../db/db'
 import { resumirJornada, totalArqueo } from '../lib/calculos'
 import { fechaLinda, plata } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
+import { estaAlMando } from '../sync/permisos'
 
 /**
  * Cuantos meses para atras se buscan cierres sin revisar.
@@ -32,7 +33,7 @@ interface Pendiente {
  */
 export default function CierresPendientes() {
   const sesion = useSesion()
-  const esOwner = sesion.perfil?.rol === 'owner'
+  const esOwner = estaAlMando(sesion.perfil)
 
   const pendientes = useLiveQuery(async (): Promise<Pendiente[]> => {
     if (!esOwner) return []
@@ -75,6 +76,9 @@ export default function CierresPendientes() {
         // que el visto bueno funcione en los dos modos.
         por: sesion.email ?? 'local',
         porNombre: sesion.perfil?.nombre ?? 'Dueño',
+        // Un encargado autoriza de verdad, pero la constancia tiene que
+        // decir que fue un encargado: para eso sirve una constancia.
+        porRol: sesion.perfil?.rol ?? 'owner',
         cuando: Date.now(),
         comentario: comentario.trim() || null,
       },

@@ -157,10 +157,10 @@ export const AYUDA: EntradaAyuda[] = [
   {
     id: 'diferencia-dueno-empleado',
     categoria: 'Usuarios y roles',
-    pregunta: '¿Qué diferencia hay entre un dueño y un empleado?',
+    pregunta: '¿Qué puede hacer cada rol?',
     respuesta:
-      'Un dueño ve y maneja todo: Caja, Productos, Proveedores, Gastos, Reportes con el margen de ganancia, y Ajustes (respaldo y usuarios del equipo).\n\nUn empleado, por defecto, usa Caja, Productos, Proveedores y Gastos igual que un dueño, y mantiene los costos de compra actualizados — pero no ve el margen de ganancia del negocio (en vez de Reportes tiene "Mi día", con su propio resumen de trabajo), no puede cambiar el precio de venta de un producto, y para archivar un producto tiene que pedirle autorización a un dueño en vez de hacerlo directo. Un dueño puede ajustar cuáles de esas secciones ve cada empleado en particular (ver "¿Puedo elegir qué secciones ve cada empleado?").',
-    palabrasClave: ['rol', 'permisos', 'empleada', 'gabriela'],
+      'Hay tres.\n\n**Dueño/a** ve y maneja todo, sin límites: Caja, Productos, Proveedores, Gastos, Reportes con el margen de ganancia, y Ajustes.\n\n**Encargado/a** maneja la operación completa igual que un dueño: ve las ganancias, autoriza los cierres tardíos, da el visto bueno a las diferencias de caja, edita precios, productos, proveedores y gastos, y da de alta y maneja al equipo. Hay tres cosas que no puede, y son las que pueden destruir el negocio o repartirlo: borrar todos los datos, importar un respaldo (que pisa todo, así que es lo mismo que borrar pero más despacio), y crear, editar o desactivar a un dueño. Tampoco puede ascenderse a sí mismo.\n\n**Empleado/a**, por defecto, usa Caja, Productos, Proveedores y Gastos, y mantiene los costos de compra actualizados — pero no ve el margen de ganancia (en vez de Reportes tiene "Mi día", con su propio resumen de trabajo), no puede cambiar el precio de venta de un producto, y para archivar uno tiene que pedir autorización. Un dueño o un encargado puede ajustar cuáles de esas secciones ve cada empleado en particular.\n\nCuando un encargado autoriza algo, queda registrado con su nombre **y su rol**: la constancia dice que lo miró un encargado, no que lo miró un dueño.',
+    palabrasClave: ['rol', 'permisos', 'empleada', 'gabriela', 'encargado', 'encargada', 'sandra'],
   },
   {
     id: 'crear-usuario',
