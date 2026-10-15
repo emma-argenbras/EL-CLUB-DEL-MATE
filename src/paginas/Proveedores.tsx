@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  conMotivo,
   db,
   nuevoId,
   productoVisible,
@@ -253,15 +254,50 @@ function DetalleProveedor({
     })
   }
 
+  /**
+   * Sube el costo de todo el catalogo de un proveedor de una.
+   *
+   * Es la unica accion de la app que escribe en cientos de productos con
+   * un solo toque, y antes lo hacia sin preguntar nada: se apretaba el
+   * boton y 300 costos cambiaban. Un numero mal tecleado --un 50 donde
+   * iba un 5-- no tenia vuelta atras mas que a mano, producto por
+   * producto.
+   *
+   * Por eso ahora avisa CUANTOS productos va a tocar antes de tocarlos,
+   * y muestra un ejemplo concreto con el producto mas caro: un
+   * porcentaje es abstracto, "de $ 20.000 a $ 30.000" no.
+   *
+   * Y queda en el historial con motivo, para que los 300 renglones se
+   * lean como un aumento y no como 300 ediciones sueltas del mismo
+   * segundo.
+   */
   async function aplicarAumento() {
     const pct = leerNumero(porcentaje)
     if (!pct) return
     const factor = 1 + pct / 100
-    await db.transaction('rw', db.productos, async () => {
-      for (const p of conCosto) {
-        const nuevo = Math.round((p.precioCompra! * factor) * 100) / 100
-        await db.productos.update(p.codigo, { precioCompra: nuevo, fechaCompra: hoyISO() })
-      }
+
+    const caro = conCosto.reduce((a, b) => (b.precioCompra! > a.precioCompra! ? b : a))
+    const ejemplo = `Por ejemplo, ${caro.descripcion}: de ${plata(caro.precioCompra!)} a ${plata(Math.round(caro.precioCompra! * factor * 100) / 100)}.`
+    const verbo = pct > 0 ? 'aumentar' : 'bajar'
+    const cuantos =
+      conCosto.length === 1
+        ? 'el costo de 1 producto'
+        : `el costo de los ${conCosto.length} productos`
+    if (
+      !confirm(
+        `Vas a ${verbo} ${cuantos} de "${proveedor.nombre}" un ${Math.abs(pct)}%.\n\n${ejemplo}\n\nNo se puede deshacer de una: habría que corregir cada producto a mano.`,
+      )
+    )
+      return
+
+    const motivo = `Aumento ${pct > 0 ? '+' : ''}${pct}% a ${proveedor.nombre}`
+    await conMotivo(motivo, async () => {
+      await db.transaction('rw', db.productos, async () => {
+        for (const p of conCosto) {
+          const nuevo = Math.round((p.precioCompra! * factor) * 100) / 100
+          await db.productos.update(p.codigo, { precioCompra: nuevo, fechaCompra: hoyISO() })
+        }
+      })
     })
     setMensaje(
       `Se actualizó el costo de ${conCosto.length} productos (+${pct}%). Los ${sinCosto.length} sin costo cargado quedaron igual — hay que cargarlos a mano.`,

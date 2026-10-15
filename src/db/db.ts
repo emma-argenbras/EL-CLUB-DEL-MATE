@@ -483,13 +483,45 @@ export function engancharAutor(callback: () => Autor | null): void {
  * evitar que los ganchos de escritura lo reenvien de vuelta a la nube:
  * eso generaria un eco infinito entre dispositivos.
  */
-let aplicandoCambioRemoto = false
+/**
+ * Cuantos "aplicar cambio remoto" hay en curso ahora mismo.
+ *
+ * Era un booleano, y eso causo el peor error que tuvo esta app.
+ *
+ * comoRemoto es asincrono y se llama desde varios lados a la vez: los
+ * ocho listeners de Firestore, la lista de precios y la carga de los
+ * meses historicos. Con un booleano, el PRIMERO que terminaba lo ponia
+ * en false mientras los demas seguian escribiendo, y desde ese instante
+ * los datos que bajaban del servidor se registraban como ediciones
+ * hechas a mano por quien estuviera logueado.
+ *
+ * Asi fue como el 14/10, en el primer login de Sandra, quedaron 1.506
+ * cambios de productos a su nombre: era la sincronizacion inicial
+ * trayendo los costos reales del servidor sobre un catalogo recien
+ * sembrado sin costos. Ella no habia tocado nada.
+ *
+ * Con un contador, el modo remoto dura hasta que termina el ULTIMO, que
+ * es lo que se queria decir desde el principio.
+ *
+ * Lo que este arreglo NO resuelve: el marcador sigue siendo global, asi
+ * que una edicion hecha a mano justo mientras baja una sincronizacion se
+ * toma por remota y no deja renglon. Es un problema mucho mas chico
+ * --una edicion suelta contra 1.506 renglones falsos-- y para
+ * resolverlo bien hay que pasar el marcador por cada escritura en vez de
+ * tenerlo global. Queda anotado y no disimulado.
+ */
+let remotoEnCurso = 0
 
 export function comoRemoto<T>(fn: () => Promise<T>): Promise<T> {
-  aplicandoCambioRemoto = true
+  remotoEnCurso++
   return fn().finally(() => {
-    aplicandoCambioRemoto = false
+    remotoEnCurso--
   })
+}
+
+/** Si en este momento se esta aplicando algo que vino del servidor. */
+function esCambioRemoto(): boolean {
+  return remotoEnCurso > 0
 }
 
 class BaseECDM extends Dexie {
@@ -779,13 +811,13 @@ class BaseECDM extends Dexie {
         const ahora = Date.now()
         if (!registro.creadoEn) registro.creadoEn = ahora
         registro.actualizadoEn = ahora
-        if (nombre === 'productos' && !aplicandoCambioRemoto) {
+        if (nombre === 'productos' && !esCambioRemoto()) {
           const autor = obtenerAutor?.()
           if (autor && !registro.creadoPor) registro.creadoPor = autor.email
         }
 
-        const autorCrea = aplicandoCambioRemoto ? null : (obtenerAutor?.() ?? null)
-        const avisarSyncCrea = !aplicandoCambioRemoto && Boolean(alCambiar)
+        const autorCrea = esCambioRemoto() ? null : (obtenerAutor?.() ?? null)
+        const avisarSyncCrea = !esCambioRemoto() && Boolean(alCambiar)
 
         if (autorCrea || avisarSyncCrea) {
           this.onsuccess = (claveFinal) => {
@@ -828,7 +860,7 @@ class BaseECDM extends Dexie {
         // campo que cambio, para poder responder "quien tocó esto y cuándo"
         // sin ambigüedad.
         const entradasHistorial: EntradaHistorial[] = []
-        if (!aplicandoCambioRemoto && nombre !== 'historialProductos' && nombre !== 'historial') {
+        if (!esCambioRemoto() && nombre !== 'historialProductos' && nombre !== 'historial') {
           const autor = obtenerAutor?.()
           if (autor) {
             if (nombre === 'productos') combinados.actualizadoPor = autor.email
@@ -865,7 +897,7 @@ class BaseECDM extends Dexie {
           }
         }
 
-        const avisarSync = !aplicandoCambioRemoto && Boolean(alCambiar)
+        const avisarSync = !esCambioRemoto() && Boolean(alCambiar)
         if (avisarSync || entradasHistorial.length > 0) {
           const final = { ...obj, ...combinados }
           this.onsuccess = () => {
@@ -881,8 +913,8 @@ class BaseECDM extends Dexie {
         clave,
         obj,
       ) {
-        const autorBorra = aplicandoCambioRemoto ? null : (obtenerAutor?.() ?? null)
-        const avisarSyncBorra = !aplicandoCambioRemoto && Boolean(alCambiar)
+        const autorBorra = esCambioRemoto() ? null : (obtenerAutor?.() ?? null)
+        const avisarSyncBorra = !esCambioRemoto() && Boolean(alCambiar)
 
         if (autorBorra || avisarSyncBorra) {
           this.onsuccess = () => {

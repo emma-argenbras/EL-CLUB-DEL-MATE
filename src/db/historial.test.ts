@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  comoRemoto,
   conMotivo,
   db,
   engancharAutor,
@@ -388,5 +389,108 @@ describe('aguante', () => {
 
   it('un id nuevo nunca repite el de otra entrada', () => {
     expect(new Set(Array.from({ length: 500 }, () => nuevoId())).size).toBe(500)
+  })
+})
+
+/**
+ * El error del 14/10, reproducido.
+ *
+ * Lo que paso: en el primer login de Sandra bajaron del servidor los
+ * 1.337 productos con sus costos reales, sobre un catalogo recien
+ * sembrado que los tenia en null. Esas escrituras venian marcadas como
+ * remotas, asi que no debian dejar historial. Dejaron 1.506 renglones a
+ * nombre de ella, por cosas que nunca hizo.
+ *
+ * La causa: comoRemoto usaba un booleano global. Es asincrono y se
+ * llama desde varios lados a la vez --los ocho listeners de Firestore,
+ * la lista de precios, los meses historicos--, asi que el primero que
+ * terminaba apagaba el marcador mientras los demas seguian escribiendo.
+ */
+describe('un cambio que viene del servidor no deja historial', () => {
+  it('lo normal: una sincronizacion sola no registra nada', async () => {
+    await comoRemoto(async () => {
+      await db.productos.add(producto({ precioCompra: null }))
+    })
+    await comoRemoto(async () => {
+      await db.productos.update('TM015', { precioCompra: 20000, fechaCompra: '2023-04-12' })
+    })
+    expect(await renglones('edito')).toHaveLength(0)
+  })
+
+  it('DOS sincronizaciones a la vez tampoco: el caso del 14/10', async () => {
+    await comoRemoto(async () => {
+      await db.productos.bulkAdd([
+        producto({ precioCompra: null }),
+        producto({ codigo: 'TM016', descripcion: 'OTRO', precioCompra: null }),
+      ])
+    })
+    expect(await renglones()).toHaveLength(0)
+
+    // La corta termina primero. Con un booleano, al terminar apagaba el
+    // marcador y todo lo que la larga escribia despues quedaba
+    // registrado como una edicion a mano.
+    const larga = comoRemoto(async () => {
+      await new Promise((listo) => setTimeout(listo, 20))
+      await db.productos.update('TM015', { precioCompra: 20000, fechaCompra: '2023-04-12' })
+    })
+    const corta = comoRemoto(async () => {
+      await db.productos.update('TM016', { precioCompra: 15000 })
+    })
+    await Promise.all([corta, larga])
+
+    expect(await renglones()).toHaveLength(0)
+  })
+
+  it('con muchas a la vez, como los ocho listeners del arranque', async () => {
+    await comoRemoto(async () => {
+      await db.productos.add(producto({ precioCompra: null }))
+    })
+
+    await Promise.all(
+      [40, 5, 25, 1, 15, 30, 10, 20].map((demora) =>
+        comoRemoto(async () => {
+          await new Promise((listo) => setTimeout(listo, demora))
+          await db.productos.update('TM015', { precioCompra: 20000 + demora })
+        }),
+      ),
+    )
+
+    expect(await renglones()).toHaveLength(0)
+  })
+
+  it('pero una edicion de verdad DESPUES si queda registrada', async () => {
+    // El arreglo no puede dejar el marcador trabado: si quedara prendido,
+    // la app dejaria de registrar para siempre, que es peor.
+    await comoRemoto(async () => {
+      await db.productos.add(producto({ precioCompra: null }))
+    })
+    await Promise.all([
+      comoRemoto(async () => {
+        await new Promise((listo) => setTimeout(listo, 15))
+        await db.productos.update('TM015', { precioCompra: 20000 })
+      }),
+      comoRemoto(async () => {
+        await db.productos.update('TM015', { stock: 5 })
+      }),
+    ])
+    await db.productos.update('TM015', { precioVenta: 52000 })
+
+    const edits = await renglones('edito')
+    expect(edits).toHaveLength(1)
+    expect(edits[0].campo).toBe('precioVenta')
+  })
+
+  it('tampoco se traba si una sincronizacion falla', async () => {
+    await comoRemoto(async () => {
+      await db.productos.add(producto({ precioCompra: null }))
+    })
+    await expect(
+      comoRemoto(async () => {
+        throw new Error('se corto internet')
+      }),
+    ).rejects.toThrow('se corto internet')
+
+    await db.productos.update('TM015', { precioVenta: 52000 })
+    expect(await renglones('edito')).toHaveLength(1)
   })
 })

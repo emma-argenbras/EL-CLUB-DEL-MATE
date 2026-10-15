@@ -27,6 +27,7 @@ export const CATEGORIAS_AYUDA = [
   'Primeros pasos',
   'Panel y pendientes',
   'Usuarios y roles',
+  'Historial de cambios',
   'Caja',
   'Productos',
   'Proveedores',
@@ -206,6 +207,52 @@ export const AYUDA: EntradaAyuda[] = [
     soloOwner: true,
   },
 
+  // ---------- Historial de cambios ----------
+  {
+    id: 'historial-que-es',
+    categoria: 'Historial de cambios',
+    pregunta: '¿Queda registrado quién cambió cada cosa?',
+    respuesta:
+      'Sí, todo. Cada vez que alguien crea, edita, archiva o borra algo, la app guarda un renglón con quién lo hizo, su rol, cuándo, qué campo cambió, y el valor de antes y el de después.\n\nCubre productos, proveedores, turnos de caja (apertura, cierre y autorizaciones), ventas, gastos, compras y pagos a proveedores, y los usuarios del equipo.\n\nNo hay que activarlo ni acordarse de nada: se graba solo, siempre.',
+    palabrasClave: ['historial', 'auditoria', 'quien cambio', 'registro', 'log', 'trazabilidad'],
+    soloOwner: true,
+  },
+  {
+    id: 'historial-ver',
+    categoria: 'Historial de cambios',
+    pregunta: '¿Dónde veo el historial y cómo busco un cambio?',
+    respuesta:
+      'Ajustes → "Historial de modificaciones".\n\nArriba hay un resumen: cuántos cambios hay, desde cuándo, cuántos hizo cada persona, y el detalle por campo (cuántos precios de venta, cuántos costos, etc.). Abajo está la lista, del más nuevo al más viejo.\n\nSe puede filtrar por persona, por tipo de dato (Productos, Turnos, Ventas…), por campo y por fechas. Por ejemplo: "qué tocó Sandra en los precios de venta la semana pasada" son tres filtros.',
+    palabrasClave: ['historial', 'filtrar', 'buscar cambio', 'ajustes', 'quien edito'],
+    soloOwner: true,
+  },
+  {
+    id: 'historial-borrar',
+    categoria: 'Historial de cambios',
+    pregunta: '¿Se puede borrar o corregir el historial?',
+    respuesta:
+      'No, y es a propósito. Nadie puede editarlo ni borrarlo: ni un empleado, ni un encargado, ni vos. El servidor rechaza cualquier intento de modificar o borrar un renglón, venga de donde venga.\n\nUn historial que el jefe puede editar no sirve como constancia de nada. Si hay un renglón equivocado, lo que corresponde es agregar el cambio que corrige, no tapar el anterior: así queda la historia completa de lo que pasó.',
+    palabrasClave: ['borrar historial', 'editar historial', 'inmutable', 'constancia'],
+    soloOwner: true,
+  },
+  {
+    id: 'historial-arranque',
+    categoria: 'Historial de cambios',
+    pregunta: '¿Por qué el historial no tiene nada anterior a octubre de 2026?',
+    respuesta:
+      'Porque antes de esa fecha no se estaba grabando. El historial existía en la app pero tenía un error y nunca guardó un solo renglón; se arregló el 11/10/2026.\n\nPara que eso quede claro y no parezca que alguien borró algo, el renglón más viejo de la lista dice "Acá arranca el historial" con esa fecha. De ahí en adelante está todo.',
+    palabrasClave: ['historial vacio', 'desde cuando', 'arranque', 'antes'],
+    soloOwner: true,
+  },
+  {
+    id: 'historial-muchos-juntos',
+    categoria: 'Historial de cambios',
+    pregunta: 'Aparecen cientos de cambios de la misma persona en el mismo minuto, ¿qué pasó?',
+    respuesta:
+      'Casi siempre es una operación en bloque, no alguien editando a mano a toda velocidad. Dos pistas para distinguirlo: si el renglón tiene un motivo entre comillas («Aumento +8% a Fulano», «Importación Excel»), vino de ahí; y si dos campos distintos tienen exactamente la misma cantidad de cambios, es señal de que los cambió la misma operación.\n\nHay un caso particular que conviene conocer, porque pasó: el 14/10/2026 quedaron 1.506 cambios de productos a nombre de ventas@elclubdelmate.com, el día del primer ingreso de ese celular. No los hizo nadie. Era la primera sincronización del dispositivo bajando del servidor los costos y proveedores que ya existían, y un error de la app los anotó como si fueran ediciones a mano. Los datos de los productos nunca estuvieron mal; lo único equivocado era el historial. El error se arregló el 15/10 y no puede volver a pasar.\n\nEsos 1.506 renglones siguen ahí porque el historial no se borra (ni para arreglarlo). Al filtrar por fechas conviene saltear ese día.',
+    palabrasClave: ['muchos cambios', 'bloque', '1506', 'sandra', 'sincronizacion', '14/10'],
+    soloOwner: true,
+  },
   // ---------- Caja ----------
   {
     id: 'abrir-turno',
@@ -555,7 +602,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Proveedores',
     pregunta: '¿Cómo actualizo de una vez los costos de un proveedor?',
     respuesta:
-      'Entrá a Proveedores, elegí el proveedor y abajo vas a ver "Aumentar todos los costos de este proveedor". Cargá el porcentaje que avisó el proveedor (ej: 8) y tocá "Aplicar": se actualiza el costo de todos los productos que ya tenían costo cargado, y queda anotada la fecha de hoy. Los que no tenían costo cargado quedan igual, para completarlos a mano.',
+      'Entrá a Proveedores, elegí el proveedor y abajo vas a ver "Aumentar todos los costos de este proveedor". Cargá el porcentaje que avisó el proveedor (ej: 8) y tocá "Aplicar".\n\nAntes de cambiar nada, la app te pregunta: te dice a cuántos productos va a tocar y te muestra un ejemplo con el producto más caro ("de $ 20.000 a $ 21.600"), así se ve si el porcentaje es el que querías. Es la única acción de la app que cambia cientos de precios con un solo toque y no se puede deshacer de una, por eso pregunta.\n\nSe actualiza el costo de todos los productos que ya tenían costo cargado, y queda anotada la fecha de hoy. Los que no tenían costo cargado quedan igual, para completarlos a mano. En el historial los cambios quedan agrupados como "Aumento +8% a Fulano", no como doscientas ediciones sueltas.',
     palabrasClave: ['aumento', 'lista de precios', 'todos juntos', 'masivo'],
     requiereSeccion: 'proveedores',
   },
