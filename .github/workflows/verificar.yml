@@ -29,3 +29,7 @@ jobs:
       # Que no se cuele nada privado en lo que se publica. Ya paso dos
       # veces y las dos se encontro de casualidad; ahora falla el CI.
       - run: npm run revisar-publicos
+      # Y que no quede nada privado versionado en el repositorio, que es
+      # publico: un archivo en el arbol lo lee cualquiera en github.com
+      # aunque nunca llegue al hosting. Asi estuvo datos/ hasta el 15/10.
+      - run: npm run revisar-versionados

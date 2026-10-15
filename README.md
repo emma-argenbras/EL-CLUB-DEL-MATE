@@ -602,11 +602,23 @@ Por eso el catálogo está partido en dos:
 
 | Archivo | Dónde vive | Qué lleva |
 |---|---|---|
-| `datos/productos.seed.json` | fuera de `public/`, **no se publica** | catálogo completo con costo, markup y proveedor |
-| `datos/historico-<mes>.seed.json` | fuera de `public/`, **no se publica** | ventas, gastos y turnos de cada mes de 2026 |
-| `datos/arqueos-<mes>.seed.json` | fuera de `public/`, **no se publica** | conteo de billetes de cada turno |
+| `datos/productos.seed.json` | **fuera de git** (`.gitignore`) | catálogo completo con costo, markup y proveedor |
+| `datos/historico-<mes>.seed.json` | **fuera de git** (`.gitignore`) | ventas, gastos y turnos de cada mes de 2026 |
+| `datos/arqueos-<mes>.seed.json` | **fuera de git** (`.gitignore`) | conteo de billetes de cada turno |
 | `public/catalogo.json` | publicado | código, descripción y precio de venta, nada más |
 | `public/precios-<mes>.seed.json` | publicado | solo cambios de precio de venta |
+
+Los de `datos/` **estuvieron versionados hasta el 15/10/2026**, y eso fue un error
+mío: el README decía "fuera de `public/`, no se publica" y era cierto a medias —no se
+publicaban en el sitio, pero sí en GitHub, donde cualquiera podía leerlos sin login.
+Eran los costos de los 1.337 productos con sus proveedores, las ventas de ocho meses y
+el conteo de billetes de cada turno. Ya no están en el árbol y ahora hay un chequeo que
+lo verifica; lo que queda pendiente es el historial de git, que solo cierra poniendo el
+repositorio en privado (ver el aviso al final de esta sección).
+
+Si hacen falta de nuevo para correr un script, se recuperan del historial
+(`git show eaeb991:datos/productos.seed.json > datos/productos.seed.json`) o se
+exportan desde la app con **Ajustes → Respaldo**, que es la fuente al día.
 
 `public/catalogo.json` cumple dos funciones a la vez: es lo que ve un cliente que abre
 el catálogo por WhatsApp, y es con lo que arranca un dispositivo recién instalado para
@@ -632,30 +644,49 @@ todo el año— y las dos veces se encontró de casualidad. Así que dejó de se
 convención y pasó a ser un chequeo:
 
 ```bash
-npm run revisar-publicos
+npm run revisar-publicos      # los JSON de public/
+npm run revisar-versionados   # todos los JSON que estén dentro de git
 ```
 
-`scripts/revisar-publicos.py` recorre todos los JSON de `public/` y falla si encuentra
-precio de compra, markup, proveedor, stock, ventas, gastos, turnos o arqueos. Corre en
-cada pull request, y **el deploy lo corre otra vez sobre `dist/`** —lo que realmente se
+`scripts/revisar-publicos.py` falla si encuentra precio de compra, markup, proveedor,
+stock, ventas, gastos, turnos o arqueos. Los **dos** chequeos corren en cada pull
+request, y **el deploy corre el primero otra vez sobre `dist/`** —lo que realmente se
 sube, no lo que hay en `public/`— justo antes de publicar. Si algo se coló, no se
 publica nada.
+
+El segundo chequeo (`--versionados`) es el que faltaba, y es el que importa más mientras
+el repositorio sea público: mira lo que está **dentro de git**, no una carpeta. Pregunta
+`git ls-files` en vez de recorrer el disco, así da igual en qué carpeta se esconda el
+archivo. Saltea los JSON de herramientas (`package.json`, `tsconfig.json`, etc.), que no
+son datos del negocio.
 
 Para agregar un campo a la lista, está en `PROHIBIDAS` arriba del script, cada uno con
 el motivo escrito al lado.
 
-> ⚠️ **El repositorio es público.** Nada de esto se sirve ya desde
-> `app.elclubdelmate.com`, pero mientras el repositorio sea público todo lo versionado
-> se puede leer desde GitHub, **incluido el historial**: sacar un archivo del árbol no
-> lo borra de los commits viejos. Los archivos de `datos/` siguen ahí, y también las
-> versiones anteriores de los de `public/`.
+> ⚠️ **El repositorio es público, y el historial de git también.** Sacar los archivos
+> de `datos/` del árbol (15/10/2026) corta el acceso fácil —ya no se ven navegando el
+> repositorio— pero **no los borra de los commits viejos**: siguen siendo legibles para
+> quien sepa buscarlos, igual que las versiones anteriores de los archivos de `public/`.
+> El chequeo nuevo impide que vuelva a pasar de acá en adelante; no puede arreglar el
+> pasado.
 >
-> Lo único que cierra eso es **poner el repositorio en privado** (Settings → General →
-> Danger Zone → Change repository visibility). Antes de hacerlo hay que verificar que
-> GitHub Pages siga publicando el sitio con el plan de la cuenta: en las cuentas
-> gratuitas, Pages desde un repositorio privado puede requerir plan pago. Si el sitio
-> se cae, se vuelve a poner público y se piensa otra salida — no se pierde nada, pero
-> conviene no hacerlo en pleno horario de atención.
+> Lo único que cierra el pasado es **poner el repositorio en privado** (Settings →
+> General → Danger Zone → Change repository visibility). Dos cosas antes de tocarlo:
+>
+> 1. **El plan de la cuenta.** GitHub Pages desde un repositorio privado requiere plan
+>    pago (Pro). Con una cuenta gratuita, al poner el repositorio en privado **Pages se
+>    apaga y `app.elclubdelmate.com` deja de responder**. La app instalada en los
+>    celulares sigue funcionando (es una PWA, ya está descargada y guarda los datos en
+>    el dispositivo), pero un celular nuevo no la puede instalar y nadie puede recibir
+>    una actualización.
+> 2. **El horario.** No en pleno turno. Si el sitio se cae, se vuelve a poner público y
+>    queda como estaba — no se pierde ningún dato, pero no es algo para descubrir con el
+>    local abierto.
+>
+> Qué cambia y qué no, al poner el repositorio en privado: el sitio publicado por Pages
+> **sigue siendo público** (una página web es pública por definición, y así tiene que
+> ser para que entre un cliente al catálogo). Lo que deja de ser público es el **código
+> y el historial**, que es justo lo que acá importa.
 
 ---
 
@@ -860,11 +891,17 @@ sigue.
 
 **Seguridad**
 
-- [ ] **Pasar el repositorio a privado.** Hoy es público y el historial de git se lee
-      completo, así que sacar un archivo del árbol no lo saca del pasado.
+- [ ] **Pasar el repositorio a privado.** Es lo único que cierra el historial de git,
+      donde siguen los costos, las ventas de ocho meses y los arqueos que estuvieron
+      versionados en `datos/` hasta el 15/10. Antes hay que mirar el plan de la cuenta:
+      con una cuenta gratuita, Pages desde un repositorio privado se apaga y el sitio
+      se cae. Está explicado en "Qué se publica y qué no".
 - [ ] Activar la protección de rama en `main` (pull request + check `verificar`
       obligatorios).
 - [ ] `public/productos.seed.json`: ver "Pendiente de seguridad" más arriba.
+
+**Hecho el 15/10** — `datos/` salió del repositorio y hay un chequeo
+(`npm run revisar-versionados`) que falla si vuelve a entrar algo privado al árbol.
 
 **Datos a ordenar**
 
