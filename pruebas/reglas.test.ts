@@ -19,7 +19,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
-import { deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore'
+import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const NEGOCIO = 'negocios/el-club-del-mate'
@@ -438,5 +438,85 @@ describe('empleado: el rol nuevo no le aflojo nada', () => {
         activo: true,
       }),
     )
+  })
+})
+
+/**
+ * El historial tiene que ser inborrable, y eso incluye al dueño.
+ *
+ * Es la parte del punto 2 que no se puede verificar mirando la pantalla:
+ * la app no ofrece ningun boton para borrarlo, pero eso no es lo mismo
+ * que no se pueda. Lo unico que lo garantiza es la regla.
+ */
+describe('el historial no se puede retocar', () => {
+  const RENGLON = {
+    tabla: 'productos',
+    clave: 'TM015',
+    accion: 'edito',
+    queEs: 'MATE IMPERIAL',
+    campo: 'precioVenta',
+    valorAnterior: 45000,
+    valorNuevo: 52000,
+    quienNombre: 'Sandra',
+    quienRol: 'encargado',
+    cuando: Date.now(),
+    motivo: null,
+  }
+
+  async function sembrarRenglon() {
+    await entorno.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${NEGOCIO}/historial/h1`), {
+        ...RENGLON,
+        quien: 'ventas@elclubdelmate.com',
+      })
+    })
+  }
+
+  it('cualquiera activo puede agregar un renglon a su nombre', async () => {
+    await assertSucceeds(
+      setDoc(doc(comoSandra(), `${NEGOCIO}/historial/h-nuevo`), {
+        ...RENGLON,
+        quien: 'ventas@elclubdelmate.com',
+      }),
+    )
+  })
+
+  it('nadie puede firmar un cambio en nombre de otra persona', async () => {
+    await assertFails(
+      setDoc(doc(comoSandra(), `${NEGOCIO}/historial/h-nuevo`), {
+        ...RENGLON,
+        quien: 'emmanuel@elclubdelmate.com',
+      }),
+    )
+  })
+
+  it('un empleado NO puede editar un renglon', async () => {
+    await sembrarRenglon()
+    await assertFails(updateDoc(doc(comoGabi(), `${NEGOCIO}/historial/h1`), { valorNuevo: 1 }))
+  })
+
+  it('un encargado NO puede editar un renglon, ni el propio', async () => {
+    await sembrarRenglon()
+    await assertFails(updateDoc(doc(comoSandra(), `${NEGOCIO}/historial/h1`), { valorNuevo: 1 }))
+  })
+
+  it('un DUEÑO tampoco puede editarlo', async () => {
+    await sembrarRenglon()
+    await assertFails(updateDoc(doc(comoEmma(), `${NEGOCIO}/historial/h1`), { valorNuevo: 1 }))
+  })
+
+  it('un DUEÑO tampoco puede borrarlo', async () => {
+    // El unico que tendria motivo para retocar el historial es quien
+    // tiene algo que esconder, asi que la puerta esta cerrada para
+    // todos. Si manana hace falta depurarlo, se hace desde la consola de
+    // Firebase a mano y queda constancia de eso en Firebase.
+    await sembrarRenglon()
+    await assertFails(deleteDoc(doc(comoEmma(), `${NEGOCIO}/historial/h1`)))
+  })
+
+  it('todos pueden leerlo', async () => {
+    await sembrarRenglon()
+    await assertSucceeds(getDoc(doc(comoGabi(), `${NEGOCIO}/historial/h1`)))
+    await assertSucceeds(getDoc(doc(comoSandra(), `${NEGOCIO}/historial/h1`)))
   })
 })

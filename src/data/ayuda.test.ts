@@ -23,6 +23,25 @@ describe('ayudaParaPerfil', () => {
     expect(suyas.some((e) => e.id === 'cerrar-turno')).toBe(true)
   })
 
+  it('un empleado no ve nada del historial de cambios', () => {
+    // El historial es una herramienta de control sobre el propio
+    // trabajo de quien lo lee. Explicarle a un empleado como se
+    // consulta quien edito que no le sirve para su turno, y le muestra
+    // una pantalla a la que no entra.
+    const suyas = ayudaParaPerfil(TODAS, false, ['caja', 'productos', 'proveedores', 'gastos'])
+    expect(suyas.some((e) => e.categoria === 'Historial de cambios')).toBe(false)
+  })
+
+  it('quien esta al mando si ve el historial, incluido un encargado', () => {
+    // ayudaParaPerfil recibe "esta al mando", no "es dueño": un
+    // encargado tiene que poder leer como se consulta el historial,
+    // porque la pantalla la tiene.
+    const delMando = ayudaParaPerfil(TODAS, true, [])
+    const delHistorial = delMando.filter((e) => e.categoria === 'Historial de cambios')
+    expect(delHistorial.length).toBeGreaterThanOrEqual(5)
+    expect(delHistorial.some((e) => e.id === 'historial-borrar')).toBe(true)
+  })
+
   it('un empleado sin Reportes no ve el margen de contribucion', () => {
     const suyas = ayudaParaPerfil(TODAS, false, ['caja'])
     expect(suyas.some((e) => e.id === 'margen-contribucion')).toBe(false)

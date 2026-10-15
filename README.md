@@ -14,11 +14,11 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | **Panel** | La **revisión automática** del negocio: cada vez que se abre la app revisa sola la caja, el catálogo, los proveedores, los gastos y la sincronización, y arma la lista de lo que hay para hacer, ordenada por gravedad. Cada hallazgo dice qué pasa, por qué importa y qué hacer, con un botón que lleva a la pantalla que lo resuelve, ya filtrada. |
 | **Caja** | Abrir el turno (mañana / tarde) contando la caja, cargar ventas buscando por código o por nombre, registrar egresos, y cerrar el turno viendo la diferencia de caja. |
 | **Productos** | Los 1336 productos que estaban en la planilla. Buscador, edición de precios, costos, proveedor y stock, con filtros rápidos por costo vencido o sin stock. El precio de venta sugerido siempre redondea para arriba, a un múltiplo de 100 — nunca queda un número con sueltos. |
-| **Proveedores** | Aumento de costos en bloque, marcar un proveedor como inactivo, y una **cuenta corriente**: registrar compras (que suman stock y actualizan costo solas) y pagos (efectivo, transferencia, etc.), con el saldo que se le debe a cada uno siempre a la vista. |
+| **Proveedores** | Aumento de costos en bloque (avisa a cuántos productos va a tocar antes de tocarlos), marcar un proveedor como inactivo, y una **cuenta corriente**: registrar compras (que suman stock y actualizan costo solas) y pagos (efectivo, transferencia, etc.), con el saldo que se le debe a cada uno siempre a la vista. |
 | **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. Un pago registrado desde la cuenta corriente de un proveedor aparece acá solo, sin cargarlo dos veces. |
 | **Catálogo público** | Una página aparte, sin login, en `/catalogo/`: nombre, código y precio de venta de 1.280 productos, con buscador. Desde Productos se comparte cualquier producto por WhatsApp con un toque. |
 | **Reportes** | El número que importa: margen de contribución, cómo se arma, y si dio a favor o en contra. Se puede ver **por mes o por año** (el anual trae la tabla mes por mes, el mejor y el más flojo, y el promedio de los meses cerrados — el mes en curso queda marcado aparte y no compite). Incluye el **desglose de los gastos**, separados en fijos y variables y abiertos por categoría, con el detalle de cada movimiento. |
-| **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV y recarga del catálogo. |
+| **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV, recarga del catálogo y el **historial de modificaciones** (quién cambió qué y cuándo, con filtros). |
 
 El Panel termina con **Revisión completa**: los 19 controles que la app corre sola,
 con el resultado de cada uno — también los que dieron bien. Sin eso, "no hay avisos" y
@@ -283,6 +283,91 @@ Una vez logueado, todo lo que se carga en cualquier dispositivo (ventas,
 cierres de caja, gastos, cambios de precio) se sube solo y aparece en los
 demás en segundos. Si se corta internet, sigue funcionando exactamente igual
 y sincroniza apenas vuelve la señal.
+
+---
+
+## El historial de modificaciones
+
+Cada vez que se crea, edita, archiva o borra algo, queda un renglón con **quién, su
+rol, cuándo, qué campo, el valor de antes y el de después**. Cubre las ocho entidades
+que son datos del negocio: productos, proveedores, turnos de caja (apertura, cierre,
+autorizaciones), ventas, gastos, compras y pagos a proveedores, y usuarios.
+
+No hay que llamar a nada para que se grabe. Está en los ganchos `creating` /
+`updating` / `deleting` de Dexie ([`src/db/db.ts`](./src/db/db.ts)), que son los
+mismos por los que pasa **toda** escritura de la app: una pantalla nueva queda
+registrada sin que nadie se acuerde de registrarla. Qué campos se anotan de cada
+tabla está en `CAMPOS_POR_TABLA`, en un solo lugar.
+
+Se consulta en **Ajustes → Historial de modificaciones**
+([`src/paginas/Historial.tsx`](./src/paginas/Historial.tsx)): primero un resumen
+—cuántos cambios, desde cuándo, cuántos hizo cada persona, el detalle por campo— y
+después la lista, con filtros por persona, tipo de dato, campo y fechas. El resumen va
+arriba a propósito: con miles de renglones, la pregunta que uno trae casi nunca es
+"¿qué pasó a las 8:41?" sino "¿esto lo hizo alguien o lo hizo la máquina?".
+
+### No se puede editar ni borrar, tampoco un dueño
+
+En `firestore.rules`, las dos colecciones de historial llevan
+`allow update, delete: if false` para **todos los roles, incluido el dueño**. No es
+desconfianza hacia nadie: un historial que el jefe puede editar no sirve como
+constancia de nada, ni frente a un empleado ni frente a uno mismo dentro de seis
+meses. Si un renglón está equivocado, lo que corresponde es **agregar** el cambio que
+corrige. Hay siete pruebas contra el emulador para esto, y verifiqué que se ponen en
+rojo si se afloja el candado.
+
+El renglón más viejo de la lista dice **"Acá arranca el historial"** con la fecha del
+11/10/2026. Antes de eso la tabla existía pero un error la dejó en cero registros, y
+sin ese renglón un historial que empieza de golpe se lee como un historial al que le
+sacaron cosas.
+
+### Lo que pasó el 14/10, y por qué no fue nadie
+
+El día del primer ingreso de Sandra aparecieron **1.506 cambios de productos a su
+nombre** a las 8:41. No tocó nada: había apretado "Ir a resolverlo" en el Panel para
+mirar.
+
+La causa estaba en `comoRemoto()`, el marcador que evita que un cambio bajado del
+servidor se vuelva a subir (y que no se anote como edición a mano). Era **un booleano**,
+y `comoRemoto` es asincrónico y corre desde varios lados a la vez: los ocho listeners
+de Firestore, la lista de precios y la carga de meses históricos. El **primero** que
+terminaba lo ponía en `false` mientras los demás seguían escribiendo, y desde ese
+instante lo que bajaba del servidor se registraba como ediciones de quien estuviera
+logueado. En un celular recién instalado eso es el catálogo entero: 1.337 productos con
+sus costos de 2022–2024, sus proveedores y 42 descontinuados, todos "editados" en dos
+minutos.
+
+Ahora es un **contador**: el modo remoto dura hasta que termina el último, que es lo
+que se quería decir desde el principio. Hay tres pruebas de concurrencia —dos
+sincronizaciones a la vez, ocho como en el arranque, y una que falla— y verifiqué que
+las tres se ponen en rojo al volver al booleano.
+
+Tres cosas que conviene tener claras de ese episodio:
+
+- **Los datos de los productos nunca estuvieron mal.** Lo único equivocado era el
+  historial. Revertir esos valores habría roto datos buenos.
+- **No fue un botón del Panel.** El Panel y todo el camino de la auditoría solo leen;
+  "Ir a resolverlo" únicamente navega. Eso ahora es una regla verificada en
+  [`src/lib/panel-no-escribe.test.ts`](./src/lib/panel-no-escribe.test.ts), que revisa
+  el texto de esos cinco archivos y falla si aparece una escritura.
+- **Los 1.506 renglones siguen ahí**, porque el historial no se borra ni para
+  arreglarlo. Lo que se hizo fue dejar explicado qué son: acá, en la Ayuda, y en el
+  comentario de `comoRemoto`.
+
+El arreglo tiene un límite que no disimulo: el marcador sigue siendo **global**, así
+que una edición hecha a mano justo mientras baja una sincronización se toma por remota
+y no deja renglón. Es un problema mucho más chico —una edición suelta contra 1.506
+renglones falsos— y para resolverlo bien hay que pasar el marcador por cada escritura
+en vez de tenerlo global. Queda anotado en el código.
+
+### Una acción en bloque avisa cuántos productos toca
+
+El aumento de costos de un proveedor es la única acción que cambia cientos de
+productos con un solo toque. Antes lo hacía sin preguntar: un 50 donde iba un 5 no
+tenía vuelta atrás más que a mano, producto por producto. Ahora pregunta diciendo
+**a cuántos productos va a tocar** y muestra un ejemplo concreto con el más caro
+("de $ 20.000 a $ 21.600"), porque un porcentaje es abstracto y un precio no. Los
+renglones quedan agrupados en el historial con el motivo «Aumento +8% a Fulano».
 
 ---
 
@@ -758,8 +843,44 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-- [ ] Actualizar precios de compra de los productos que más se venden (ver la
-      campana 🔔 y Productos → "Ver esos productos").
-- [ ] Compras a proveedores y control de stock con reposición.
+Lo que está pendiente de verdad, al 15/10/2026. Lo de arriba de la lista es lo que
+sigue.
+
+**En curso**
+
+- [ ] **Importación única del Excel** (`BASE DE DATOS ECDM 2026`): 108 precios de
+      venta, 724 costos, 53 productos nuevos y 40 descripciones. Con vista previa
+      antes de aplicar, celda vacía que no pisa, y la lista de códigos excluidos
+      (duplicados, bajas y saltos sospechosos) para que Sandra los revise a mano.
+      Queda en el historial como «Importación Excel». Después de eso se regenera el
+      catálogo público y el Excel pasa a ser solo de lectura.
+- [ ] Automatizar la publicación de `firestore.rules` con una cuenta de servicio en
+      GitHub Secrets (`FIREBASE_SERVICE_ACCOUNT`), para que las reglas no se peguen
+      más a mano.
+
+**Seguridad**
+
+- [ ] **Pasar el repositorio a privado.** Hoy es público y el historial de git se lee
+      completo, así que sacar un archivo del árbol no lo saca del pasado.
+- [ ] Activar la protección de rama en `main` (pull request + check `verificar`
+      obligatorios).
+- [ ] `public/productos.seed.json`: ver "Pendiente de seguridad" más arriba.
+
+**Datos a ordenar**
+
+- [ ] Los ~10 códigos duplicados que la planilla colapsó en uno.
+- [ ] Los 3 movimientos de Mercado Pago sin clasificar ($ 1.623.000).
+
+**Mejoras conocidas**
+
+- [ ] Pasar el marcador de "esto viene del servidor" **por cada escritura** en vez de
+      tenerlo global (hoy una edición hecha justo durante una sincronización no deja
+      renglón en el historial).
+- [ ] Cargar el número de WhatsApp del local para el catálogo público.
+- [ ] WhatsApp etapa 2: contestar los pedidos desde la app.
 - [ ] Comisiones de tarjeta y días de acreditación.
-- [ ] Multi-usuario con permisos distintos (hoy todos comparten un mismo acceso).
+- [ ] Control de stock con reposición automática.
+
+**Hecho** — multi-usuario con roles distintos (dueño, encargado, empleado), cierres
+tardíos con autorización, visto bueno de diferencias, historial de modificaciones,
+cuenta corriente de proveedores, catálogo público y dominio propio.

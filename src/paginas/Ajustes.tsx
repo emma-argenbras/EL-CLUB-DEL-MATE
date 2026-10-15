@@ -22,6 +22,7 @@ import {
 import { URL_CATALOGO } from '../lib/whatsapp'
 import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
+import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
 
 /**
@@ -282,6 +283,17 @@ export default function Ajustes() {
         <button style={{ width: '100%', marginTop: 6 }} onClick={exportarVentasCSV}>
           Exportar ventas a CSV (para Excel)
         </button>
+      </div>
+
+      <div className="tarjeta">
+        <p className="tarjeta-titulo">Historial de modificaciones</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          Quién creó, editó, archivó o borró cada cosa, con el valor de antes y el de después.
+          No se puede editar ni borrar, por ningún rol.
+        </p>
+        <Link className="boton-chico" style={{ width: '100%', textAlign: 'center' }} to="/historial">
+          Ver el historial
+        </Link>
       </div>
 
       <div className="tarjeta">

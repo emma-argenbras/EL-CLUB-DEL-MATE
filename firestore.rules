@@ -98,9 +98,23 @@ service cloud.firestore {
       allow delete: if soyOwner() || (soyEncargado() && elObjetivoNoEsDueno());
     }
 
-    // Historial de ediciones de productos: es un registro, no se edita ni
-    // se borra, solo se agregan renglones nuevos, y siempre a nombre de
-    // quien esta logueado (no se puede firmar en nombre de otra persona).
+    // El historial de modificaciones: es un registro, no se edita ni se
+    // borra, solo se agregan renglones nuevos, y siempre a nombre de
+    // quien esta logueado (no se puede firmar un cambio en nombre de
+    // otra persona).
+    //
+    // update y delete son 'false' para TODOS, incluido un dueño. No es
+    // un olvido: un historial que alguien puede retocar no sirve como
+    // historial, y el unico que tendria motivo para retocarlo es quien
+    // tiene algo que esconder.
+    match /negocios/el-club-del-mate/historial/{entradaId} {
+      allow read: if estaLogueado();
+      allow create: if estoyActivo() && request.resource.data.quien == request.auth.token.email;
+      allow update, delete: if false;
+    }
+
+    // La tabla vieja, solo de productos. Queda cerrada igual: todavia
+    // hay renglones ahi de antes de la migracion.
     match /negocios/el-club-del-mate/historialProductos/{entradaId} {
       allow read: if estaLogueado();
       allow create: if estoyActivo() && request.resource.data.quien == request.auth.token.email;
@@ -186,11 +200,13 @@ service cloud.firestore {
     match /negocios/el-club-del-mate/{coleccion}/{documento} {
       allow read: if estaLogueado() &&
         coleccion != 'usuarios' &&
+        coleccion != 'historial' &&
         coleccion != 'historialProductos' &&
         coleccion != 'productos' &&
         coleccion != 'jornadas';
       allow write: if estoyActivo() &&
         coleccion != 'usuarios' &&
+        coleccion != 'historial' &&
         coleccion != 'historialProductos' &&
         coleccion != 'productos' &&
         coleccion != 'jornadas';
