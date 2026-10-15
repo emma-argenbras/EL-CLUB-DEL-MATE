@@ -16,6 +16,7 @@ import Gastos from './paginas/Gastos'
 import Reportes from './paginas/Reportes'
 import MiActividad from './paginas/MiActividad'
 import Ajustes from './paginas/Ajustes'
+import Historial from './paginas/Historial'
 import Ayuda from './paginas/Ayuda'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
@@ -180,6 +181,10 @@ export default function App() {
           <Route
             path="/ajustes"
             element={alMando ? <Ajustes /> : <Navigate to="/mi-actividad" replace />}
+          />
+          <Route
+            path="/historial"
+            element={alMando ? <Historial /> : <Navigate to="/mi-actividad" replace />}
           />
           <Route path="/ayuda" element={<Ayuda />} />
           <Route path="*" element={<Navigate to="/caja" replace />} />
