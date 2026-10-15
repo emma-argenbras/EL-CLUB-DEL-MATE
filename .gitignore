@@ -11,6 +11,11 @@ dev-dist
 # Planillas originales (se importan con scripts/, no se versionan)
 datos-originales/
 *.xlsx
+
+# Los seeds con datos del negocio: costos, proveedores, ventas y el conteo
+# de billetes de cada turno. El repositorio es publico, asi que un archivo
+# versionado lo lee cualquiera. Lo verifica revisar-publicos --versionados.
+datos/
 tsconfig.tsbuildinfo
 scripts/__pycache__/
 
