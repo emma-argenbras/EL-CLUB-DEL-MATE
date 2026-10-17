@@ -414,6 +414,24 @@ export const AYUDA: EntradaAyuda[] = [
   },
   // ---------- Productos ----------
   {
+    id: 'consulta-precio-salon',
+    categoria: 'Productos',
+    pregunta: '¿Cómo busco un precio rápido con el cliente adelante?',
+    respuesta:
+      'Si el celular está en modo consulta, la app abre directo en el buscador con el teclado listo: escribís dos letras del nombre (o el código) y el precio aparece en grande, sin tener que buscar nada más en la pantalla.\n\nEs una pantalla aparte, pensada para eso: no tiene avisos arriba y no muestra el costo ni el margen, así que podés girar el celular hacia el cliente sin problema.\n\nSi necesitás hacer otra cosa, abajo de todo está "Ir al resto de la app". La próxima vez que abras la app volvés al buscador.',
+    palabrasClave: ['consulta', 'salon', 'precio rapido', 'mostrador', 'cliente', 'vendedor'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'prender-modo-consulta',
+    categoria: 'Productos',
+    pregunta: '¿Cómo dejo el celular del salón en modo consulta de precios?',
+    respuesta:
+      'Ajustes → "Modo consulta de precios" → "Prender en este dispositivo".\n\nSe configura por dispositivo y no viaja a los demás: el celular del salón lo tiene prendido y el tuyo sigue abriendo en el Panel como siempre. Desde ahí mismo está "Probarlo" para ver cómo queda antes de dejarlo así.\n\nNo es un candado: desde esa pantalla se puede ir al resto de la app, y el menú de abajo sigue estando. Lo único que cambia es por dónde arranca la app y que no muestra los avisos del negocio.',
+    palabrasClave: ['modo consulta', 'salon', 'kiosco', 'celular del local'],
+    soloOwner: true,
+  },
+  {
     id: 'buscar-producto',
     categoria: 'Productos',
     pregunta: '¿Cómo busco un producto en el catálogo?',
@@ -737,6 +755,24 @@ export const AYUDA: EntradaAyuda[] = [
   },
 
   // ---------- Sincronización y respaldo ----------
+  {
+    id: 'codigos-con-barra',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Hay productos que veo en un celular y no en otro, ¿por qué?',
+    respuesta:
+      'Había un problema con los 34 productos cuyo código lleva una barra (EL11/05, EL22/102 y los demás que empiezan con EL). Para el servidor la barra separa carpetas, así que esos productos se guardaban bien en el celular pero nunca llegaban a subir, y en los demás dispositivos no aparecían.\n\nPeor todavía: en la primera sincronización de un celular, el error cortaba la subida ahí mismo, y lo que venía después —proveedores, turnos, gastos— tampoco subía. De ahí salieron varios de los problemas de proveedores.\n\nYa está arreglado (17/10/2026). El código que ves no cambió: sigue siendo EL11/05. Lo que cambió es cómo se llama ese dato adentro del servidor. Se arregla solo la próxima vez que inicies sesión.',
+    palabrasClave: ['barra', 'no aparece', 'no sube', 'EL11', 'falta un producto', 'desincronizado'],
+    soloOwner: true,
+  },
+  {
+    id: 'revisar-proveedores',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Al editar un producto solo me aparece "Sin proveedor", ¿qué pasó?',
+    respuesta:
+      'La lista de proveedores del formulario muestra solo los que están activos. Si casi todos quedaron marcados como inactivos, la lista queda vacía y solo se ve "Sin proveedor" y "+ Proveedor nuevo…".\n\nEn Ajustes → "Revisión de proveedores" está el panorama completo: cuántos hay, cuáles están repetidos (el mismo proveedor cargado varias veces con nombres iguales), cuáles están inactivos y cuántos productos apuntan a una ficha que no existe. Esa pantalla no cambia nada: es para mirar y decidir.\n\nMientras tanto, "+ Proveedor nuevo…" sigue funcionando, y si escribís un nombre que ya existe la app lo reconoce y lo reusa en vez de duplicarlo.',
+    palabrasClave: ['sin proveedor', 'proveedores repetidos', 'duplicados', 'inactivos', 'revision'],
+    soloOwner: true,
+  },
   {
     id: 'que-es-sincronizar',
     categoria: 'Sincronización y respaldo',

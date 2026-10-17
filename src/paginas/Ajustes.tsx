@@ -24,6 +24,7 @@ import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
+import { apagarModoConsulta, leerModoConsulta, prenderModoConsulta } from '../lib/modoConsulta'
 
 /**
  * Todo lo que entra en una copia manual. Cada vez que se suma una tabla
@@ -54,6 +55,8 @@ export default function Ajustes() {
   const sesion = useSesion()
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [trabajando, setTrabajando] = useState(false)
+
+  const modoConsulta = useLiveQuery(() => leerModoConsulta(), [], false)
 
   const conteos = useLiveQuery(async () => ({
     productos: await db.productos.count(),
@@ -283,6 +286,44 @@ export default function Ajustes() {
         <button style={{ width: '100%', marginTop: 6 }} onClick={exportarVentasCSV}>
           Exportar ventas a CSV (para Excel)
         </button>
+      </div>
+
+      <div className="tarjeta">
+        <p className="tarjeta-titulo">Revisión de proveedores</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          Cuántos proveedores hay, cuáles están repetidos, cuáles están inactivos y cuáles usan
+          los productos sin que exista la ficha. Es solo para mirar: no cambia nada.
+        </p>
+        <Link
+          className="boton-chico"
+          style={{ width: '100%', textAlign: 'center' }}
+          to="/revision-proveedores"
+        >
+          Ver la revisión
+        </Link>
+      </div>
+
+      <div className="tarjeta">
+        <p className="tarjeta-titulo">Modo consulta de precios</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          Para el celular del salón. La app abre directo en el buscador, con el precio grande y
+          sin los avisos arriba. No se ve el costo ni el margen: la pantalla se da vuelta hacia
+          el cliente.
+        </p>
+        <p className="silencio">
+          Se configura <strong>por dispositivo</strong>: prenderlo acá no se lo prende a nadie
+          más. {modoConsulta ? 'Este dispositivo lo tiene prendido.' : 'Este dispositivo lo tiene apagado.'}
+        </p>
+        <div className="botonera">
+          {modoConsulta ? (
+            <button onClick={() => apagarModoConsulta()}>Apagar en este dispositivo</button>
+          ) : (
+            <button onClick={() => prenderModoConsulta()}>Prender en este dispositivo</button>
+          )}
+          <Link className="boton-chico" style={{ textAlign: 'center' }} to="/consulta">
+            Probarlo
+          </Link>
+        </div>
       </div>
 
       <div className="tarjeta">

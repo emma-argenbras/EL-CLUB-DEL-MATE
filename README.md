@@ -18,7 +18,8 @@ cuando hay conexión, y calcula sola el **margen de contribución** del mes.
 | **Gastos** | Alquiler, servicios, proveedores, contador. Cada gasto se marca como **fijo** o **variable**, que es lo que después separa el margen del resultado. Un pago registrado desde la cuenta corriente de un proveedor aparece acá solo, sin cargarlo dos veces. |
 | **Catálogo público** | Una página aparte, sin login, en `/catalogo/`: nombre, código y precio de venta de 1.280 productos, con buscador. Desde Productos se comparte cualquier producto por WhatsApp con un toque. |
 | **Reportes** | El número que importa: margen de contribución, cómo se arma, y si dio a favor o en contra. Se puede ver **por mes o por año** (el anual trae la tabla mes por mes, el mejor y el más flojo, y el promedio de los meses cerrados — el mes en curso queda marcado aparte y no compite). Incluye el **desglose de los gastos**, separados en fijos y variables y abiertos por categoría, con el detalle de cada movimiento. |
-| **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV, recarga del catálogo y el **historial de modificaciones** (quién cambió qué y cuándo, con filtros). |
+| **Consulta de precios** | El modo salón: la app abre directo en el buscador, con el precio en grande y sin avisos ni costo a la vista. Para responder "¿cuánto sale?" con el cliente adelante. |
+| **Ajustes** | Vincular la nube, respaldo de todos los datos, exportación de ventas a CSV, recarga del catálogo, el **historial de modificaciones** (quién cambió qué y cuándo, con filtros) y la **revisión de proveedores**. |
 
 El Panel termina con **Revisión completa**: los 19 controles que la app corre sola,
 con el resultado de cada uno — también los que dieron bien. Sin eso, "no hay avisos" y
@@ -286,6 +287,88 @@ y sincroniza apenas vuelve la señal.
 
 ---
 
+## El modo consulta de precios (el celular del salón)
+
+Un cliente parado adelante preguntando cuánto sale algo es otra situación que mirar el
+catálogo. Ahí no se navega, no se lee una tabla y no se desplaza una lista: se escribe
+media palabra y se lee un número en voz alta. Para eso está
+[`src/paginas/ConsultaPrecios.tsx`](./src/paginas/ConsultaPrecios.tsx):
+
+- **Arranca con el teclado abierto** en el buscador. Un toque menos.
+- **Sin avisos arriba.** Los pendientes del negocio no son asunto de ese momento, y
+  correrían el buscador hacia abajo justo cuando tiene que estar arriba de todo. La
+  campana 🔔 también se esconde.
+- **El precio va grande de verdad** (2,1 rem), porque se lee de parado y a veces con el
+  celular medio girado.
+- **No se ve el costo ni el margen.** No es solo por los permisos: la pantalla se da
+  vuelta sola hacia el cliente, y lo que el negocio paga por algo no es una
+  conversación para tener en el mostrador.
+
+Se prende en **Ajustes → Modo consulta de precios**, y se guarda en la tabla `ajustes`,
+que a propósito no sincroniza: son marcas del aparato, no del negocio. Es justo lo que
+hace falta —el celular del salón lo tiene prendido y el del dueño no—, y si viajara a
+la nube, prenderlo en el salón le cambiaría la pantalla de arranque a todo el mundo.
+
+No es un kiosco: desde la pantalla se va al resto de la app y el menú de abajo sigue
+estando. Lo único que cambia es por dónde arranca y qué no muestra. El botón de salida
+**no apaga el modo** —eso se hace desde Ajustes—, así que el celular del salón vuelve
+solo al buscador la próxima vez que se abre.
+
+---
+
+## Códigos con barra: 34 productos que nunca subían
+
+34 códigos del catálogo tienen una barra adentro (`EL11/05`, `EL22/102`, `EL82/471`…).
+Para Firestore la barra no es un caracter más: es el separador de la ruta. Así que
+
+```js
+doc(firestore, 'negocios', 'el-club-del-mate', 'productos', 'EL11/05')
+```
+
+no apuntaba a un producto llamado `EL11/05` sino a la ruta
+`negocios/el-club-del-mate/productos/EL11/05`, que tiene **cinco tramos** —impar— y por
+lo tanto no es un documento:
+
+```
+Invalid document reference. Document references must have an even number
+of segments, but .../productos/EL11/05 has 5.
+```
+
+Y lo rechazaba **tirando una excepción al armar la referencia**, no devolviendo una
+promesa rechazada. Eso tuvo dos consecuencias, las dos silenciosas:
+
+1. Esos 34 productos **nunca subieron**. Como la excepción no pasaba por
+   `avisarRechazo()`, tampoco aparecía el aviso de "el servidor rechazó un cambio": se
+   guardaban en el celular y ahí quedaban.
+2. En la subida inicial (`empujarTodoLocal`), la excepción cortaba el armado del lote
+   **y con él todo lo que venía después en la cola**: el resto de los productos, los
+   turnos, las ventas, los gastos y —sobre todo— **los proveedores**. De ahí vienen
+   buena parte de los `proveedorId` que apuntan a fichas que en el servidor no existen.
+
+El arreglo está en [`src/sync/claves.ts`](./src/sync/claves.ts): se escapa la barra al
+nombrar el documento y se desescapa al leerlo. **El código que ve una persona no cambia
+en ningún lado** — el código de verdad viaja adentro del documento, en el campo
+`codigo`, y esto es solo cómo se llama el archivo.
+
+Se escapan dos caracteres y nada más: la barra, porque rompe, y el porcentaje, porque
+es el caracter de escape. Eso es lo importante y es a propósito: **los otros 1.303
+productos conservan exactamente el nombre de documento que ya tienen en el servidor.**
+Si esto escapara de más (con `encodeURIComponent`, que también toca los espacios), cada
+producto con un espacio en el código pasaría a ser un documento nuevo y quedaría el
+viejo al lado. Un arreglo que duplica el catálogo es peor que el problema.
+
+Las pruebas corren sobre el catálogo de verdad, no sobre ejemplos inventados: los 1.280
+códigos de `public/catalogo.json` tienen que dar un nombre de documento válido, único y
+reversible. Verifiqué que cinco de ellas se ponen en rojo si se saca el escape.
+
+Además, ahora cada referencia del lote va en su propio `try`: una clave mala se saltea
+sola y el resto sube, en vez de cortar la cola entera.
+
+**Se arregla solo**: la próxima vez que cada dispositivo inicie sesión, `empujarTodoLocal`
+sube lo que el servidor no tiene, y ahí entran los 34.
+
+---
+
 ## El historial de modificaciones
 
 Cada vez que se crea, edita, archiva o borra algo, queda un renglón con **quién, su
@@ -368,6 +451,61 @@ tenía vuelta atrás más que a mano, producto por producto. Ahora pregunta dici
 **a cuántos productos va a tocar** y muestra un ejemplo concreto con el más caro
 ("de $ 20.000 a $ 21.600"), porque un porcentaje es abstracto y un precio no. Los
 renglones quedan agrupados en el historial con el motivo «Aumento +8% a Fulano».
+
+---
+
+## El lío de los proveedores
+
+Al 17/10/2026: 34 proveedores cargados, **33 inactivos**, varios repetidos con el mismo
+nombre (A MATEAR ALEJO, ABEL, ALBERTO BALDUGA), y los productos apuntando a unos **80
+`proveedorId` distintos** para esas 34 fichas. El síntoma visible es que al editar un
+producto la lista de proveedores sale vacía: el formulario muestra solo los activos
+([`Productos.tsx`](./src/paginas/Productos.tsx), el filtro `prov.activo !== false`), y
+con uno solo activo lo único que queda es "Sin proveedor".
+
+Son dos causas sumadas, ninguna de las dos es que alguien cargó mal los datos.
+
+**1. El id del proveedor se inventa en cada dispositivo.** Tanto la migración de la
+base (versión 3) como `derivarProveedoresDesdeProductos()` hacen lo mismo: agrupan los
+productos por el **nombre** del proveedor que venía de la planilla y le dan a cada
+nombre un id nuevo con `nuevoId()`, que es aleatorio. Eso funciona en un dispositivo.
+Con cinco, no: el celular de cada persona le puso a "MOHICANO" un id distinto, y
+después los cinco sincronizaron. Resultado: el mismo proveedor varias veces con ids
+distintos, y cada producto apuntando al id que le puso **su** celular.
+
+**2. La subida inicial se cortaba.** Es el bug de las claves con barra, acá arriba: la
+cola se cortaba en el primer producto con barra, y los proveedores —que van después de
+los productos en el orden de subida— nunca llegaban al servidor, aunque sus productos
+sí. Por eso hay `proveedorId` que no corresponden a ninguna ficha.
+
+Lo de los 33 inactivos es lo único que el código **no** explica: hay una sola forma de
+marcar un proveedor como inactivo y es de a uno, con confirmación
+([`Proveedores.tsx`](./src/paginas/Proveedores.tsx), `alternarActivo`). O se hizo a
+mano 33 veces, o entró así en un respaldo importado. Desde el 11/10 el historial
+registra ese campo, así que de acá en adelante se sabe.
+
+### La revisión, que no toca nada
+
+[`src/lib/planProveedores.ts`](./src/lib/planProveedores.ts) calcula el plan y
+**Ajustes → Revisión de proveedores** lo muestra. La pantalla es de solo lectura a
+propósito: el arreglo mueve el proveedor de cientos de productos de una, y eso se mira
+antes de que pase.
+
+El plan sale en el orden en que conviene ejecutarlo:
+
+1. **Unificar los repetidos.** Sobrevive el que más productos tiene (a igualdad, el más
+   viejo); los demás le ceden sus productos y después se borran.
+2. **Reenganchar los perdidos.** Productos que apuntan a una ficha inexistente pero
+   cuyo nombre —que los productos traen escrito en el campo `proveedor`, de la planilla
+   vieja— coincide con una ficha que sí existe. No hay que crear nada: se reapunta.
+3. **Crear los que faltan.** De estos no quedó ninguna ficha en ningún lado; se crean
+   con el nombre que traen los productos.
+4. **Reactivar.** Va al final porque después de unificar hay menos fichas que
+   reactivar. Solo se proponen los inactivos que **todavía tienen productos vigentes**:
+   si un proveedor está inactivo y todos sus productos quedaron descontinuados, esa
+   decisión fue deliberada y no se deshace sola.
+
+La lógica tiene 14 pruebas, incluida una que reproduce la forma del problema real.
 
 ---
 
@@ -903,8 +1041,16 @@ sigue.
 **Hecho el 15/10** — `datos/` salió del repositorio y hay un chequeo
 (`npm run revisar-versionados`) que falla si vuelve a entrar algo privado al árbol.
 
+**Hecho el 17/10** — los 34 códigos con barra ya suben al servidor, el modo consulta de
+precios para el salón, y la revisión de proveedores.
+
 **Datos a ordenar**
 
+- [ ] **Aplicar el plan de proveedores** (ver "El lío de los proveedores"): unificar los
+      repetidos, reenganchar los perdidos, crear los que faltan y reactivar. La revisión
+      ya está; falta el botón de aplicar, con confirmación y motivo en el historial.
+- [ ] Darle al proveedor un id **derivado del nombre** en vez de uno aleatorio por
+      dispositivo, para que esto no se vuelva a armar solo cuando entre un celular nuevo.
 - [ ] Los ~10 códigos duplicados que la planilla colapsó en uno.
 - [ ] Los 3 movimientos de Mercado Pago sin clasificar ($ 1.623.000).
 

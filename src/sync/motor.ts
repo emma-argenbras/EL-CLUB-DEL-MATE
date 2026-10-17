@@ -27,6 +27,7 @@ import {
   type Rol,
   type SeccionId,
 } from '../db/db'
+import { aClaveDeNube, aClaveLocal } from './claves'
 import { ID_NEGOCIO } from './config'
 import { fijarEstadoNube } from './estado'
 import { crearAuthSecundario, obtenerAuth, obtenerFirestore } from './firebase'
@@ -110,7 +111,19 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
   if (!auth.currentUser) return
   const firestore = obtenerFirestore()
 
-  const referencia = doc(firestore, 'negocios', ID_NEGOCIO, tabla, clave)
+  // La clave se escapa para nombrar el documento (ver claves.ts): hay
+  // 34 codigos de producto con barra, y la barra es el separador de
+  // rutas de Firestore. Sin esto, doc() TIRA --no rechaza, tira-- y la
+  // excepcion ni siquiera llegaba a avisarRechazo: el producto se
+  // guardaba local y no subia nunca, en silencio.
+  const idEnLaNube = aClaveDeNube(clave)
+  let referencia
+  try {
+    referencia = doc(firestore, 'negocios', ID_NEGOCIO, tabla, idEnLaNube)
+  } catch (e) {
+    avisarRechazo(tabla, clave, e)
+    return
+  }
   if (accion === 'borrar') {
     deleteDoc(referencia).catch((e) => avisarRechazo(tabla, clave, e))
   } else {
@@ -136,7 +149,9 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
  */
 function avisarRechazo(tabla: NombreTabla, clave: string, error: unknown): void {
   const mensaje = error instanceof Error ? error.message : String(error)
-  rechazosRecientes.add(`${tabla}/${clave}`)
+  // Se anota con el nombre que tiene el documento en la nube, que es el
+  // que va a venir en el snapshot cuando llegue el eco del rechazo.
+  rechazosRecientes.add(`${tabla}/${aClaveDeNube(clave)}`)
   console.warn(`El servidor rechazo un cambio en ${tabla}:`, error)
   fijarEstadoNube({
     estado: 'error',
@@ -176,18 +191,39 @@ async function empujarTodoLocal() {
     for (const fila of filas) {
       const clave =
         tabla === 'productos' ? (fila as { codigo: string }).codigo : (fila as { id: string }).id
-      if (enElServidor.has(clave)) continue
+      // Se compara contra el nombre que el documento tiene alla, no el
+      // de aca: para los codigos con barra no son el mismo.
+      if (enElServidor.has(aClaveDeNube(clave))) continue
       operaciones.push({ tabla, clave, datos: limpiar(fila as Record<string, unknown>) })
     }
   }
 
   const TAMANO_LOTE = 400
+  const rechazadas: string[] = []
   for (let i = 0; i < operaciones.length; i += TAMANO_LOTE) {
     const lote = writeBatch(firestore)
     for (const { tabla, clave, datos } of operaciones.slice(i, i + TAMANO_LOTE)) {
-      lote.set(doc(firestore, 'negocios', ID_NEGOCIO, tabla, clave), datos)
+      // Cada referencia va en su propio try. doc() tira al armar la
+      // referencia, no al enviarla, asi que antes una sola clave mala
+      // cortaba el armado del lote y con el se cortaba todo lo que
+      // venia despues en la cola: el resto de los productos, los
+      // turnos, las ventas y los proveedores. Por eso quedaron
+      // productos apuntando a proveedores que en el servidor no
+      // existen. Ahora una clave mala se saltea sola y el resto sube.
+      try {
+        lote.set(doc(firestore, 'negocios', ID_NEGOCIO, tabla, aClaveDeNube(clave)), datos)
+      } catch (e) {
+        rechazadas.push(`${tabla}/${clave}`)
+        console.warn(`No se pudo armar la referencia de ${tabla}/${clave}:`, e)
+      }
     }
     await lote.commit().catch((e) => console.warn('No se pudo subir un lote de datos:', e))
+  }
+  if (rechazadas.length > 0) {
+    fijarEstadoNube({
+      estado: 'error',
+      error: `Quedaron ${rechazadas.length} registros sin subir porque su clave no es válida para el servidor (${rechazadas.slice(0, 3).join(', ')}…).`,
+    })
   }
 }
 
@@ -244,7 +280,9 @@ function escucharColecciones() {
               // un problema de permisos. Ante la duda no se borra: el
               // dato queda y el estado de la nube ya quedo en error.
               if (rechazosRecientes.has(`${tabla}/${cambio.doc.id}`)) continue
-              await db.table(tabla).delete(cambio.doc.id)
+              // El id viene escapado si la clave tenia barra: se
+              // desescapa para borrar la fila local correcta.
+              await db.table(tabla).delete(aClaveLocal(cambio.doc.id))
             } else {
               rechazosRecientes.delete(`${tabla}/${cambio.doc.id}`)
               await db.table(tabla).put({ ...cambio.doc.data() })
