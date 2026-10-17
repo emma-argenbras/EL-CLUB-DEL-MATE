@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSearchParams } from 'react-router-dom'
-import { db, nuevoId, productoVisible, type HistorialProducto, type Producto } from '../db/db'
+import { asegurarProveedor, db, productoVisible, type HistorialProducto, type Producto } from '../db/db'
 import {
   costoDesactualizado,
   margenPorcentual,
@@ -527,19 +527,10 @@ function FormularioProducto({
     if (idProveedor === 'nuevo') {
       const nombre = nuevoProveedor.trim()
       if (!nombre) return setError('Escribí el nombre del proveedor nuevo.')
-      const existente = await db.proveedores.where('nombre').equalsIgnoreCase(nombre).first()
-      if (existente) {
-        idProveedor = existente.id
-      } else {
-        idProveedor = nuevoId()
-        await db.proveedores.add({
-          id: idProveedor,
-          nombre,
-          contacto: null,
-          notas: null,
-          activo: true,
-        })
-      }
+      // Mismo camino que usa la importacion del Excel: el id sale del
+      // nombre, y si el proveedor ya existe lo reusa en vez de crear
+      // una copia.
+      idProveedor = await asegurarProveedor(nombre)
     }
     const nombreProveedor = idProveedor
       ? ((await db.proveedores.get(idProveedor))?.nombre ?? null)

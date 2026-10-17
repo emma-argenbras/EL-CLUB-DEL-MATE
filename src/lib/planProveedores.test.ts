@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { armarPlanProveedores } from './planProveedores'
+import { idDeProveedor } from './idProveedor'
 import type { Producto, Proveedor } from '../db/db'
 import { normalizar } from './formato'
 
@@ -7,7 +8,12 @@ function prov(id: string, nombre: string, activo = true, creadoEn = 1): Proveedo
   return { id, nombre, contacto: null, notas: null, activo, creadoEn }
 }
 
-function prod(codigo: string, proveedorId: string | null, nombre: string | null, extra: Partial<Producto> = {}): Producto {
+function prod(
+  codigo: string,
+  proveedorId: string | null,
+  nombre: string | null,
+  extra: Partial<Producto> = {},
+): Producto {
   return {
     codigo,
     descripcion: codigo,
@@ -25,29 +31,47 @@ function prod(codigo: string, proveedorId: string | null, nombre: string | null,
   }
 }
 
-describe('duplicados', () => {
-  it('junta los que tienen el mismo nombre con distinto id', () => {
+/** Varios productos iguales de un mismo proveedor, para no repetir. */
+function varios(cuantos: number, prefijo: string, proveedorId: string, nombre: string, extra: Partial<Producto> = {}) {
+  return Array.from({ length: cuantos }, (_, i) => prod(`${prefijo}${i}`, proveedorId, nombre, extra))
+}
+
+describe('paso 1: unificar y ponerle a cada ficha el id de su nombre', () => {
+  it('junta las copias del mismo nombre en una sola ficha', () => {
     const plan = armarPlanProveedores(
       [prov('a', 'ABEL'), prov('b', 'ABEL'), prov('c', 'MOHICANO')],
       [prod('1', 'a', 'ABEL'), prod('2', 'a', 'ABEL'), prod('3', 'b', 'ABEL')],
     )
-    expect(plan.duplicados).toHaveLength(1)
-    expect(plan.duplicados[0].sobrevive.proveedor.id).toBe('a')
-    expect(plan.duplicados[0].absorbidos.map((x) => x.proveedor.id)).toEqual(['b'])
-    expect(plan.duplicados[0].productosAMover).toBe(1)
+    const abel = plan.unificar.find((d) => d.id === idDeProveedor('ABEL'))!
+    expect(abel.fichas).toHaveLength(2)
+    expect(abel.sobrevive!.proveedor.id).toBe('a')
+    expect(abel.productosFinales).toBe(3)
   })
 
-  it('no le importan los acentos ni las mayusculas', () => {
-    const plan = armarPlanProveedores([prov('a', 'A Matear Alejo'), prov('b', 'A MATEAR ALEJO')], [])
-    expect(plan.duplicados).toHaveLength(1)
+  it('la ficha final se llama con el id derivado del nombre', () => {
+    const plan = armarPlanProveedores([prov('id-aleatorio', 'MOHICANO')], [])
+    expect(plan.unificar[0].id).toBe('prov-mohicano')
+  })
+
+  it('tambien entra la que no esta repetida pero tiene id aleatorio', () => {
+    // Si se le dejara el id viejo, el dia que otro dispositivo (o la
+    // importacion del Excel) derive el id del nombre, aparece una
+    // segunda ficha y el lio vuelve a empezar.
+    const plan = armarPlanProveedores([prov('uuid-suelto', 'GOMECITO')], [])
+    expect(plan.unificar.map((d) => d.nombre)).toEqual(['GOMECITO'])
+  })
+
+  it('la que ya tiene el id correcto no se toca', () => {
+    const plan = armarPlanProveedores([prov(idDeProveedor('GOMECITO'), 'GOMECITO')], [])
+    expect(plan.unificar).toEqual([])
   })
 
   it('sobrevive el que mas productos tiene, no el primero', () => {
     const plan = armarPlanProveedores(
       [prov('pocos', 'ABEL'), prov('muchos', 'ABEL')],
-      [prod('1', 'muchos', 'ABEL'), prod('2', 'muchos', 'ABEL'), prod('3', 'pocos', 'ABEL')],
+      [...varios(2, 'm', 'muchos', 'ABEL'), prod('p1', 'pocos', 'ABEL')],
     )
-    expect(plan.duplicados[0].sobrevive.proveedor.id).toBe('muchos')
+    expect(plan.unificar[0].sobrevive!.proveedor.id).toBe('muchos')
   })
 
   it('a igualdad de productos sobrevive el mas viejo', () => {
@@ -55,72 +79,123 @@ describe('duplicados', () => {
       [prov('nuevo', 'ABEL', true, 2000), prov('viejo', 'ABEL', true, 1000)],
       [],
     )
-    expect(plan.duplicados[0].sobrevive.proveedor.id).toBe('viejo')
+    expect(plan.unificar[0].sobrevive!.proveedor.id).toBe('viejo')
   })
 
-  it('uno solo con ese nombre no es un duplicado', () => {
-    const plan = armarPlanProveedores([prov('a', 'ABEL')], [prod('1', 'a', 'ABEL')])
-    expect(plan.duplicados).toEqual([])
+  it('junta aunque el nombre este escrito distinto', () => {
+    const plan = armarPlanProveedores(
+      [prov('a', 'ANGEL MALAGUEÑO'), prov('b', 'Angel  Malagueno ')],
+      [],
+    )
+    expect(plan.unificar).toHaveLength(1)
+    expect(plan.unificar[0].fichas).toHaveLength(2)
   })
 })
 
-describe('ids huerfanos', () => {
-  it('encuentra el proveedorId que ningun documento tiene', () => {
-    const plan = armarPlanProveedores([prov('existe', 'MOHICANO')], [prod('1', 'fantasma', 'GOMECITO')])
-    expect(plan.huerfanos).toHaveLength(1)
-    expect(plan.huerfanos[0].id).toBe('fantasma')
-    expect(plan.huerfanos[0].productos).toBe(1)
+describe('paso 3: crear uno solo por nombre', () => {
+  it('tres ids perdidos del mismo nombre crean UNA ficha', () => {
+    // Este era el error: agrupaba por id perdido y proponia crear
+    // MOHICANO tres veces.
+    const plan = armarPlanProveedores(
+      [],
+      [
+        ...varios(5, 'a', 'id-celu-1', 'MOHICANO'),
+        ...varios(3, 'b', 'id-celu-2', 'MOHICANO'),
+        ...varios(2, 'c', 'id-celu-3', 'MOHICANO'),
+      ],
+    )
+    expect(plan.crear).toHaveLength(1)
+    expect(plan.crear[0].nombre).toBe('MOHICANO')
+    expect(plan.crear[0].id).toBe('prov-mohicano')
+    expect(plan.crear[0].productosFinales).toBe(10)
   })
 
-  it('lo engancha al proveedor que ya existe con ese nombre', () => {
-    // Es el caso de todos los dias: el documento del proveedor se
-    // perdio en un dispositivo, pero en otro existe con el mismo
-    // nombre. No hay que crear nada, hay que reapuntar.
+  it('agrupa aunque el nombre venga con mayusculas y espacios distintos', () => {
     const plan = armarPlanProveedores(
-      [prov('bueno', 'MOHICANO')],
+      [],
+      [prod('1', 'x', 'SALDOS'), prod('2', 'y', 'saldos '), prod('3', 'z', ' Saldos')],
+    )
+    expect(plan.crear).toHaveLength(1)
+    expect(plan.crear[0].productosFinales).toBe(3)
+  })
+
+  it('las fichas nuevas nacen activas, asi que no van al paso 4', () => {
+    const plan = armarPlanProveedores([], [prod('1', 'perdido', 'IRUPE BOMBILLAS')])
+    expect(plan.crear[0].activo).toBe(true)
+    expect(plan.reactivar).toEqual([])
+  })
+
+  it('si el nombre ya tiene ficha, no se crea: se reengancha', () => {
+    const plan = armarPlanProveedores(
+      [prov(idDeProveedor('MOHICANO'), 'MOHICANO')],
       [prod('1', 'id-de-otro-celular', 'MOHICANO')],
     )
-    expect(plan.huerfanos[0].seEnganchaA?.id).toBe('bueno')
-    expect(plan.aCrear).toEqual([])
+    expect(plan.crear).toEqual([])
+    expect(plan.reenganchar).toHaveLength(1)
+    expect(plan.reenganchar[0].productosRecuperados).toBe(1)
   })
 
-  it('si no hay ninguno con ese nombre, hay que crearlo', () => {
-    const plan = armarPlanProveedores([prov('otro', 'MOHICANO')], [prod('1', 'perdido', 'RINGO VAINAS')])
-    expect(plan.aCrear).toHaveLength(1)
-    expect(plan.aCrear[0].nombre).toBe('RINGO VAINAS')
-  })
-
-  it('un producto sin proveedorId no es un huerfano, es un sin proveedor', () => {
-    const plan = armarPlanProveedores([], [prod('1', null, null)])
-    expect(plan.huerfanos).toEqual([])
-    expect(plan.sinProveedor).toBe(1)
+  it('un id perdido sin nombre no se puede resolver solo', () => {
+    const plan = armarPlanProveedores([], [prod('1', 'huerfano-mudo', null)])
+    expect(plan.crear).toEqual([])
+    expect(plan.sinNombre).toHaveLength(1)
+    expect(plan.sinNombre[0].productos).toBe(1)
   })
 })
 
-describe('reactivar', () => {
-  it('propone revivir a un inactivo que todavia tiene productos vivos', () => {
-    const plan = armarPlanProveedores([prov('a', 'ABEL', false)], [prod('1', 'a', 'ABEL')])
-    expect(plan.aReactivar.map((x) => x.proveedor.id)).toEqual(['a'])
+describe('paso 4: se calcula despues de simular los pasos 1 a 3', () => {
+  it('reactiva al inactivo que recibe productos vigentes en el paso 2', () => {
+    // El caso de ARIEL GARCIA: hoy su ficha figura sin productos
+    // porque todos apuntan al id de otro celular. Mirando la foto de
+    // hoy no haria falta reactivarlo; despues de reenganchar, si.
+    const plan = armarPlanProveedores(
+      [prov('ficha-vieja', 'ARIEL GARCIA', false)],
+      varios(18, 'g', 'id-perdido-de-otro-celu', 'ARIEL GARCIA'),
+    )
+    expect(plan.reenganchar[0].productosRecuperados).toBe(18)
+    expect(plan.reactivar.map((d) => d.nombre)).toEqual(['ARIEL GARCIA'])
+    expect(plan.reactivar[0].vigentesFinales).toBe(18)
   })
 
-  it('no propone revivir a uno cuyos productos estan todos descontinuados', () => {
-    // Si se marco inactivo y sus productos quedaron descontinuados, la
-    // decision fue deliberada y no hay que deshacerla sola.
+  it('reactiva al inactivo que recibe productos al unificarse', () => {
+    const plan = armarPlanProveedores(
+      [prov('vacia', 'BARNECHE', false, 1), prov('llena', 'BARNECHE', false, 2)],
+      varios(11, 'b', 'llena', 'BARNECHE'),
+    )
+    expect(plan.reactivar.map((d) => d.nombre)).toEqual(['BARNECHE'])
+    expect(plan.reactivar[0].vigentesFinales).toBe(11)
+  })
+
+  it('no reactiva al que termina con todo descontinuado', () => {
     const plan = armarPlanProveedores(
       [prov('a', 'ABEL', false)],
-      [prod('1', 'a', 'ABEL', { descontinuado: true })],
+      varios(5, 'a', 'a', 'ABEL', { descontinuado: true }),
     )
-    expect(plan.aReactivar).toEqual([])
+    expect(plan.reactivar).toEqual([])
   })
 
-  it('no propone revivir a uno sin productos', () => {
+  it('no reactiva al que termina sin ningun producto', () => {
     const plan = armarPlanProveedores([prov('a', 'ABEL', false)], [])
-    expect(plan.aReactivar).toEqual([])
+    expect(plan.reactivar).toEqual([])
+  })
+
+  it('no propone reactivar al que ya esta activo', () => {
+    const plan = armarPlanProveedores([prov('a', 'ABEL', true)], [prod('1', 'a', 'ABEL')])
+    expect(plan.reactivar).toEqual([])
+  })
+
+  it('si de dos copias la que sobrevive esta activa, no hay que reactivar nada', () => {
+    const plan = armarPlanProveedores(
+      [prov('grande', 'ABEL', true), prov('chica', 'ABEL', false)],
+      [...varios(5, 'g', 'grande', 'ABEL'), prod('c1', 'chica', 'ABEL')],
+    )
+    expect(plan.reactivar).toEqual([])
+    expect(plan.unificar[0].activo).toBe(true)
   })
 })
 
 describe('los archivados no cuentan', () => {
-  it('un producto archivado no suma ni a su proveedor ni al plan', () => {
+  it('un producto archivado no suma', () => {
     const plan = armarPlanProveedores(
       [prov('a', 'ABEL')],
       [prod('1', 'a', 'ABEL', { archivado: true }), prod('2', 'a', 'ABEL')],
@@ -130,35 +205,37 @@ describe('los archivados no cuentan', () => {
 })
 
 describe('el panorama del 17/10', () => {
-  it('reproduce la forma del problema real', () => {
-    // 3 proveedores vivos y 33 inactivos, duplicados entre ellos, y
-    // productos apuntando a ids que no existen.
+  it('no crea tres MOHICANO ni tres SALDOS, y reactiva lo que recibe productos', () => {
     const proveedores = [
-      prov('moh-1', 'MOHICANO', false),
-      prov('moh-2', 'MOHICANO', false),
-      prov('abel', 'ABEL', false),
-      prov('gom', 'GOMECITO'),
+      prov('moh-1', 'MOHICANO', false, 1),
+      prov('moh-2', 'MOHICANO', false, 2),
+      prov('ariel', 'ARIEL GARCIA', false, 3),
+      prov('gom', 'GOMECITO', true, 4),
     ]
     const productos = [
-      ...Array.from({ length: 10 }, (_, i) => prod(`m${i}`, 'moh-1', 'MOHICANO')),
-      prod('m10', 'moh-2', 'MOHICANO'),
-      prod('a1', 'abel', 'ABEL'),
-      // El id que puso otro celular y cuyo documento nunca subio.
-      prod('g1', 'id-fantasma', 'GOMECITO'),
-      prod('x1', 'solo-en-otro-celu', 'RINGO VAINAS'),
-      prod('s1', null, null),
+      ...varios(40, 'm', 'moh-1', 'MOHICANO'),
+      ...varios(1, 'm2', 'moh-2', 'MOHICANO'),
+      // Tres ids perdidos del mismo nombre: una sola ficha nueva.
+      ...varios(5, 's1', 'perdido-a', 'SALDOS'),
+      ...varios(4, 's2', 'perdido-b', 'SALDOS'),
+      ...varios(2, 's3', 'perdido-c', 'saldos'),
+      // Inactivo que recibe productos vigentes recien en el paso 2.
+      ...varios(18, 'ag', 'perdido-ariel', 'ARIEL GARCIA'),
+      ...varios(3, 'g', 'gom', 'GOMECITO'),
+      prod('sin', null, null),
     ]
     const plan = armarPlanProveedores(proveedores, productos)
 
-    expect(plan.activos).toBe(1)
-    expect(plan.inactivos).toBe(3)
-    expect(plan.duplicados).toHaveLength(1)
-    expect(plan.duplicados[0].productosAMover).toBe(1)
-    expect(plan.huerfanos).toHaveLength(2)
-    // GOMECITO se reengancha solo; RINGO VAINAS hay que crearlo.
-    expect(plan.aCrear.map((h) => h.nombre)).toEqual(['RINGO VAINAS'])
-    expect(plan.aReactivar.map((c) => c.proveedor.nombre).sort()).toEqual(['ABEL', 'MOHICANO', 'MOHICANO'])
+    expect(plan.crear.map((d) => d.nombre)).toEqual(['SALDOS'])
+    expect(plan.crear[0].productosFinales).toBe(11)
+    // Ordenados por cuantos productos vigentes quedan, no alfabetico:
+    // en la pantalla interesa primero el que mas pesa.
+    expect(plan.reactivar.map((d) => d.nombre)).toEqual(['MOHICANO', 'ARIEL GARCIA'])
+    expect(plan.reactivar.map((d) => d.vigentesFinales)).toEqual([41, 18])
+    expect(plan.unificar.find((d) => d.nombre === 'MOHICANO')!.fichas).toHaveLength(2)
     expect(plan.sinProveedor).toBe(1)
-    expect(plan.productosAfectados).toBe(3)
+    // Cuatro fichas hoy, cuatro al final: MOHICANO, ARIEL GARCIA,
+    // GOMECITO y la de SALDOS que se crea.
+    expect(plan.fichasFinales).toBe(4)
   })
 })

@@ -765,11 +765,20 @@ export const AYUDA: EntradaAyuda[] = [
     soloOwner: true,
   },
   {
+    id: 'proveedores-repetidos-por-que',
+    categoria: 'Sincronización y respaldo',
+    pregunta: '¿Por qué aparece el mismo proveedor cargado varias veces?',
+    respuesta:
+      'Porque hasta ahora cada dispositivo le ponía al proveedor un número interno distinto. El celular de cada persona armó su propia ficha de "MOHICANO", y cuando los celulares sincronizaron quedaron todas, con los productos repartidos entre ellas.\n\nDesde el 17/10/2026 ese número sale del nombre: dos celulares que nunca se hablaron llegan a la misma ficha para el mismo proveedor, así que no se vuelve a armar solo. Las fichas que ya estaban repetidas se juntan con el arreglo de "Revisión de proveedores".\n\nEs lo mismo que hace que la importación de la lista de precios caiga sobre los proveedores que ya existen, en vez de crear una copia de cada uno.',
+    palabrasClave: ['repetidos', 'duplicados', 'dos veces', 'mismo proveedor'],
+    soloOwner: true,
+  },
+  {
     id: 'revisar-proveedores',
     categoria: 'Sincronización y respaldo',
     pregunta: 'Al editar un producto solo me aparece "Sin proveedor", ¿qué pasó?',
     respuesta:
-      'La lista de proveedores del formulario muestra solo los que están activos. Si casi todos quedaron marcados como inactivos, la lista queda vacía y solo se ve "Sin proveedor" y "+ Proveedor nuevo…".\n\nEn Ajustes → "Revisión de proveedores" está el panorama completo: cuántos hay, cuáles están repetidos (el mismo proveedor cargado varias veces con nombres iguales), cuáles están inactivos y cuántos productos apuntan a una ficha que no existe. Esa pantalla no cambia nada: es para mirar y decidir.\n\nMientras tanto, "+ Proveedor nuevo…" sigue funcionando, y si escribís un nombre que ya existe la app lo reconoce y lo reusa en vez de duplicarlo.',
+      'La lista de proveedores del formulario muestra solo los que están activos. Si casi todos quedaron marcados como inactivos, la lista queda vacía y solo se ve "Sin proveedor" y "+ Proveedor nuevo…".\n\nEn Ajustes → "Revisión de proveedores" está el panorama completo y el plan para arreglarlo, paso por paso y con los números de tu base: cuántas fichas se unifican, cuántos productos vuelven a su proveedor, cuántas fichas hay que crear y cuáles hay que reactivar. Esa pantalla no cambia nada: es para mirar y decidir.\n\nMientras tanto, "+ Proveedor nuevo…" sigue funcionando, y si escribís un nombre que ya existe la app lo reconoce y lo reusa en vez de duplicarlo — aunque lo escribas con otra mayúscula o con un espacio de más.',
     palabrasClave: ['sin proveedor', 'proveedores repetidos', 'duplicados', 'inactivos', 'revision'],
     soloOwner: true,
   },

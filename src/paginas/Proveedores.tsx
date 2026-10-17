@@ -13,6 +13,7 @@ import {
   type Proveedor,
 } from '../db/db'
 import { costoDesactualizado } from '../lib/calculos'
+import { idDeProveedor } from '../lib/idProveedor'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
 
@@ -133,18 +134,24 @@ function FormularioProveedor({
 
   async function guardar() {
     if (!nombre.trim()) return setError('Ponele un nombre al proveedor.')
-    const existe = await db.proveedores.where('nombre').equalsIgnoreCase(nombre.trim()).first()
+    // El id sale del nombre (ver lib/idProveedor.ts), asi que buscar
+    // por id ya es buscar por nombre: encuentra tambien a "Mohicano "
+    // cuando el que existe se llama "MOHICANO".
+    const id = idDeProveedor(nombre)
+    const existe =
+      (await db.proveedores.get(id)) ??
+      (await db.proveedores.where('nombre').equalsIgnoreCase(nombre.trim()).first())
     if (existe) return setError(`Ya existe un proveedor "${existe.nombre}".`)
 
-    const id = nuevoId()
-    const registro: Proveedor = {
+    await db.proveedores.add({
       id,
       nombre: nombre.trim(),
       contacto: contacto.trim() || null,
       notas: null,
       activo: true,
-    }
-    await db.proveedores.add(registro)
+      creadoEn: Date.now(),
+      actualizadoEn: Date.now(),
+    })
     onCreado?.(id)
     onSalir()
   }
