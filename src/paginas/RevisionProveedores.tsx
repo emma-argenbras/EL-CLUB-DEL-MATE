@@ -1,7 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { armarPlanProveedores } from '../lib/planProveedores'
-import { fechaLinda } from '../lib/formato'
+
+/** "1 producto" / "3 productos", sin que quede "1 productos". */
+function cuantos(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`
+}
 
 /**
  * El estado real de los proveedores, y que habria que hacer.
@@ -11,13 +15,8 @@ import { fechaLinda } from '../lib/formato'
  * pase. Cuando el plan este aprobado se agrega el boton de aplicar,
  * con su confirmacion y su motivo en el historial.
  */
-/** "1 proveedor" / "3 proveedores", sin que quede "1 proveedores". */
-function cuantos(n: number, singular: string, plural: string): string {
-  return `${n} ${n === 1 ? singular : plural}`
-}
-
 export default function RevisionProveedores() {
-  const datos = useLiveQuery(async () => {
+  const plan = useLiveQuery(async () => {
     const [proveedores, productos] = await Promise.all([
       db.proveedores.toArray(),
       db.productos.toArray(),
@@ -25,10 +24,9 @@ export default function RevisionProveedores() {
     return armarPlanProveedores(proveedores, productos)
   }, [])
 
-  if (!datos) return <p className="vacio">Revisando…</p>
+  if (!plan) return <p className="vacio">Revisando…</p>
 
-  const { activos, inactivos, duplicados, huerfanos, aCrear, aReactivar, sinProveedor } = datos
-  const aReenganchar = huerfanos.filter((h) => h.seEnganchaA)
+  const hoy = plan.activos + plan.inactivos
 
   return (
     <>
@@ -42,28 +40,36 @@ export default function RevisionProveedores() {
       <div className="tarjeta">
         <p className="tarjeta-titulo">Cómo están hoy</p>
         <div className="fila">
-          <span className="fila-etiqueta">Proveedores cargados</span>
-          <span className="fila-valor">{activos + inactivos}</span>
+          <span className="fila-etiqueta">Fichas de proveedor</span>
+          <span className="fila-valor">{hoy}</span>
         </div>
         <div className="fila">
-          <span className="fila-etiqueta">Activos (los únicos que aparecen al editar un producto)</span>
-          <span className={activos === 0 ? 'fila-valor negativo' : 'fila-valor'}>{activos}</span>
+          <span className="fila-etiqueta">Activas (las únicas que aparecen al editar un producto)</span>
+          <span className={plan.activos === 0 ? 'fila-valor negativo' : 'fila-valor'}>
+            {plan.activos}
+          </span>
         </div>
         <div className="fila">
-          <span className="fila-etiqueta">Inactivos</span>
-          <span className="fila-valor">{inactivos}</span>
+          <span className="fila-etiqueta">Inactivas</span>
+          <span className="fila-valor">{plan.inactivos}</span>
         </div>
         <div className="fila">
-          <span className="fila-etiqueta">Proveedores repetidos (mismo nombre, distinto id)</span>
-          <span className="fila-valor">{duplicados.length}</span>
-        </div>
-        <div className="fila">
-          <span className="fila-etiqueta">Proveedores que los productos usan y no existen</span>
-          <span className="fila-valor">{huerfanos.length}</span>
+          <span className="fila-etiqueta">Proveedores que los productos usan y no tienen ficha</span>
+          <span className="fila-valor">{plan.idsPerdidos.length}</span>
         </div>
         <div className="fila">
           <span className="fila-etiqueta">Productos sin proveedor asignado</span>
-          <span className="fila-valor">{sinProveedor}</span>
+          <span className="fila-valor">{plan.sinProveedor}</span>
+        </div>
+        <div className="fila destacada">
+          <span className="fila-etiqueta">Fichas al terminar el plan</span>
+          <span className="fila-valor">
+            {hoy} → {plan.fichasFinales}
+          </span>
+        </div>
+        <div className="fila">
+          <span className="fila-etiqueta">Productos que cambian de proveedor</span>
+          <span className="fila-valor">{plan.productosAfectados}</span>
         </div>
       </div>
 
@@ -72,20 +78,39 @@ export default function RevisionProveedores() {
 
         <Paso
           n={1}
-          titulo={`Unificar ${cuantos(duplicados.length, 'proveedor repetido', 'proveedores repetidos')}`}
-          detalle="Es el mismo proveedor cargado varias veces, con ids distintos. Se conserva el que más productos tiene y los demás le ceden sus productos; después se borran los que quedan vacíos."
+          primero
+          titulo={`Unificar ${cuantos(plan.unificar.length, 'ficha', 'fichas')}`}
+          detalle="Las copias del mismo proveedor se juntan en una sola: sobrevive la que más productos tiene (a igualdad, la más vieja) y las demás le ceden los suyos. Además, cada ficha pasa a tener un id derivado de su nombre, así dos dispositivos que nunca se hablaron llegan al mismo id y esto no se vuelve a armar solo. Por eso también entran las que no están repetidas pero tienen un id al azar."
+          vacio="Ninguna: todas las fichas ya tienen el id que les corresponde y no hay repetidas."
         >
-          {duplicados.map((d) => (
-            <li className="item" key={d.sobrevive.proveedor.id} style={{ display: 'block' }}>
+          {plan.unificar.map((d) => (
+            <li className="item" key={d.id} style={{ display: 'block' }}>
               <div className="item-titulo">{d.nombre}</div>
               <div className="item-sub">
-                Queda 1 de {d.absorbidos.length + 1} · se mueven {d.productosAMover}{' '}
-                {d.productosAMover === 1 ? 'producto' : 'productos'}
+                {d.fichas.length > 1 ? `${d.fichas.length} fichas → 1` : 'cambia de id'} ·{' '}
+                {cuantos(d.productosAMover, 'producto cambia de ficha', 'productos cambian de ficha')}
               </div>
+              {d.fichas.length > 1 && (
+                <div className="item-sub silencio">
+                  Se conservan el nombre, el contacto y las notas de la ficha con{' '}
+                  {cuantos(d.sobrevive!.productos, 'producto', 'productos')}.{' '}
+                  {d.fichas.length === 2 ? 'Se absorbe' : 'Se absorben'}{' '}
+                  {d.fichas
+                    .filter((f) => f !== d.sobrevive)
+                    .map((f) =>
+                      f.productos === 0
+                        ? 'una sin productos'
+                        : `una con ${cuantos(f.productos, 'producto', 'productos')}`,
+                    )
+                    .join(' y ')}
+                  .
+                </div>
+              )}
               <div className="item-sub silencio">
-                Conserva el de {d.sobrevive.productos}{' '}
-                {d.sobrevive.productos === 1 ? 'producto' : 'productos'}; absorbe{' '}
-                {d.absorbidos.map((a) => `${a.productos}`).join(' + ')}
+                Queda como {d.id}, con {cuantos(d.productosFinales, 'producto', 'productos')}
+                {d.productosRecuperados > 0 &&
+                  ` (${d.productosRecuperados} llegan de fichas perdidas, paso 2)`}
+                .
               </div>
             </li>
           ))}
@@ -93,15 +118,16 @@ export default function RevisionProveedores() {
 
         <Paso
           n={2}
-          titulo={`Reenganchar ${cuantos(aReenganchar.length, 'proveedor perdido', 'proveedores perdidos')}`}
-          detalle="Son productos que apuntan a un proveedor que no existe como ficha, pero que sí existe con el mismo nombre bajo otro id. No hay que crear nada: se los reapunta al que existe."
+          titulo={`Reenganchar ${cuantos(plan.reenganchar.length, 'proveedor', 'proveedores')}`}
+          detalle="Productos que apuntan a una ficha que ya no existe, pero cuyo proveedor sí existe con otro id. No hay que crear nada: se los reapunta a la ficha que queda."
+          vacio="Ninguno: no hay productos apuntando a fichas perdidas que se puedan recuperar así."
         >
-          {aReenganchar.map((h) => (
-            <li className="item" key={h.id}>
-              <div className="item-titulo">{h.nombre}</div>
+          {plan.reenganchar.map((d) => (
+            <li className="item" key={d.id} style={{ display: 'block' }}>
+              <div className="item-titulo">{d.nombre}</div>
               <div className="item-sub">
-                {h.productos} {h.productos === 1 ? 'producto' : 'productos'} · pasan a la ficha que
-                ya existe
+                recupera {cuantos(d.productosRecuperados, 'producto', 'productos')} · queda con{' '}
+                {d.productosFinales}
               </div>
             </li>
           ))}
@@ -109,47 +135,59 @@ export default function RevisionProveedores() {
 
         <Paso
           n={3}
-          titulo={`Crear ${cuantos(aCrear.length, 'proveedor que falta', 'proveedores que faltan')}`}
-          detalle="De estos no quedó ninguna ficha en ningún lado: solo el nombre que los productos traen escrito. Se crean con ese nombre, activos, y sus productos quedan enganchados."
+          titulo={`Crear ${cuantos(plan.crear.length, 'ficha', 'fichas')}`}
+          detalle="De estos proveedores no quedó ficha en ningún lado: solo el nombre que los productos traen escrito. Se agrupan por nombre —una ficha por nombre, aunque los productos vengan apuntando a tres ids distintos— y se crean activas."
+          vacio="Ninguna: de todos los proveedores que usan los productos quedó al menos una ficha."
         >
-          {aCrear.map((h) => (
-            <li className="item" key={h.id}>
-              <div className="item-titulo">{h.nombre ?? '(sin nombre)'}</div>
-              <div className="item-sub">
-                {h.productos} {h.productos === 1 ? 'producto' : 'productos'}
-              </div>
+          {plan.crear.map((d) => (
+            <li className="item" key={d.id} style={{ display: 'block' }}>
+              <div className="item-titulo">{d.nombre}</div>
+              <div className="item-sub">{cuantos(d.productosFinales, 'producto', 'productos')}</div>
             </li>
           ))}
         </Paso>
+
         <Paso
           n={4}
-          titulo={`Reactivar ${cuantos(aReactivar.length, 'proveedor', 'proveedores')}`}
-          detalle={
-            aReactivar.length === 0
-              ? 'Ninguno: los inactivos no tienen productos vigentes, así que quedan como están.'
-              : 'Están inactivos pero todavía tienen productos que se venden. Mientras estén inactivos no aparecen en la lista al editar un producto, y por eso hoy solo se ve “Sin proveedor”. Va al final a propósito: después de unificar hay menos fichas que reactivar, así que de esta lista quedan solo las que sobrevivan al paso 1. Los que tienen todos sus productos descontinuados no se tocan: esa decisión fue a propósito.'
-          }
+          titulo={`Reactivar ${cuantos(plan.reactivar.length, 'ficha', 'fichas')}`}
+          detalle="Calculado sobre cómo quedan las cosas DESPUÉS de los pasos 1 a 3, no sobre la foto de hoy: una ficha inactiva que hoy figura sin productos puede recibir varios al reenganchar, y entonces sí hay que reactivarla. Se reactivan solo las que terminan con productos vigentes; si todos sus productos quedaron descontinuados, esa decisión fue a propósito y no se deshace."
+          vacio="Ninguna: ninguna ficha inactiva termina con productos vigentes."
         >
-          {aReactivar.map((c) => (
-            <li className="item" key={c.proveedor.id}>
-              <div className="item-titulo">{c.proveedor.nombre}</div>
+          {plan.reactivar.map((d) => (
+            <li className="item" key={d.id} style={{ display: 'block' }}>
+              <div className="item-titulo">{d.nombre}</div>
               <div className="item-sub">
-                {c.vigentes} {c.vigentes === 1 ? 'producto vigente' : 'productos vigentes'} de{' '}
-                {c.productos}
-                {c.proveedor.creadoEn
-                  ? ` · creado el ${fechaLinda(new Date(c.proveedor.creadoEn).toISOString().slice(0, 10))}`
-                  : ''}
+                termina con {cuantos(d.vigentesFinales, 'producto vigente', 'productos vigentes')}
+                {d.productosRecuperados > 0 && ` · ${d.productosRecuperados} recuperados en el paso 2`}
               </div>
             </li>
           ))}
         </Paso>
-
       </div>
 
+      {plan.sinNombre.length > 0 && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Esto el plan no lo puede resolver solo</p>
+          <p className="silencio" style={{ marginTop: 0 }}>
+            {cuantos(plan.sinNombre.length, 'proveedor', 'proveedores')} que los productos usan sin
+            que quede ni la ficha ni el nombre escrito. Hay que asignarlos a mano desde Productos.
+          </p>
+          <ul className="lista">
+            {plan.sinNombre.map((h) => (
+              <li className="item" key={h.id}>
+                <div className="item-sub">
+                  {cuantos(h.productos, 'producto', 'productos')} sin proveedor reconocible
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="tarjeta">
-        <p className="tarjeta-titulo">Todos los proveedores</p>
+        <p className="tarjeta-titulo">Todas las fichas de hoy</p>
         <ul className="lista">
-          {datos.conUso.map((c) => (
+          {plan.conUso.map((c) => (
             <li className="item" key={c.proveedor.id}>
               <div>
                 <div className="item-titulo">
@@ -159,7 +197,7 @@ export default function RevisionProveedores() {
                 <div className="item-sub">
                   {c.productos === 0
                     ? 'sin productos'
-                    : `${c.productos} ${c.productos === 1 ? 'producto' : 'productos'}, ${c.vigentes} vigentes`}
+                    : `${cuantos(c.productos, 'producto', 'productos')}, ${c.vigentes} vigentes`}
                 </div>
               </div>
             </li>
@@ -174,21 +212,25 @@ function Paso({
   n,
   titulo,
   detalle,
+  vacio,
+  primero,
   children,
 }: {
   n: number
   titulo: string
   detalle: string
-  children: React.ReactNode
+  vacio: string
+  primero?: boolean
+  children: React.ReactNode[]
 }) {
-  const hay = Array.isArray(children) ? children.length > 0 : Boolean(children)
+  const hay = Array.isArray(children) && children.length > 0
   return (
-    <div style={{ marginTop: n === 1 ? 0 : 18 }}>
+    <div style={{ marginTop: primero ? 0 : 18 }}>
       <p style={{ fontWeight: 700, margin: '0 0 2px' }}>
         {n}. {titulo}
       </p>
       <p className="silencio" style={{ marginTop: 0 }}>
-        {detalle}
+        {hay ? detalle : vacio}
       </p>
       {hay && <ul className="lista">{children}</ul>}
     </div>

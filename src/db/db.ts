@@ -1,3 +1,4 @@
+import { idDeProveedor } from '../lib/idProveedor'
 import Dexie, {
   type CreatingHookContext,
   type DeletingHookContext,
@@ -619,11 +620,16 @@ class BaseECDM extends Dexie {
               p.proveedorId = null
               return
             }
-            const clave = nombreCrudo.toLowerCase()
+            // El id sale del nombre, no de nuevoId(): asi dos
+            // dispositivos que migran por separado llegan al mismo id
+            // para el mismo proveedor. Con el id al azar, cada celular
+            // creaba su propia copia de cada proveedor y despues los
+            // cinco sincronizaban.
+            const clave = idDeProveedor(nombreCrudo)
             let proveedor = porNombre.get(clave)
             if (!proveedor) {
               proveedor = {
-                id: nuevoId(),
+                id: clave,
                 nombre: nombreCrudo,
                 contacto: null,
                 notas: null,
@@ -1118,6 +1124,45 @@ function anotarEnHistorial(entradas: EntradaHistorial[]): void {
 }
 
 /**
+ * Devuelve el id del proveedor que se llama asi, creandolo si no esta.
+ *
+ * Es el unico lugar por donde se crea un proveedor a partir de un
+ * nombre: lo usan el alta de Proveedores, el "+ Proveedor nuevo..." de
+ * Productos y la importacion del Excel, que trae el proveedor por
+ * nombre y va a pasar por aca varias decenas de veces.
+ *
+ * Que sea uno solo es lo que garantiza que los tres caminos lleguen al
+ * mismo id para el mismo nombre. Si la importacion creara los suyos por
+ * su cuenta, dejaria una segunda copia de cada proveedor que ya existe,
+ * que es exactamente el lio que estamos limpiando.
+ *
+ * Busca primero por id --que ya es buscar por nombre, porque el id sale
+ * del nombre-- y despues por el texto, para encontrar tambien a las
+ * fichas viejas que todavia tienen un id al azar.
+ */
+export async function asegurarProveedor(nombreCrudo: string): Promise<string | null> {
+  const nombre = nombreCrudo.trim()
+  if (!nombre) return null
+
+  const id = idDeProveedor(nombre)
+  const existente =
+    (await db.proveedores.get(id)) ??
+    (await db.proveedores.where('nombre').equalsIgnoreCase(nombre).first())
+  if (existente) return existente.id
+
+  await db.proveedores.add({
+    id,
+    nombre,
+    contacto: null,
+    notas: null,
+    activo: true,
+    creadoEn: Date.now(),
+    actualizadoEn: Date.now(),
+  })
+  return id
+}
+
+/**
  * Agrupa por nombre (normalizado) los productos que todavia no tienen
  * proveedorId y crea un Proveedor por cada nombre distinto. Se usa la
  * primera vez que se siembra el catalogo en un dispositivo nuevo: la
@@ -1135,11 +1180,12 @@ export async function derivarProveedoresDesdeProductos(): Promise<number> {
   for (const p of productos) {
     const nombreCrudo = (p.proveedor ?? '').trim()
     if (!nombreCrudo) continue
-    const clave = nombreCrudo.toLowerCase()
+    // Mismo criterio que la migracion: el id lo decide el nombre.
+    const clave = idDeProveedor(nombreCrudo)
     let proveedor = porNombre.get(clave)
     if (!proveedor) {
       proveedor = {
-        id: nuevoId(),
+        id: clave,
         nombre: nombreCrudo,
         contacto: null,
         notas: null,

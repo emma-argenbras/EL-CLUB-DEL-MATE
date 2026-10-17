@@ -484,6 +484,34 @@ marcar un proveedor como inactivo y es de a uno, con confirmación
 mano 33 veces, o entró así en un respaldo importado. Desde el 11/10 el historial
 registra ese campo, así que de acá en adelante se sabe.
 
+### El id del proveedor sale del nombre
+
+La raíz del problema es que el id se sorteaba. Desde el 17/10 lo decide el nombre
+([`src/lib/idProveedor.ts`](./src/lib/idProveedor.ts)): "MOHICANO" es siempre
+`prov-mohicano`, en cualquier dispositivo y para siempre. Dos celulares que nunca se
+hablaron llegan al mismo id sin tener que ponerse de acuerdo — el nombre ya es el
+acuerdo.
+
+El mismo valor sirve para dos cosas: es el id, y es la respuesta a "¿estos dos son el
+mismo proveedor?". Que sea **una sola función** es a propósito: si agrupar y nombrar
+usaran reglas distintas, se podrían agrupar dos fichas y después darles ids diferentes.
+La consecuencia es que dos nombres que dan el mismo id **son** el mismo proveedor para
+la app: "HUGO-LA ENTRERRIANA" y "HUGO LA ENTRERRIANA" se juntan, que es lo que se
+quiere. Hasta ahí llega: "S.A" y "SA" dan ids distintos, porque juntarlos pediría
+colapsar las letras sueltas y esa regla también juntaría nombres que no son el mismo.
+Está anotado en las pruebas.
+
+Todos los caminos que crean un proveedor a partir de un nombre pasan por
+`asegurarProveedor()` en [`src/db/db.ts`](./src/db/db.ts): el alta de Proveedores, el
+"+ Proveedor nuevo…" de Productos y **la importación del Excel**, que trae el proveedor
+por nombre y va a pasar por ahí varias decenas de veces. Que sea uno solo es lo que
+garantiza que los tres lleguen al mismo id. Si la importación creara los suyos por su
+cuenta, dejaría una segunda copia de cada proveedor que ya existe — exactamente el lío
+que se está limpiando.
+
+Por eso el orden importa: **primero el id derivado, después la limpieza, y recién
+después la importación.**
+
 ### La revisión, que no toca nada
 
 [`src/lib/planProveedores.ts`](./src/lib/planProveedores.ts) calcula el plan y
@@ -493,19 +521,30 @@ antes de que pase.
 
 El plan sale en el orden en que conviene ejecutarlo:
 
-1. **Unificar los repetidos.** Sobrevive el que más productos tiene (a igualdad, el más
-   viejo); los demás le ceden sus productos y después se borran.
-2. **Reenganchar los perdidos.** Productos que apuntan a una ficha inexistente pero
-   cuyo nombre —que los productos traen escrito en el campo `proveedor`, de la planilla
-   vieja— coincide con una ficha que sí existe. No hay que crear nada: se reapunta.
-3. **Crear los que faltan.** De estos no quedó ninguna ficha en ningún lado; se crean
-   con el nombre que traen los productos.
-4. **Reactivar.** Va al final porque después de unificar hay menos fichas que
-   reactivar. Solo se proponen los inactivos que **todavía tienen productos vigentes**:
-   si un proveedor está inactivo y todos sus productos quedaron descontinuados, esa
-   decisión fue deliberada y no se deshace sola.
+1. **Unificar.** Las copias del mismo nombre se juntan en una: sobrevive la que más
+   productos tiene (a igualdad, la más vieja) y las demás le ceden los suyos. Además
+   cada ficha pasa a tener el id de su nombre, así que **también entran las que no
+   están repetidas pero tienen un id al azar** — si se les dejara el id viejo, el día
+   que la importación derive el id del nombre aparecería una segunda ficha y el lío
+   volvería a empezar.
+2. **Reenganchar.** Productos que apuntan a una ficha inexistente pero cuyo nombre —que
+   los productos traen escrito en el campo `proveedor`, de la planilla vieja— coincide
+   con una ficha que sí existe. No hay que crear nada: se reapunta.
+3. **Crear.** De estos no quedó ninguna ficha en ningún lado. Se agrupan **por nombre
+   normalizado**, no por id perdido: tres ids distintos que dicen "MOHICANO" dan **una**
+   ficha, no tres. Nacen activas.
+4. **Reactivar.** Se calcula **sobre el resultado simulado de los pasos 1 a 3**, no
+   sobre la foto de hoy, y ahí está lo importante: antes de mover los productos la foto
+   miente. Una ficha inactiva que hoy figura sin productos vigentes puede recibir 18 al
+   reenganchar, y entonces sí hay que reactivarla. Solo se reactivan las que terminan
+   con productos vigentes: si una quedó inactiva y todos sus productos quedaron
+   descontinuados, esa decisión fue deliberada y no se deshace sola.
 
-La lógica tiene 14 pruebas, incluida una que reproduce la forma del problema real.
+Los ids perdidos cuyos productos **no dicen de quién son** no se pueden resolver solos y
+salen aparte, para asignarlos a mano.
+
+La lógica tiene 20 pruebas, incluida una que reproduce la forma del problema real y
+otra por cada corrección de arriba.
 
 ---
 
@@ -1042,15 +1081,17 @@ sigue.
 (`npm run revisar-versionados`) que falla si vuelve a entrar algo privado al árbol.
 
 **Hecho el 17/10** — los 34 códigos con barra ya suben al servidor, el modo consulta de
-precios para el salón, y la revisión de proveedores.
+precios para el salón, la revisión de proveedores, y el id del proveedor derivado del
+nombre.
 
 **Datos a ordenar**
 
-- [ ] **Aplicar el plan de proveedores** (ver "El lío de los proveedores"): unificar los
-      repetidos, reenganchar los perdidos, crear los que faltan y reactivar. La revisión
-      ya está; falta el botón de aplicar, con confirmación y motivo en el historial.
-- [ ] Darle al proveedor un id **derivado del nombre** en vez de uno aleatorio por
-      dispositivo, para que esto no se vuelva a armar solo cuando entre un celular nuevo.
+- [ ] **Aplicar el plan de proveedores** (ver "El lío de los proveedores"): unificar,
+      reenganchar, crear y reactivar. La revisión ya está y el plan está aprobado; falta
+      el botón de aplicar, con confirmación y motivo en el historial. Va **antes** de la
+      importación del Excel.
+- [ ] Los **772 productos sin proveedor** los resuelve la importación del Excel, que
+      trae el proveedor por nombre y pasa por `asegurarProveedor()`.
 - [ ] Los ~10 códigos duplicados que la planilla colapsó en uno.
 - [ ] Los 3 movimientos de Mercado Pago sin clasificar ($ 1.623.000).
 
