@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { aplicarPreciosNuevos, sembrarCatalogo, sincronizarMesImportado } from './db/sembrar'
 import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { mesLindo } from './lib/formato'
@@ -7,6 +8,7 @@ import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
 import { marcarArranqueDelHistorial } from './db/db'
 import { estaAlMando } from './sync/permisos'
+import { leerModoConsulta } from './lib/modoConsulta'
 import { useSesion } from './sync/useSesion'
 import Panel from './paginas/Panel'
 import Caja from './paginas/Caja'
@@ -18,6 +20,8 @@ import MiActividad from './paginas/MiActividad'
 import Ajustes from './paginas/Ajustes'
 import Historial from './paginas/Historial'
 import Ayuda from './paginas/Ayuda'
+import ConsultaPrecios from './paginas/ConsultaPrecios'
+import RevisionProveedores from './paginas/RevisionProveedores'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
@@ -56,6 +60,12 @@ export default function App() {
   const [paso, setPaso] = useState('')
   const [error, setError] = useState<string | null>(null)
   const sesion = useSesion()
+  // undefined mientras no se leyo todavia. Importa la diferencia con
+  // false: si se tomara "todavia no se" por "apagado", el celular del
+  // salon abriria un instante en el Panel --con los avisos-- y recien
+  // despues saltaria al buscador.
+  const modoConsulta = useLiveQuery(() => leerModoConsulta(), [])
+  const enConsulta = useLocation().pathname === '/consulta'
 
   useEffect(() => {
     if (nubeConfigurada) {
@@ -87,7 +97,7 @@ export default function App() {
       })
   }, [])
 
-  if (!listo || (nubeConfigurada && sesion.cargando)) {
+  if (!listo || modoConsulta === undefined || (nubeConfigurada && sesion.cargando)) {
     return (
       <div className="pantalla-carga">
         <div className="logo-carga">🧉</div>
@@ -144,7 +154,15 @@ export default function App() {
           <NavLink to="/ayuda" className="boton-ayuda" aria-label="Ayuda">
             ?
           </NavLink>
-          <Notificaciones />
+          {/* La campana es el resumen de los pendientes del negocio. En
+              el celular del salon no es informacion util: nadie va a
+              resolver un costo vencido entre dos clientes, y el numerito
+              rojo arriba de todo es exactamente el ruido que este modo
+              viene a sacar. Se esconde en los dos casos: cuando el
+              aparato esta configurado como el del salon, y cuando se
+              esta mirando la pantalla de consulta --aunque sea de paso,
+              desde "Probarlo"--. */}
+          {!modoConsulta && !enConsulta && <Notificaciones />}
         </div>
       </header>
 
@@ -152,7 +170,16 @@ export default function App() {
 
       <main className="contenido">
         <Routes>
-          <Route path="/" element={<Navigate to={puedeVer('panel') ? '/panel' : '/caja'} replace />} />
+          <Route
+            path="/"
+            element={
+              <Navigate
+                to={modoConsulta ? '/consulta' : puedeVer('panel') ? '/panel' : '/caja'}
+                replace
+              />
+            }
+          />
+          <Route path="/consulta" element={<ConsultaPrecios />} />
           <Route
             path="/panel"
             element={puedeVer('panel') ? <Panel /> : <Navigate to="/caja" replace />}
@@ -181,6 +208,10 @@ export default function App() {
           <Route
             path="/ajustes"
             element={alMando ? <Ajustes /> : <Navigate to="/mi-actividad" replace />}
+          />
+          <Route
+            path="/revision-proveedores"
+            element={alMando ? <RevisionProveedores /> : <Navigate to="/caja" replace />}
           />
           <Route
             path="/historial"

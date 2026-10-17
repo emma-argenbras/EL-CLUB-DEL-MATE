@@ -859,3 +859,93 @@ th.num {
 .titulo-con-accion h2 {
   margin-right: auto;
 }
+
+/* ---------- Consulta de precios (modo salon) ----------
+   Todo acá está pensado para leerse de parado, a un brazo de distancia,
+   con un cliente esperando. De ahí los tamaños: no es decoración. */
+
+.consulta {
+  padding-top: 4px;
+}
+
+.consulta-buscador {
+  position: relative;
+  margin-bottom: 14px;
+}
+
+.consulta-buscador input {
+  width: 100%;
+  font-size: 1.25rem;
+  padding: 14px 44px 14px 14px;
+  border: 2px solid var(--verde-claro);
+  border-radius: var(--radio);
+  background: var(--papel);
+  color: var(--tinta);
+}
+
+.consulta-buscador input:focus {
+  outline: none;
+  border-color: var(--verde);
+  box-shadow: 0 0 0 3px var(--verde-suave);
+}
+
+.consulta-limpiar {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--crema);
+  color: var(--tinta-suave);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.consulta-item {
+  background: var(--papel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.consulta-nombre {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--tinta);
+}
+
+/* El número es lo único que se lee en voz alta, así que es lo único
+   que tiene que verse sin acercar el celular. */
+.consulta-precio {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-top: 4px;
+  color: var(--verde);
+  font-variant-numeric: tabular-nums;
+}
+
+.consulta-codigo {
+  font-size: 0.78rem;
+  color: var(--tinta-suave);
+  margin-top: 2px;
+}
+
+.consulta-ayuda {
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 18px 0;
+}
+
+.consulta-salir {
+  display: block;
+  margin: 22px auto 0;
+}
