@@ -4,8 +4,14 @@ import { idDeProveedor } from './idProveedor'
 import type { Producto, Proveedor } from '../db/db'
 import { normalizar } from './formato'
 
-function prov(id: string, nombre: string, activo = true, creadoEn = 1): Proveedor {
-  return { id, nombre, contacto: null, notas: null, activo, creadoEn }
+function prov(
+  id: string,
+  nombre: string,
+  activo = true,
+  creadoEn = 1,
+  extra: Partial<Proveedor> = {},
+): Proveedor {
+  return { id, nombre, contacto: null, notas: null, activo, creadoEn, ...extra }
 }
 
 function prod(
@@ -237,5 +243,106 @@ describe('el panorama del 17/10', () => {
     // Cuatro fichas hoy, cuatro al final: MOHICANO, ARIEL GARCIA,
     // GOMECITO y la de SALDOS que se crea.
     expect(plan.fichasFinales).toBe(4)
+  })
+})
+
+describe('alias: el mismo proveedor escrito distinto', () => {
+  it('ARANDU se queda con los productos de ARANDUPO', () => {
+    // El caso real: dos fichas que el nombre normalizado no junta
+    // --la "O" con acento no es la misma letra-- y que son el mismo
+    // proveedor. Se resuelve cargando el alias, no tocando codigo.
+    const plan = armarPlanProveedores(
+      [
+        prov('uuid-arandu', 'ARANDU', true, 1, { alias: ['ARANDUPÒ'] }),
+        prov('uuid-arandupo', 'ARANDUPÒ', true, 2),
+      ],
+      [
+        ...varios(10, 'a', 'uuid-arandu', 'ARANDU'),
+        ...varios(3, 'p', 'uuid-arandupo', 'ARANDUPÒ'),
+      ],
+    )
+    expect(plan.fichasFinales).toBe(1)
+    const arandu = plan.unificar[0]
+    expect(arandu.id).toBe('prov-arandu')
+    expect(arandu.nombre).toBe('ARANDU')
+    expect(arandu.productosFinales).toBe(13)
+    expect(arandu.activo).toBe(true)
+  })
+
+  it('sin el alias quedan dos fichas', () => {
+    // La contraparte: esto es lo que pasa hoy, y es por lo que la
+    // pantalla mostraba 67 en vez de 66.
+    const plan = armarPlanProveedores(
+      [prov('uuid-arandu', 'ARANDU'), prov('uuid-arandupo', 'ARANDUPÒ')],
+      [],
+    )
+    expect(plan.fichasFinales).toBe(2)
+  })
+
+  it('el nombre de la absorbida queda como alias de la que sobrevive', () => {
+    // Para que la importacion del Excel no la vuelva a crear cuando
+    // lea "ARANDUPO" en la planilla.
+    const plan = armarPlanProveedores(
+      [
+        prov('uuid-arandu', 'ARANDU', true, 1, { alias: ['ARANDUPÒ'] }),
+        prov('uuid-arandupo', 'ARANDUPÒ', true, 2),
+      ],
+      [],
+    )
+    expect(plan.unificar[0].alias).toContain('ARANDUPÒ')
+  })
+
+  it('un id perdido con el nombre del alias tambien cae en la ficha buena', () => {
+    const plan = armarPlanProveedores(
+      [prov('uuid-arandu', 'ARANDU', true, 1, { alias: ['ARANDUPÒ'] })],
+      varios(3, 'p', 'id-perdido', 'ARANDUPÒ'),
+    )
+    expect(plan.crear).toEqual([])
+    expect(plan.reenganchar[0].id).toBe('prov-arandu')
+    expect(plan.reenganchar[0].productosRecuperados).toBe(3)
+  })
+
+  it('un alias que apunta a si mismo no hace nada raro', () => {
+    const plan = armarPlanProveedores([prov('uuid-x', 'ARANDU', true, 1, { alias: ['arandu'] })], [])
+    expect(plan.fichasFinales).toBe(1)
+    expect(plan.unificar[0].id).toBe('prov-arandu')
+  })
+})
+
+describe('el contacto y las notas no se pierden al unificar', () => {
+  it('rescata el contacto de la absorbida cuando la que queda no tiene', () => {
+    const plan = armarPlanProveedores(
+      [
+        prov('grande', 'ABEL', true, 1),
+        prov('chica', 'ABEL', true, 2, { contacto: '345 4123456', notas: 'Entrega los martes' }),
+      ],
+      varios(5, 'g', 'grande', 'ABEL'),
+    )
+    expect(plan.unificar[0].contacto).toBe('345 4123456')
+    expect(plan.unificar[0].notas).toBe('Entrega los martes')
+    expect(plan.unificar[0].rescataDatos).toBe(true)
+  })
+
+  it('si la que queda ya tiene contacto, ese manda', () => {
+    const plan = armarPlanProveedores(
+      [
+        prov('grande', 'ABEL', true, 1, { contacto: 'el bueno' }),
+        prov('chica', 'ABEL', true, 2, { contacto: 'el viejo' }),
+      ],
+      varios(5, 'g', 'grande', 'ABEL'),
+    )
+    expect(plan.unificar[0].contacto).toBe('el bueno')
+    expect(plan.unificar[0].rescataDatos).toBe(false)
+  })
+
+  it('un contacto en blanco no cuenta como contacto', () => {
+    const plan = armarPlanProveedores(
+      [
+        prov('grande', 'ABEL', true, 1, { contacto: '   ' }),
+        prov('chica', 'ABEL', true, 2, { contacto: '345 4123456' }),
+      ],
+      varios(5, 'g', 'grande', 'ABEL'),
+    )
+    expect(plan.unificar[0].contacto).toBe('345 4123456')
   })
 })

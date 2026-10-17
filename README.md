@@ -512,12 +512,25 @@ que se está limpiando.
 Por eso el orden importa: **primero el id derivado, después la limpieza, y recién
 después la importación.**
 
-### La revisión, que no toca nada
+### Los alias: los casos que el nombre no junta solo
+
+"ARANDU" y "ARANDUPÒ" son el mismo proveedor, pero sus nombres no se normalizan igual,
+así que darían dos fichas. Para eso la ficha tiene **otros nombres** (`alias`): se
+cargan desde Proveedores → Editar, separados por coma, y desde ahí la app los trata
+como la misma ficha — en el plan de limpieza, en el formulario de productos y en la
+importación del Excel.
+
+Es a propósito que sea **un dato y no una regla en el código**: cada caso nuevo se
+resuelve cargando el alias, sin tocar la app ni esperar una versión nueva. Y al
+unificar, el nombre de cada ficha absorbida queda automáticamente como alias de la que
+sobrevive, para que la importación no la vuelva a crear.
+
+### La revisión, y el botón de aplicar
 
 [`src/lib/planProveedores.ts`](./src/lib/planProveedores.ts) calcula el plan y
-**Ajustes → Revisión de proveedores** lo muestra. La pantalla es de solo lectura a
-propósito: el arreglo mueve el proveedor de cientos de productos de una, y eso se mira
-antes de que pase.
+**Ajustes → Revisión de proveedores** lo muestra. Nada se escribe hasta tocar **Aplicar
+el plan** y confirmar: el arreglo mueve el proveedor de cientos de productos de una, y
+eso se mira antes de que pase.
 
 El plan sale en el orden en que conviene ejecutarlo:
 
@@ -543,8 +556,28 @@ El plan sale en el orden en que conviene ejecutarlo:
 Los ids perdidos cuyos productos **no dicen de quién son** no se pueden resolver solos y
 salen aparte, para asignarlos a mano.
 
-La lógica tiene 20 pruebas, incluida una que reproduce la forma del problema real y
-otra por cada corrección de arriba.
+El aplicar vive en [`src/db/limpiarProveedores.ts`](./src/db/limpiarProveedores.ts), y
+hay tres decisiones que vale la pena saber:
+
+- **Vuelve a calcular el plan adentro de la transacción.** La pantalla muestra un plan
+  de hace unos segundos; lo que se aplica es el de los datos de este instante. Por eso
+  devuelve lo que realmente hizo, y la pantalla informa **eso** y no lo que había
+  prometido.
+- **El orden no es casual:** primero queda lista la ficha final, después se mueven los
+  productos, y recién al final se borran las absorbidas. Al revés habría un momento con
+  productos apuntando a una ficha que ya no existe.
+- **Es idempotente.** Correrlo dos veces no cambia nada la segunda: una ficha que ya
+  está como tiene que estar no se reescribe, así que un doble toque del botón no sube
+  cincuenta fichas a la nube para nada. Hay una prueba de eso.
+
+Además, con la nube configurada el botón **no aparece si no hay sesión iniciada**: sin
+alguien a quien atribuirle el cambio el historial no anota nada, y una limpieza que
+toca cientos de productos sin dejar constancia es justo lo que el historial existe para
+evitar.
+
+La lógica tiene 28 pruebas y el aplicar 12, incluidas las que verifican que después de
+aplicar no queda ningún producto apuntando a una ficha inexistente y que el plan ya no
+propone nada más.
 
 ---
 
@@ -1086,10 +1119,8 @@ nombre.
 
 **Datos a ordenar**
 
-- [ ] **Aplicar el plan de proveedores** (ver "El lío de los proveedores"): unificar,
-      reenganchar, crear y reactivar. La revisión ya está y el plan está aprobado; falta
-      el botón de aplicar, con confirmación y motivo en el historial. Va **antes** de la
-      importación del Excel.
+- [ ] **Correr la limpieza de proveedores** desde Ajustes → Revisión de proveedores. El
+      botón ya está; falta apretarlo, y va **antes** de la importación del Excel.
 - [ ] Los **772 productos sin proveedor** los resuelve la importación del Excel, que
       trae el proveedor por nombre y pasa por `asegurarProveedor()`.
 - [ ] Los ~10 códigos duplicados que la planilla colapsó en uno.

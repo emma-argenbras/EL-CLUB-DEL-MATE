@@ -61,8 +61,19 @@ export interface Destino {
   nombre: string
   /** Las fichas de hoy que terminan siendo esta. Vacio: hay que crearla. */
   fichas: ProveedorConUso[]
-  /** La ficha cuyos datos (contacto, notas) se conservan. */
+  /** La ficha cuyo nombre y datos se conservan. */
   sobrevive: ProveedorConUso | null
+  /**
+   * El contacto que queda. Si la ficha que sobrevive no tiene y alguna
+   * de las absorbidas si, se rescata: la ficha que mas productos tiene
+   * no es necesariamente la que tiene cargado el telefono.
+   */
+  contacto: string | null
+  notas: string | null
+  /** Si el contacto o las notas vienen de una ficha absorbida. */
+  rescataDatos: boolean
+  /** Los alias que quedan cargados en la ficha final. */
+  alias: string[]
   /** Queda activo al final del plan. */
   activo: boolean
   productosFinales: number
@@ -105,6 +116,15 @@ export interface PlanProveedores {
   productosAfectados: number
   /** Cuantas fichas quedan al final, contra las que hay hoy. */
   fichasFinales: number
+
+  /** Todas las fichas finales, incluidas las que no cambian. */
+  todos: Destino[]
+  /**
+   * A donde va cada proveedorId de hoy. Lo usa aplicarPlanProveedores
+   * para no recalcular --y sobre todo para no recalcular DISTINTO-- lo
+   * que la pantalla ya mostro.
+   */
+  destinoDe: Map<string, string>
 }
 
 export function armarPlanProveedores(
@@ -153,10 +173,30 @@ export function armarPlanProveedores(
   // ---- A donde va cada id ----
   // Un solo mapa: id de hoy -> id final. Agrupar por NOMBRE y nombrar
   // por nombre son la misma operacion, asi que no pueden discrepar.
+  // Los alias cargados a mano: "este otro nombre tambien soy yo".
+  // Mapea el id que ese nombre tendria por si solo al id de la ficha
+  // que lo reclama. Se resuelve de a un salto a proposito: una cadena
+  // de alias (A dice ser B, B dice ser C) seria un lio para entender
+  // desde la pantalla, y el caso no existe.
+  const aliasHacia = new Map<string, string>()
+  for (const p of proveedores) {
+    const suyo = idDeProveedor(p.nombre)
+    for (const alias of p.alias ?? []) {
+      if (!alias.trim()) continue
+      const deAlias = idDeProveedor(alias)
+      if (deAlias !== suyo) aliasHacia.set(deAlias, suyo)
+    }
+  }
+
+  const aDondeVa = (nombre: string): string => {
+    const propio = idDeProveedor(nombre)
+    return aliasHacia.get(propio) ?? propio
+  }
+
   const destinoDe = new Map<string, string>()
-  for (const p of proveedores) destinoDe.set(p.id, idDeProveedor(p.nombre))
+  for (const p of proveedores) destinoDe.set(p.id, aDondeVa(p.nombre))
   for (const perdido of idsPerdidos) {
-    if (perdido.nombre) destinoDe.set(perdido.id, idDeProveedor(perdido.nombre))
+    if (perdido.nombre) destinoDe.set(perdido.id, aDondeVa(perdido.nombre))
   }
 
   // ---- Simulacion de los pasos 1 a 3 ----
@@ -170,6 +210,10 @@ export function armarPlanProveedores(
         nombre,
         fichas: [],
         sobrevive: null,
+        contacto: null,
+        notas: null,
+        rescataDatos: false,
+        alias: [],
         activo: true,
         productosFinales: 0,
         vigentesFinales: 0,
@@ -185,7 +229,7 @@ export function armarPlanProveedores(
     destino(destinoDe.get(c.proveedor.id)!, c.proveedor.nombre).fichas.push(c)
   }
   for (const perdido of idsPerdidos) {
-    if (perdido.nombre) destino(idDeProveedor(perdido.nombre), perdido.nombre)
+    if (perdido.nombre) destino(aDondeVa(perdido.nombre), perdido.nombre)
   }
 
   // De cada grupo sobrevive el que mas productos tiene; a igualdad, el
@@ -200,6 +244,26 @@ export function armarPlanProveedores(
     d.sobrevive = ordenado[0]
     d.nombre = ordenado[0].proveedor.nombre
     d.activo = ordenado[0].proveedor.activo !== false
+
+    // El contacto y las notas de la que sobrevive, y si no tiene, los
+    // de la primera absorbida que si tenga. La ficha con mas productos
+    // no es necesariamente la que tiene cargado el telefono, y borrar
+    // un telefono por una limpieza de ids seria una perdida tonta.
+    d.contacto = ordenado.map((f) => f.proveedor.contacto).find((c) => c?.trim()) ?? null
+    d.notas = ordenado.map((f) => f.proveedor.notas).find((n) => n?.trim()) ?? null
+    d.rescataDatos =
+      (d.contacto !== null && d.contacto !== (ordenado[0].proveedor.contacto ?? null)) ||
+      (d.notas !== null && d.notas !== (ordenado[0].proveedor.notas ?? null))
+
+    // Los alias de todas las fichas del grupo se juntan, y el nombre de
+    // cada absorbida pasa a ser alias de la que queda: asi la
+    // importacion del Excel tampoco la vuelve a crear.
+    const alias = new Set<string>()
+    for (const f of ordenado) for (const a of f.proveedor.alias ?? []) if (a.trim()) alias.add(a.trim())
+    for (const f of ordenado.slice(1)) {
+      if (idDeProveedor(f.proveedor.nombre) !== d.id) alias.add(f.proveedor.nombre.trim())
+    }
+    d.alias = [...alias].sort((a, b) => a.localeCompare(b, 'es'))
   }
 
   for (const p of productos) {
@@ -250,5 +314,7 @@ export function armarPlanProveedores(
     sinNombre: idsPerdidos.filter((h) => !h.nombre),
     productosAfectados: todos.reduce((s, d) => s + d.productosAMover, 0),
     fichasFinales: finales.size,
+    todos,
+    destinoDe,
   }
 }

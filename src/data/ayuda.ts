@@ -765,6 +765,24 @@ export const AYUDA: EntradaAyuda[] = [
     soloOwner: true,
   },
   {
+    id: 'alias-proveedor',
+    categoria: 'Proveedores',
+    pregunta: 'El mismo proveedor me quedó cargado con dos nombres distintos, ¿cómo los junto?',
+    respuesta:
+      'Entrá a Proveedores, abrí la ficha que querés conservar, tocá "Editar" y cargá el otro nombre en "Otros nombres". Si hay varios, separalos con coma.\n\nDesde ese momento la app sabe que son el mismo: no vuelve a crear una ficha aparte, ni cuando alguien lo escribe así en un producto ni cuando se importa la lista de precios.\n\nSirve para los casos que la app no puede adivinar sola, como "ARANDU" y "ARANDUPÒ": para ella son dos palabras distintas, pero vos sabés que es el mismo proveedor. Se resuelve cargando el alias, sin esperar una versión nueva de la app.',
+    palabrasClave: ['alias', 'otros nombres', 'dos nombres', 'juntar', 'unificar', 'arandu'],
+    requiereSeccion: 'proveedores',
+  },
+  {
+    id: 'aplicar-limpieza-proveedores',
+    categoria: 'Proveedores',
+    pregunta: '¿Qué hace el botón "Aplicar el plan" de la revisión de proveedores?',
+    respuesta:
+      'Junta las fichas repetidas en una sola, devuelve los productos a su proveedor, crea las fichas que faltaban y reactiva las que volvieron a tener productos.\n\nAntes de hacer nada te muestra exactamente qué va a pasar: cuántas fichas quedan, cuántas se juntan, cuántas se crean y cuántos productos cambian. Si cancelás, no se toca nada.\n\nNo se borra ningún producto ni ninguna venta, y todo queda en el historial como «Limpieza de proveedores», con el valor de antes y el de después de cada cambio. Si una ficha que se absorbe tenía cargado el contacto o las notas y la que queda no, esos datos se rescatan.\n\nSe puede correr más de una vez sin problema: si ya está todo en orden, no hace nada.',
+    palabrasClave: ['aplicar', 'limpieza', 'unificar proveedores', 'arreglar proveedores'],
+    soloOwner: true,
+  },
+  {
     id: 'proveedores-repetidos-por-que',
     categoria: 'Sincronización y respaldo',
     pregunta: '¿Por qué aparece el mismo proveedor cargado varias veces?',
