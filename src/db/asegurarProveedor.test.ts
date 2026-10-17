@@ -56,6 +56,48 @@ describe('asegurarProveedor', () => {
     expect(await db.proveedores.count()).toBe(1)
   })
 
+  it('encuentra por alias en vez de crear una ficha nueva', async () => {
+    // El caso de ARANDU / ARANDUPO: la importacion del Excel va a leer
+    // "ARANDUPO" en la planilla y tiene que caer sobre ARANDU, no
+    // crear otra vez la ficha que acabamos de unificar.
+    await db.proveedores.add({
+      id: 'prov-arandu',
+      nombre: 'ARANDU',
+      contacto: null,
+      notas: null,
+      activo: true,
+      alias: ['ARANDUPÒ'],
+    })
+    const id = await asegurarProveedor('ARANDUPÒ')
+    expect(id).toBe('prov-arandu')
+    expect(await db.proveedores.count()).toBe(1)
+  })
+
+  it('el alias tambien aguanta que lo escriban distinto', async () => {
+    await db.proveedores.add({
+      id: 'prov-arandu',
+      nombre: 'ARANDU',
+      contacto: null,
+      notas: null,
+      activo: true,
+      alias: ['ARANDUPÒ'],
+    })
+    expect(await asegurarProveedor(' arandupo ')).toBe('prov-arandu')
+    expect(await db.proveedores.count()).toBe(1)
+  })
+
+  it('sin el alias, crea la otra ficha', async () => {
+    await db.proveedores.add({
+      id: 'prov-arandu',
+      nombre: 'ARANDU',
+      contacto: null,
+      notas: null,
+      activo: true,
+    })
+    expect(await asegurarProveedor('ARANDUPÒ')).toBe('prov-arandupo')
+    expect(await db.proveedores.count()).toBe(2)
+  })
+
   it('un nombre vacio no crea nada', async () => {
     expect(await asegurarProveedor('   ')).toBe(null)
     expect(await db.proveedores.count()).toBe(0)

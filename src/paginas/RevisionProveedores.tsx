@@ -1,5 +1,13 @@
+import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
+import { nubeConfigurada } from '../sync/config'
+import { useSesion } from '../sync/useSesion'
+import {
+  aplicarPlanProveedores,
+  textoDeConfirmacion,
+  type ResultadoLimpieza,
+} from '../db/limpiarProveedores'
 import { armarPlanProveedores } from '../lib/planProveedores'
 
 /** "1 producto" / "3 productos", sin que quede "1 productos". */
@@ -16,6 +24,11 @@ function cuantos(n: number, singular: string, plural: string): string {
  * con su confirmacion y su motivo en el historial.
  */
 export default function RevisionProveedores() {
+  const sesion = useSesion()
+  const [trabajando, setTrabajando] = useState(false)
+  const [hecho, setHecho] = useState<ResultadoLimpieza | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
   const plan = useLiveQuery(async () => {
     const [proveedores, productos] = await Promise.all([
       db.proveedores.toArray(),
@@ -27,15 +40,50 @@ export default function RevisionProveedores() {
   if (!plan) return <p className="vacio">Revisando…</p>
 
   const hoy = plan.activos + plan.inactivos
+  const hayQueHacer =
+    plan.unificar.length + plan.reenganchar.length + plan.crear.length + plan.reactivar.length > 0
+
+  // El historial solo anota si hay alguien a quien atribuirle el
+  // cambio. Una limpieza que toca cientos de productos sin dejar
+  // constancia es justo lo que el historial existe para que no pase,
+  // asi que con la nube configurada y sin sesion el boton no va.
+  const hayQuienFirme = !nubeConfigurada || Boolean(sesion.perfil)
+
+  async function aplicar() {
+    if (!plan || !confirm(textoDeConfirmacion(plan))) return
+    setTrabajando(true)
+    setError(null)
+    try {
+      setHecho(await aplicarPlanProveedores())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTrabajando(false)
+    }
+  }
 
   return (
     <>
       <h2>Revisión de proveedores</h2>
 
-      <div className="aviso aviso-ojo">
-        Esta pantalla <strong>no toca nada</strong>. Muestra cómo están los datos hoy y qué
-        habría que hacer. El arreglo se aplica después, con confirmación.
-      </div>
+      {hecho ? (
+        <div className="aviso aviso-ok">
+          <strong>Listo.</strong> Quedaron {hecho.fichasFinales} fichas y {hecho.productosTocados}{' '}
+          productos pasaron a su proveedor. Está todo en el historial como «Limpieza de
+          proveedores».
+        </div>
+      ) : (
+        <div className="aviso aviso-ojo">
+          Acá está el plan con los números de tu base. <strong>No se cambia nada</strong> hasta
+          que toques el botón del final y confirmes.
+        </div>
+      )}
+
+      {error && (
+        <div className="aviso aviso-error">
+          No se pudo aplicar: {error}. No quedó nada a medias — o se hace todo o no se hace nada.
+        </div>
+      )}
 
       <div className="tarjeta">
         <p className="tarjeta-titulo">Cómo están hoy</p>
@@ -104,6 +152,17 @@ export default function RevisionProveedores() {
                     )
                     .join(' y ')}
                   .
+                </div>
+              )}
+              {d.rescataDatos && (
+                <div className="item-sub silencio">
+                  Se rescatan el contacto y las notas de una ficha absorbida, porque la que queda
+                  los tiene vacíos.
+                </div>
+              )}
+              {d.alias.length > 0 && (
+                <div className="item-sub silencio">
+                  Queda con otros nombres: {d.alias.join(', ')}.
                 </div>
               )}
               <div className="item-sub silencio">
@@ -181,6 +240,34 @@ export default function RevisionProveedores() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {hayQueHacer && !hecho && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Aplicar</p>
+          <p className="silencio" style={{ marginTop: 0 }}>
+            Quedan {plan.fichasFinales} fichas de las {hoy} de ahora, y {plan.productosAfectados}{' '}
+            productos pasan a su proveedor. Antes de hacerlo te va a pedir que confirmes. Todo
+            queda en el historial como «Limpieza de proveedores», con el valor de antes y el de
+            después, y no se borra ningún producto ni ninguna venta.
+          </p>
+          {hayQuienFirme ? (
+            <button
+              className="boton-principal"
+              style={{ width: '100%' }}
+              disabled={trabajando}
+              onClick={aplicar}
+            >
+              {trabajando ? 'Aplicando…' : 'Aplicar el plan'}
+            </button>
+          ) : (
+            <div className="aviso aviso-ojo" style={{ marginBottom: 0 }}>
+              Para aplicarlo hay que estar con la sesión iniciada: si no, el historial no puede
+              registrar quién lo hizo, y esto toca demasiadas cosas como para que no quede
+              constancia.
+            </div>
+          )}
         </div>
       )}
 

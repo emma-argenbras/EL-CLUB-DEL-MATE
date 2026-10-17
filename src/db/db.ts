@@ -166,6 +166,20 @@ export interface Proveedor {
   contacto: string | null
   notas: string | null
   activo: boolean
+  /**
+   * Otros nombres con los que aparece este mismo proveedor.
+   *
+   * El id sale del nombre (ver lib/idProveedor.ts), asi que dos formas
+   * de escribirlo que no se normalizan igual --"ARANDU" y "ARANDUPO"--
+   * darian dos fichas distintas. Cargar el segundo como alias de la
+   * ficha buena las junta, y mantiene juntas a las que vengan despues:
+   * la importacion del Excel tambien mira los alias antes de crear.
+   *
+   * Es a proposito que esto sea un dato y no una regla en el codigo.
+   * Cada caso nuevo se resuelve cargando el alias desde Proveedores,
+   * sin tocar la app ni esperar una version nueva.
+   */
+  alias?: string[]
   creadoEn?: number
   actualizadoEn?: number
 }
@@ -1124,6 +1138,26 @@ function anotarEnHistorial(entradas: EntradaHistorial[]): void {
 }
 
 /**
+ * La ficha que corresponde a este nombre, mirando el nombre propio y
+ * tambien los alias.
+ *
+ * Compara por id derivado y no por texto, asi que encuentra igual a
+ * "Mohicano " cuando la ficha se llama "MOHICANO".
+ */
+export function buscarPorNombreOAlias(
+  nombre: string,
+  proveedores: Proveedor[],
+): Proveedor | undefined {
+  const buscado = idDeProveedor(nombre)
+  return proveedores.find(
+    (p) =>
+      idDeProveedor(p.nombre) === buscado ||
+      p.id === buscado ||
+      (p.alias ?? []).some((a) => idDeProveedor(a) === buscado),
+  )
+}
+
+/**
  * Devuelve el id del proveedor que se llama asi, creandolo si no esta.
  *
  * Es el unico lugar por donde se crea un proveedor a partir de un
@@ -1145,9 +1179,11 @@ export async function asegurarProveedor(nombreCrudo: string): Promise<string | n
   if (!nombre) return null
 
   const id = idDeProveedor(nombre)
+  // Primero por id, que es lo barato. Si no esta, se recorren las
+  // fichas: son algunas decenas, y ahi se miran los alias y los
+  // nombres de las que todavia tienen un id al azar.
   const existente =
-    (await db.proveedores.get(id)) ??
-    (await db.proveedores.where('nombre').equalsIgnoreCase(nombre).first())
+    (await db.proveedores.get(id)) ?? buscarPorNombreOAlias(nombre, await db.proveedores.toArray())
   if (existente) return existente.id
 
   await db.proveedores.add({

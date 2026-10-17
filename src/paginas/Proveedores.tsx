@@ -203,6 +203,7 @@ function DetalleProveedor({
   const [editando, setEditando] = useState(false)
   const [nombre, setNombre] = useState(proveedor.nombre)
   const [contacto, setContacto] = useState(proveedor.contacto ?? '')
+  const [alias, setAlias] = useState((proveedor.alias ?? []).join(', '))
   const [porcentaje, setPorcentaje] = useState('')
   const [mensaje, setMensaje] = useState('')
 
@@ -215,6 +216,10 @@ function DetalleProveedor({
     await db.proveedores.update(proveedor.id, {
       nombre: nombre.trim() || proveedor.nombre,
       contacto: contacto.trim() || null,
+      alias: alias
+        .split(',')
+        .map((a) => a.trim())
+        .filter(Boolean),
     })
     setEditando(false)
   }
@@ -331,6 +336,20 @@ function DetalleProveedor({
               value={contacto}
               onChange={(e) => setContacto(e.target.value)}
             />
+          </div>
+          <div className="campo">
+            <label htmlFor="ed-alias">Otros nombres</label>
+            <input
+              id="ed-alias"
+              value={alias}
+              onChange={(e) => setAlias(e.target.value)}
+              placeholder="Separados por coma"
+            />
+            <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
+              Otras formas en las que aparece escrito este mismo proveedor. La app las
+              reconoce como la misma ficha, así que no se crea una copia — tampoco al
+              importar la lista de precios.
+            </p>
           </div>
           <div className="botonera">
             <button onClick={() => setEditando(false)}>Cancelar</button>
