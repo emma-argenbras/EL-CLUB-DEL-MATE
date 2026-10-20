@@ -22,6 +22,7 @@ import Historial from './paginas/Historial'
 import Ayuda from './paginas/Ayuda'
 import ConsultaPrecios from './paginas/ConsultaPrecios'
 import RevisionProveedores from './paginas/RevisionProveedores'
+import TurnosDelDia from './paginas/TurnosDelDia'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
@@ -208,6 +209,10 @@ export default function App() {
           <Route
             path="/ajustes"
             element={alMando ? <Ajustes /> : <Navigate to="/mi-actividad" replace />}
+          />
+          <Route
+            path="/turnos"
+            element={alMando ? <TurnosDelDia /> : <Navigate to="/caja" replace />}
           />
           <Route
             path="/revision-proveedores"

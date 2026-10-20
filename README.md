@@ -454,6 +454,52 @@ renglones quedan agrupados en el historial con el motivo «Aumento +8% a Fulano�
 
 ---
 
+## Borrar un turno, y que no vuelva
+
+Hasta el 20/10/2026 un turno se creaba y **no se sacaba nunca**. Para la operación de
+todos los días eso está bien —un turno trabajado se corrige, no se borra— pero dejaba
+sin salida el caso en que un turno no tendría que existir: el mismo día cargado dos
+veces desde dos dispositivos. Pasó el 19/10 y no había forma de arreglarlo desde la app.
+
+Peor: cuando pasa, **Caja no alcanza para verlo**. Caja busca el turno con `.first()`,
+así que de dos turnos "19/10 Tarde" muestra uno y el otro queda invisible — pero sigue
+sumando, porque los reportes cuentan las ventas **por fecha**, no por turno. Y las
+ventas de un turno cerrado tampoco se pueden borrar: ese botón solo aparece con el
+turno abierto.
+
+**Ajustes → Turnos del día** ([`src/paginas/TurnosDelDia.tsx`](./src/paginas/TurnosDelDia.tsx))
+muestra todos los turnos de un día, marca los repetidos, y de cada uno dice la caja
+inicial, cuántas ventas tiene, por cuánto y quién atendió — que es lo que hace falta
+para saber cuál es el bueno. Borrar pide confirmación con el detalle completo y después
+un **motivo obligatorio**, y queda en el historial.
+
+Dos decisiones del borrado ([`src/db/borrarJornada.ts`](./src/db/borrarJornada.ts)):
+
+- **No devuelve el stock.** El stock se descuenta en el dispositivo donde se carga la
+  venta; cuando la venta llega a los demás por sincronización, el stock de ellos no se
+  toca. Devolverlo al borrar sumaría en un dispositivo lo que nunca se restó ahí.
+- **Las constancias se escriben antes que los borrados.** Si algo fallara a mitad de
+  camino, es preferible tener de más —un borrado anotado que no pasó, que no revive
+  nada— que de menos.
+
+### La tabla `borrados`: que lo borrado no resucite
+
+Esta es la parte que no se ve y es la que importa. La subida inicial de cada dispositivo
+manda al servidor **todo lo que el servidor no tenga**. Es lo que permite que un celular
+que estuvo sin señal ponga al día lo suyo — y, sin más, también lo que haría que algo
+borrado volviera a aparecer: si se borra un turno desde la PC y en otro celular todavía
+quedaba la copia local, al abrir la app ese celular lo ve "faltando" en el servidor y lo
+vuelve a subir. El borrado se deshace solo, sin que nadie toque nada.
+
+Por eso cada cosa borrada a propósito deja un renglón en `borrados`, y
+`empujarTodoLocal` **le pregunta al servidor** —no a la copia local, que es justamente
+la que está atrasada— qué se borró, y no lo sube.
+
+Si la lista de borrados no se puede leer, se sube igual: perder un dato por no poder
+leer una lista sería peor que revivir uno borrado, que al menos se vuelve a borrar.
+
+---
+
 ## El lío de los proveedores
 
 Al 17/10/2026: 34 proveedores cargados, **33 inactivos**, varios repetidos con el mismo
@@ -1127,6 +1173,12 @@ nombre.
 - [ ] Los 3 movimientos de Mercado Pago sin clasificar ($ 1.623.000).
 
 **Mejoras conocidas**
+
+- [ ] **Avisar cuando hay cosas sin subir.** Hoy el indicador de la nube dice si está
+      conectada, no si quedó algo pendiente de subir. Por eso el celular de Gabi estuvo
+      tres días con un turno sin sincronizar y nadie se enteró. Falta un cartel de
+      "tenés N cosas sin subir" en el Panel y en la campana, que se vea en el
+      dispositivo que las tiene y no solo cuando alguien va a buscarlas.
 
 - [ ] Pasar el marcador de "esto viene del servidor" **por cada escritura** en vez de
       tenerlo global (hoy una edición hecha justo durante una sincronización no deja

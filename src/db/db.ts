@@ -271,6 +271,33 @@ export interface SolicitudCierre {
   respuestaComentario?: string | null
 }
 
+/**
+ * La constancia de que algo se borro a proposito.
+ *
+ * Existe por un motivo muy concreto: la subida inicial de cada
+ * dispositivo manda al servidor TODO lo que el servidor no tenga. Es lo
+ * que permite que un celular que estuvo sin señal ponga al dia lo suyo
+ * --y tambien, sin esto, lo que hace que algo borrado vuelva a
+ * aparecer--. Si alguien borra un turno desde la PC y en otro celular
+ * todavia quedaba la copia local, al abrir la app ese celular lo ve
+ * "faltando" en el servidor y lo vuelve a subir. El borrado se deshace
+ * solo, sin que nadie toque nada.
+ *
+ * Con esta tabla, el que sube pregunta primero que fue borrado a
+ * proposito y no lo resucita. Se lee del servidor, no de la copia
+ * local, porque es justamente el caso en que la copia local esta
+ * atrasada.
+ */
+export interface Borrado {
+  /** `tabla/clave` de lo que se borro. */
+  id: string
+  tabla: NombreTabla
+  clave: string
+  cuando: number
+  quien: string | null
+  motivo: string | null
+}
+
 export interface Jornada {
   id: string
   /** Fecha en formato yyyy-mm-dd. */
@@ -456,6 +483,7 @@ export type NombreTabla =
   | 'historialProductos'
   | 'movimientosProveedor'
   | 'historial'
+  | 'borrados'
 
 export type AccionCambio = 'guardar' | 'borrar'
 
@@ -550,6 +578,7 @@ class BaseECDM extends Dexie {
   historialProductos!: Table<HistorialProducto, string>
   historial!: Table<EntradaHistorial, string>
   movimientosProveedor!: Table<MovimientoProveedor, string>
+  borrados!: Table<Borrado, string>
 
   constructor() {
     super('el-club-del-mate')
@@ -731,6 +760,23 @@ class BaseECDM extends Dexie {
         )
       })
 
+    // v7: la tabla de borrados. Sirve para que un dispositivo que
+    // estuvo desconectado no resucite lo que se borro a proposito
+    // mientras no miraba (ver la interfaz Borrado, arriba).
+    this.version(7).stores({
+      productos: 'codigo, descripcion, proveedor, proveedorId, busqueda, activo, archivado',
+      jornadas: 'id, [fecha+turno], fecha, estado',
+      ventas: 'id, jornadaId, fecha, codigo, medioPago',
+      movimientos: 'id, fecha, tipo, categoria, jornadaId',
+      ajustes: 'clave',
+      proveedores: 'id, nombre, activo',
+      usuarios: 'id, email, rol',
+      historialProductos: 'id, codigo, cuando',
+      movimientosProveedor: 'id, proveedorId, fecha, tipo',
+      historial: 'id, cuando, quien, tabla, [tabla+clave]',
+      borrados: 'id, cuando, tabla',
+    })
+
     // Que campos se anotan cuando cambian, por tabla. El resto
     // (busqueda, actualizadoEn, los derivados) son ruido: ya se ven en
     // otro lado o no los decidio una persona.
@@ -772,6 +818,9 @@ class BaseECDM extends Dexie {
       // registro del registro no agrega nada y crece sin freno.
       historialProductos: [],
       historial: [],
+      // La constancia de un borrado no se edita: el renglon del
+      // historial ya lo deja escrito el borrado en si.
+      borrados: [],
     }
 
     /**

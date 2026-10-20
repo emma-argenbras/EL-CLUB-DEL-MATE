@@ -289,6 +289,18 @@ export default function Ajustes() {
       </div>
 
       <div className="tarjeta">
+        <p className="tarjeta-titulo">Turnos del día</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          Todos los turnos de un día, incluso si quedaron dos cargados para el mismo momento
+          desde dos dispositivos. Desde acá se puede borrar el que sobra, con motivo y registrado
+          en el historial.
+        </p>
+        <Link className="boton-chico" style={{ width: '100%', textAlign: 'center' }} to="/turnos">
+          Ver los turnos de un día
+        </Link>
+      </div>
+
+      <div className="tarjeta">
         <p className="tarjeta-titulo">Revisión de proveedores</p>
         <p className="silencio" style={{ marginTop: 0 }}>
           Cuántos proveedores hay, cuáles están repetidos, cuáles están inactivos y cuáles usan
