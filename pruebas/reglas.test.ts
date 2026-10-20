@@ -520,3 +520,148 @@ describe('el historial no se puede retocar', () => {
     await assertSucceeds(getDoc(doc(comoSandra(), `${NEGOCIO}/historial/h1`)))
   })
 })
+
+/**
+ * La primera compra de verdad.
+ *
+ * Sandra arranca hoy con Compras y pagos, que hasta ahora tenia cero
+ * registros: es la primera vez que esas reglas se usan en serio. Lo que
+ * se prueba es lo que la pantalla hace de verdad, no la coleccion
+ * suelta: una compra escribe en movimientosProveedor Y en productos
+ * (stock y costo), y un pago escribe en movimientosProveedor Y en
+ * movimientos (el gasto que aparece en Gastos).
+ *
+ * Si falla cualquiera de las dos mitades, la transaccion entera se cae
+ * y la compra no se guarda.
+ */
+describe('compras y pagos a proveedores', () => {
+  const COMPRA = {
+    id: 'mp1',
+    proveedorId: 'prov-mohicano',
+    tipo: 'compra',
+    fecha: '2026-10-21',
+    monto: 120000,
+    medioPago: null,
+    items: [{ codigo: 'TM015', cantidad: 6, costoUnitario: 20000 }],
+    notas: null,
+    creadoPor: 'ventas@elclubdelmate.com',
+  }
+
+  const PAGO = {
+    id: 'mp2',
+    proveedorId: 'prov-mohicano',
+    tipo: 'pago',
+    fecha: '2026-10-21',
+    monto: 120000,
+    medioPago: 'TRANSFERENCIA',
+    items: null,
+    notas: null,
+    movimientoGastoId: 'g1',
+    creadoPor: 'ventas@elclubdelmate.com',
+  }
+
+  const GASTO = {
+    id: 'g1',
+    fecha: '2026-10-21',
+    tipo: 'GASTO_CAJA_GRANDE',
+    concepto: 'Pago a MOHICANO',
+    monto: 120000,
+    categoria: 'PROVEEDORES',
+    jornadaId: null,
+    esVariable: true,
+  }
+
+  it('la encargada puede registrar una compra', async () => {
+    const db = comoSandra()
+    await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp1`), COMPRA))
+  })
+
+  it('la encargada puede actualizar stock y costo, que es la otra mitad de la compra', async () => {
+    await sembrarProducto()
+    const db = comoSandra()
+    await assertSucceeds(
+      updateDoc(doc(db, `${NEGOCIO}/productos/TM015`), {
+        stock: 9,
+        precioCompra: 20000,
+        fechaCompra: '2026-10-21',
+      }),
+    )
+  })
+
+  it('la encargada puede registrar un pago', async () => {
+    const db = comoSandra()
+    await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp2`), PAGO))
+  })
+
+  it('la encargada puede dejar el gasto que genera el pago', async () => {
+    const db = comoSandra()
+    await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/movimientos/g1`), GASTO))
+  })
+
+  it('la encargada puede crear el proveedor si todavia no esta', async () => {
+    const db = comoSandra()
+    await assertSucceeds(
+      setDoc(doc(db, `${NEGOCIO}/proveedores/prov-mohicano`), {
+        id: 'prov-mohicano',
+        nombre: 'MOHICANO',
+        contacto: null,
+        notas: null,
+        activo: true,
+      }),
+    )
+  })
+
+  it('la encargada puede corregir una compra y borrarla', async () => {
+    const db = comoSandra()
+    await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp1`), COMPRA))
+    await assertSucceeds(
+      updateDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp1`), { monto: 130000 }),
+    )
+    await assertSucceeds(deleteDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp1`)))
+  })
+
+  it('el renglon de historial que deja la compra tambien entra', async () => {
+    // Cada escritura deja historial, y el historial tiene su propia
+    // regla. Si rechazara, la compra se guardaria pero sin constancia.
+    const db = comoSandra()
+    await assertSucceeds(
+      setDoc(doc(db, `${NEGOCIO}/historial/h1`), {
+        id: 'h1',
+        tabla: 'movimientosProveedor',
+        clave: 'mp1',
+        accion: 'creo',
+        queEs: 'Compra a MOHICANO',
+        campo: null,
+        valorAnterior: null,
+        valorNuevo: null,
+        quien: 'ventas@elclubdelmate.com',
+        quienNombre: 'Sandra',
+        quienRol: 'encargado',
+        cuando: Date.now(),
+        motivo: null,
+      }),
+    )
+  })
+
+  it('Gabriela tambien puede: cargar una compra no es una decision de mando', async () => {
+    const db = comoGabi()
+    await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp3`), COMPRA))
+  })
+
+  it('pero alguien desactivado no puede', async () => {
+    await entorno.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${NEGOCIO}/usuarios/uid-sandra`), {
+        nombre: 'Sandra',
+        rol: 'encargado',
+        activo: false,
+      })
+    })
+    const db = comoSandra()
+    await assertFails(setDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp1`), COMPRA))
+  })
+
+  it('y alguien sin sesion tampoco', async () => {
+    const db = entorno.unauthenticatedContext().firestore()
+    await assertFails(setDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp1`), COMPRA))
+  })
+})

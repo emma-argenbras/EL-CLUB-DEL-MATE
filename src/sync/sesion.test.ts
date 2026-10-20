@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { seccionesVisibles, type Perfil } from './sesion'
+import { autorDeLaSesion, seccionesVisibles, type Perfil, type Sesion } from './sesion'
 
 describe('seccionesVisibles', () => {
   it('un owner ve todas las secciones configurables', () => {
@@ -33,5 +33,48 @@ describe('seccionesVisibles', () => {
   it('un empleado con secciones vacias (todo destildado) no ve ninguna', () => {
     const perfil: Perfil = { nombre: 'Gabriela', rol: 'empleado', secciones: [] }
     expect(seccionesVisibles(perfil)).toEqual([])
+  })
+})
+
+describe('autorDeLaSesion', () => {
+  const sesion = (parcial: Partial<Sesion> = {}): Sesion => ({
+    cargando: false,
+    uid: 'uid-sandra',
+    email: 'ventas@elclubdelmate.com',
+    perfil: { nombre: 'Sandra', rol: 'encargado' },
+    sinPerfil: false,
+    desactivada: false,
+    ...parcial,
+  })
+
+  it('firma con el mail, el nombre Y el rol', () => {
+    // El rol es el que faltaba: durante dos semanas el historial guardo
+    // "Sandra" sin decir con que rol habia hecho el cambio. Una
+    // constancia que no dice el rol sirve a medias, y era justo lo que
+    // se habia pedido cuando se creo el rol de encargado.
+    expect(autorDeLaSesion(sesion())).toEqual({
+      email: 'ventas@elclubdelmate.com',
+      nombre: 'Sandra',
+      rol: 'encargado',
+    })
+  })
+
+  it('guarda el rol de cada uno, no uno fijo', () => {
+    expect(autorDeLaSesion(sesion({ perfil: { nombre: 'Emmanuel', rol: 'owner' } }))?.rol).toBe(
+      'owner',
+    )
+    expect(autorDeLaSesion(sesion({ perfil: { nombre: 'Gabriela', rol: 'empleado' } }))?.rol).toBe(
+      'empleado',
+    )
+  })
+
+  it('sin perfil no firma nada', () => {
+    // Sin perfil no hay a quien atribuirle el cambio, y el historial
+    // prefiere no anotar antes que anotar a nombre de nadie.
+    expect(autorDeLaSesion(sesion({ perfil: null }))).toBeNull()
+  })
+
+  it('sin mail tampoco', () => {
+    expect(autorDeLaSesion(sesion({ email: null }))).toBeNull()
   })
 })

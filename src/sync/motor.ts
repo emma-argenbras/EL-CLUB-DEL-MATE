@@ -31,7 +31,7 @@ import { aClaveDeNube, aClaveLocal } from './claves'
 import { ID_NEGOCIO } from './config'
 import { fijarEstadoNube } from './estado'
 import { crearAuthSecundario, obtenerAuth, obtenerFirestore } from './firebase'
-import { fijarSesion, obtenerSesion } from './sesion'
+import { autorDeLaSesion, fijarSesion, obtenerSesion } from './sesion'
 
 const TABLAS: NombreTabla[] = [
   'productos',
@@ -358,10 +358,7 @@ export function iniciarMotor(): void {
   motorIniciado = true
 
   engancharSync(pushCambio)
-  engancharAutor(() => {
-    const s = obtenerSesion()
-    return s.email && s.perfil ? { email: s.email, nombre: s.perfil.nombre } : null
-  })
+  engancharAutor(() => autorDeLaSesion(obtenerSesion()))
 
   onAuthStateChanged(obtenerAuth(), (usuario: User | null) => {
     if (usuario) {
