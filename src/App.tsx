@@ -10,6 +10,7 @@ import { marcarArranqueDelHistorial } from './db/db'
 import { estaAlMando } from './sync/permisos'
 import { leerModoConsulta } from './lib/modoConsulta'
 import { useSesion } from './sync/useSesion'
+import { useEstadoNube } from './sync/useEstadoNube'
 import Panel from './paginas/Panel'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
@@ -67,6 +68,7 @@ export default function App() {
   // despues saltaria al buscador.
   const modoConsulta = useLiveQuery(() => leerModoConsulta(), [])
   const enConsulta = useLocation().pathname === '/consulta'
+  const estadoNube = useEstadoNube()
 
   useEffect(() => {
     if (nubeConfigurada) {
@@ -166,6 +168,30 @@ export default function App() {
           {!modoConsulta && !enConsulta && <Notificaciones />}
         </div>
       </header>
+
+      {/* Los dos carteles del 20/10. Van arriba de todo y en todas las
+          pantallas a proposito: el aviso de que este dispositivo estaba
+          solo existia --en Ajustes, escrito como un paso de instalacion
+          pendiente-- y nadie lo leyo nunca. Un empleado ni siquiera
+          puede entrar a Ajustes. */}
+      {!nubeConfigurada && !enConsulta && (
+        <div className="aviso aviso-error">
+          <strong>Este dispositivo no está conectado.</strong> Lo que cargues acá se guarda
+          solo en este aparato: no lo ve nadie más y se pierde si el aparato se pierde.
+          Avisá antes de seguir cargando.
+        </div>
+      )}
+      {nubeConfigurada && !enConsulta && (estadoNube.sinSubir ?? 0) > 0 && (
+        <div className="aviso aviso-ojo">
+          <strong>
+            {estadoNube.sinSubir === 1
+              ? 'Hay 1 cosa sin subir al servidor.'
+              : `Hay ${estadoNube.sinSubir} cosas sin subir al servidor.`}
+          </strong>{' '}
+          Están guardadas en este dispositivo pero no llegaron a los demás. Si tenés internet
+          y no baja en unos minutos, avisá antes de seguir cargando.
+        </div>
+      )}
 
       {error && <div className="aviso aviso-error">No se pudo cargar el catálogo: {error}</div>}
 

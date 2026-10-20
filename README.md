@@ -506,6 +506,87 @@ leer una lista sería peor que revivir uno borrado, que al menos se vuelve a bor
 
 ---
 
+## La carga a mano: lo que se agregó el 20/10
+
+Con la importación cancelada, todo pasa por las manos de una persona. Estos diez
+cambios salieron de ahí, y la mitad son frenos: cosas que antes se podían hacer mal sin
+que nada avisara.
+
+### Los dos carteles
+
+Van **arriba de todo y en todas las pantallas**, a propósito.
+
+- **"Este dispositivo no está conectado"**, cuando la app corre sin nube. El aviso ya
+  existía —en Ajustes, escrito como un paso de instalación pendiente— y nadie lo leyó
+  nunca: un empleado ni siquiera puede entrar a Ajustes. Un celular estuvo tres días
+  cargando datos que nadie veía.
+- **"Hay N cosas sin subir al servidor"**, comparando **cantidades**: una consulta de
+  conteo por tabla contra el servidor, nueve lecturas en total, cada cinco minutos. No
+  dice cuáles faltan, y para lo que tiene que hacer alcanza — avisarle a quien está
+  cargando que lo que carga no está llegando a ningún lado.
+
+`sinSubir` en el estado de la nube distingue **null** (no se pudo averiguar) de **cero**
+(se controló y está todo arriba). No saber no es lo mismo que estar al día.
+
+### Productos con un proveedor que no existe
+
+Un producto puede apuntar a una ficha que **no está**. Quedaban en un limbo: no contaban
+como "sin proveedor" —`proveedorId` no es null— ni aparecían dentro de ningún proveedor
+—esa ficha no está en la lista—. Invisibles para los dos lados, y nadie los buscaba
+porque ningún aviso los nombraba. El caso real: MR001 a MR006.
+
+[`src/lib/proveedorDeProducto.ts`](./src/lib/proveedorDeProducto.ts) distingue los
+**tres** estados que hay y no dos. Ahora el producto se lee "proveedor inexistente:
+MATES RAFAEL…" en rojo, el filtro por proveedor los agrupa, y el Panel avisa cuántos son
+y de quiénes.
+
+### Pasar una venta de turno
+
+Solo entre turnos del **mismo día** y solo si los **dos están abiertos**
+([`src/db/moverVenta.ts`](./src/db/moverVenta.ts)).
+
+Lo primero, porque la venta tiene su propia fecha y los reportes suman **por fecha**
+mientras la caja cuenta **por turno**: moverla a otro día sin tocar las dos cosas deja
+el reporte y el arqueo diciendo cosas distintas. Lo segundo, porque un turno cerrado se
+cerró contando una plata, y meterle o sacarle una venta después hace que el arqueo
+firmado ya no corresponda. La app dice "reabrí el turno primero", y reabrir existe.
+
+### De dónde sale la plata de un pago
+
+Antes todo pago a proveedor se registraba como salido de la caja grande. Si se pagaba
+con efectivo del cajón, el turno cerraba con un faltante por ese monto y nada lo
+explicaba. Ahora el formulario pregunta, y el movimiento se escribe **una sola vez**:
+contra el turno (`EGRESO_CAJA`, que el cierre descuenta solo) o contra la caja grande
+(`GASTO_CAJA_GRANDE`). La opción del cajón no aparece si no hay turno abierto.
+
+### Alta de producto desde una compra
+
+Casi toda compra trae algo que todavía no está en el catálogo, y cortar la carga para
+ir a crearlo era perder el formulario entero. Ahora "+ Producto nuevo…" lo crea con el
+proveedor ya puesto. El precio de venta queda vacío a propósito: lo decide quien mira el
+costo y la rentabilidad, no el apuro de la carga.
+
+De paso, guardar una compra pasó a **leer los productos de la base** en vez de la lista
+que tenía la pantalla: un producto recién creado desde ahí todavía podía no estar en esa
+lista, y eso reventaba al guardar.
+
+### Reactivar un proveedor
+
+Marcarlo inactivo deja sus productos descontinuados; reactivarlo no lo deshacía y nada
+lo decía. Ahora **pregunta** si también saca esa marca, y la confirmación de marcar
+inactivo avisa que va a pasar. Se pregunta en vez de deshacerlo solo porque a veces se
+marca inactivo *porque* los productos se descontinuaron de verdad.
+
+### Y dos cosas chicas
+
+- El botón de **aplicar el plan de proveedores** quedó solo para dueño. La revisión
+  —que es la lista de trabajo— la sigue viendo un encargado completa.
+- El **contacto** del proveedor sí estaba, en "Editar", sin restricción por rol. Lo que
+  no estaba era el renglón cuando el campo está vacío: un proveedor sin contacto se veía
+  igual que si el campo no existiera. Ahora dice "sin contacto cargado".
+
+---
+
 ## El lío de los proveedores
 
 Al 17/10/2026: 34 proveedores cargados, **33 inactivos**, varios repetidos con el mismo
@@ -1176,6 +1257,11 @@ sigue.
 precios para el salón, la revisión de proveedores, y el id del proveedor derivado del
 nombre.
 
+**Hecho el 20/10** — borrar un turno (y que lo borrado no vuelva), y los diez puntos de
+"La carga a mano": los dos carteles, los productos con proveedor inexistente, el filtro
+por proveedor, pasar una venta de turno, el origen de la plata de un pago, el alta de
+producto desde una compra, y el detector de turnos repetidos por mes.
+
 **Datos a ordenar**
 
 - [ ] **Ordenar los proveedores a mano** (decisión del 20/10). La pantalla de
@@ -1190,11 +1276,6 @@ nombre.
 
 **Mejoras conocidas**
 
-- [ ] **Avisar cuando hay cosas sin subir.** Hoy el indicador de la nube dice si está
-      conectada, no si quedó algo pendiente de subir. Por eso el celular de Gabi estuvo
-      tres días con un turno sin sincronizar y nadie se enteró. Falta un cartel de
-      "tenés N cosas sin subir" en el Panel y en la campana, que se vea en el
-      dispositivo que las tiene y no solo cuando alguien va a buscarlas.
 
 - [ ] Pasar el marcador de "esto viene del servidor" **por cada escritura** en vez de
       tenerlo global (hoy una edición hecha justo durante una sincronización no deja

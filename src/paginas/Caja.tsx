@@ -19,6 +19,7 @@ import BuscadorProducto from '../componentes/BuscadorProducto'
 import CierresPendientes from '../componentes/CierresPendientes'
 import CierresTardios from '../componentes/CierresTardios'
 import { useSesion } from '../sync/useSesion'
+import { moverVenta } from '../db/moverVenta'
 import { ETIQUETA_ROL } from '../sync/permisos'
 
 export default function Caja() {
@@ -287,6 +288,27 @@ function PanelVentas({
   const [precio, setPrecio] = useState('')
   const [medioPago, setMedioPago] = useState<MedioPago>('EFECTIVO')
 
+  // El otro turno del mismo dia. Es a donde se puede pasar una venta
+  // que se cargo en el turno equivocado.
+  const otroTurno = useLiveQuery(
+    async () =>
+      (await db.jornadas.where('fecha').equals(jornada.fecha).toArray()).find(
+        (j) => j.id !== jornada.id,
+      ) ?? null,
+    [jornada.fecha, jornada.id],
+  )
+
+  async function mover(venta: import('../db/db').Venta) {
+    if (!otroTurno) return
+    const aDonde = otroTurno.turno === 'M' ? 'la mañana' : 'la tarde'
+    if (!confirm(`¿Pasar la venta de ${venta.descripcion} al turno de ${aDonde}?\n\nLa plata deja de contar en esta caja y pasa a contar en la otra. Queda registrado en el historial.`)) return
+    try {
+      await moverVenta(venta.id, otroTurno.id)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   function seleccionar(producto: Producto) {
     setElegido(producto)
     setPrecio(producto.precioVenta ? String(producto.precioVenta) : '')
@@ -443,13 +465,16 @@ function PanelVentas({
                 <div style={{ textAlign: 'right' }}>
                   <div className="item-monto">{plata(v.total)}</div>
                   {!bloqueado && (
-                    <button
-                      className="boton-chico"
-                      style={{ marginTop: 4 }}
-                      onClick={() => borrar(v)}
-                    >
-                      Borrar
-                    </button>
+                    <div className="botonera" style={{ marginTop: 4, justifyContent: 'flex-end' }}>
+                      {otroTurno && (
+                        <button className="boton-chico" onClick={() => mover(v)}>
+                          Pasar a {otroTurno.turno === 'M' ? 'mañana' : 'tarde'}
+                        </button>
+                      )}
+                      <button className="boton-chico" onClick={() => borrar(v)}>
+                        Borrar
+                      </button>
+                    </div>
                   )}
                 </div>
               </li>

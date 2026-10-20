@@ -10,6 +10,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDocs,
   onSnapshot,
   setDoc,
@@ -100,6 +101,10 @@ const rechazosRecientes = new Set<string>()
 
 let desuscribirColecciones: Unsubscribe[] = []
 let motorIniciado = false
+let controlPeriodico: ReturnType<typeof setInterval> | null = null
+
+/** Cada cuanto se vuelve a controlar si quedo algo sin subir. */
+const CADA_CUANTO_CONTROLAR = 5 * 60 * 1000
 
 /** Convierte undefined en null: Firestore no acepta valores undefined. */
 function limpiar(obj: Record<string, unknown>): Record<string, unknown> {
@@ -249,6 +254,52 @@ async function empujarTodoLocal() {
 }
 
 /**
+ * Cuenta cuantos registros tiene este dispositivo que el servidor no.
+ *
+ * Compara CANTIDADES, no documento por documento: una consulta de
+ * conteo por tabla en vez de traerse miles de ids. Es barato --nueve
+ * lecturas en total-- asi que se puede correr seguido.
+ *
+ * No dice CUALES faltan, y para el unico proposito que tiene alcanza:
+ * avisarle a quien esta cargando que lo que carga no esta llegando a
+ * ningun lado. Eso es lo que no se vio durante tres dias en el celular
+ * de Gabi.
+ *
+ * Si el servidor tiene mas que el dispositivo --lo normal en un
+ * telefono recien instalado-- da cero: lo que falta aca lo trae la
+ * sincronizacion sola, y no es un problema de nadie.
+ */
+export async function contarSinSubir(): Promise<number | null> {
+  const auth = obtenerAuth()
+  if (!auth.currentUser) return null
+  const firestore = obtenerFirestore()
+
+  try {
+    let total = 0
+    for (const tabla of TABLAS) {
+      const [aca, alla] = await Promise.all([
+        db.table(tabla).count(),
+        getCountFromServer(collection(firestore, 'negocios', ID_NEGOCIO, tabla)).then(
+          (r) => r.data().count,
+        ),
+      ])
+      if (aca > alla) total += aca - alla
+    }
+    return total
+  } catch (e) {
+    // Sin internet no se puede saber, y no saber no es lo mismo que
+    // estar al dia: queda en null y el cartel no dice nada.
+    console.warn('No se pudo controlar lo que falta subir:', e)
+    return null
+  }
+}
+
+/** Controla y deja el resultado en el estado de la nube. */
+export async function controlarSinSubir(): Promise<void> {
+  fijarEstadoNube({ sinSubir: await contarSinSubir() })
+}
+
+/**
  * Si el perfil propio (usuarios/{uid}) cambio en la nube, actualiza la
  * sesion. Se llama tanto al loguearse como cada vez que llega un cambio
  * remoto de la coleccion "usuarios" — asi, si un owner desactiva a
@@ -371,7 +422,18 @@ export function iniciarMotor(): void {
         desactivada: false,
       })
       escucharColecciones()
-      empujarTodoLocal().catch((e) => console.warn('No se pudo subir el estado inicial:', e))
+      empujarTodoLocal()
+        .catch((e) => console.warn('No se pudo subir el estado inicial:', e))
+        // Recien despues de intentar subir tiene sentido contar lo que
+        // quedo: si se controlara antes, el numero seria el de lo que
+        // esta por subirse y asustaria sin motivo.
+        .finally(() => {
+          void controlarSinSubir()
+          // Y cada tanto despues: lo que no sube no avisa solo, asi que
+          // hay que ir a preguntar.
+          if (controlPeriodico) clearInterval(controlPeriodico)
+          controlPeriodico = setInterval(() => void controlarSinSubir(), CADA_CUANTO_CONTROLAR)
+        })
       ;(async () => {
         await intentarArrancarFundador(usuario)
         await actualizarPerfilPropio()
@@ -383,7 +445,11 @@ export function iniciarMotor(): void {
       })()
     } else {
       dejarDeEscuchar()
-      fijarEstadoNube({ estado: 'desconectado', email: null })
+      if (controlPeriodico) {
+        clearInterval(controlPeriodico)
+        controlPeriodico = null
+      }
+      fijarEstadoNube({ estado: 'desconectado', email: null, sinSubir: null })
       fijarSesion({ cargando: false, uid: null, email: null, perfil: null, sinPerfil: false })
     }
   })

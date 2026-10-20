@@ -809,7 +809,10 @@ class BaseECDM extends Dexie {
         'cierreAutorizado',
         'solicitudCierre',
       ],
-      ventas: ['codigo', 'descripcion', 'cantidad', 'precioUnitario', 'medioPago'],
+      // jornadaId entra porque una venta se puede pasar de un turno al
+      // otro cuando se cargo en el equivocado, y eso mueve plata de una
+      // caja a la otra: tiene que quedar escrito.
+      ventas: ['codigo', 'descripcion', 'cantidad', 'precioUnitario', 'medioPago', 'jornadaId'],
       movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable'],
       proveedores: ['nombre', 'contacto', 'activo', 'notas'],
       movimientosProveedor: ['tipo', 'monto', 'fecha', 'concepto'],
