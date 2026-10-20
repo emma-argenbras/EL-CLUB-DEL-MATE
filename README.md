@@ -268,6 +268,12 @@ Cuando un encargado autoriza algo, la constancia guarda **su nombre y su rol**
 (`cierreAutorizado.porRol`): dice que lo miró un encargado, no que lo miró un
 dueño. Para eso sirve una constancia.
 
+Lo mismo vale para el historial de modificaciones, y ahí faltaba: durante dos semanas
+guardó el nombre y dejó el rol en `null`. La prueba de `db.ts` verificaba que el rol se
+guardara **cuando venía**, y venía nunca — el motor armaba el autor sin él. Por eso la
+función que firma los cambios salió del motor (que no se puede probar sin Firebase) y
+vive en [`src/sync/sesion.ts`](./src/sync/sesion.ts), con sus propias pruebas.
+
 Quién puede hacer qué vive en un solo archivo,
 [`src/sync/permisos.ts`](./src/sync/permisos.ts), con un nombre por permiso.
 Antes era `rol === 'owner'` repetido en diez pantallas, que con dos roles se

@@ -1,6 +1,7 @@
 import {
   SECCIONES_CONFIGURABLES,
   SECCIONES_POR_DEFECTO_EMPLEADO,
+  type Autor,
   type Rol,
   type SeccionId,
 } from '../db/db'
@@ -18,6 +19,26 @@ export interface Perfil {
   rol: Rol
   /** Solo importa si rol es "empleado"; ver Usuario.secciones en db.ts. */
   secciones?: SeccionId[] | null
+}
+
+/**
+ * Quien firma los cambios que se hacen en esta sesion.
+ *
+ * Vive aca y no adentro del motor porque el motor no se puede probar
+ * sin Firebase, y esto se le paso por alto justamente ahi: durante dos
+ * semanas el historial guardo el nombre y dejo el rol en null. La
+ * prueba de db.ts verificaba que el rol se guardara cuando venia, y
+ * venia nunca. Separar la funcion la deja a la vista.
+ */
+export function autorDeLaSesion(sesion: Sesion): Autor | null {
+  if (!sesion.email || !sesion.perfil) return null
+  return {
+    email: sesion.email,
+    nombre: sesion.perfil.nombre,
+    // El rol tambien: una constancia que dice "lo autorizo Sandra" sin
+    // decir con que rol lo hizo sirve a medias.
+    rol: sesion.perfil.rol,
+  }
 }
 
 export interface Sesion {
