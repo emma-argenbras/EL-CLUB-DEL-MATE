@@ -180,9 +180,31 @@ export interface Proveedor {
    * sin tocar la app ni esperar una version nueva.
    */
   alias?: string[]
+  /**
+   * Como se le compra: por WhatsApp, por la pagina, en persona, por
+   * viajante. No es un dato de color: define a quien hay que escribirle
+   * y por donde, que es la mitad del trabajo de reponer mercaderia.
+   */
+  comoSeCompra?: string | null
+  /** Pagina web o Instagram. */
+  web?: string | null
+  /** Alias o CBU para transferirle. */
+  aliasCbu?: string | null
+  /** A nombre de quien esta esa cuenta. */
+  titular?: string | null
+  ciudad?: string | null
   creadoEn?: number
   actualizadoEn?: number
 }
+
+/** Las formas en que se le compra a un proveedor. */
+export const FORMAS_DE_COMPRA = [
+  'WhatsApp',
+  'Página web',
+  'En persona',
+  'Viajante',
+  'Teléfono',
+] as const
 
 /** Una linea de producto dentro de una compra: lo que se lleva a stock. */
 export interface ItemCompra {
@@ -387,10 +409,50 @@ export const CATEGORIAS_GASTO = [
 
 export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number]
 
+/**
+ * De que cuenta del negocio sale (o entra) la plata.
+ *
+ * Es otra pregunta que `tipo`, y las dos hacen falta.
+ *
+ * `tipo` decide la ARITMETICA: EGRESO_CAJA sale del cajon del turno y
+ * el cierre lo descuenta del efectivo esperado; GASTO_CAJA_GRANDE no
+ * toca ese cajon. La app no lleva un saldo de caja grande: ese tipo
+ * significa "es un gasto del negocio que no sale del cajon", nada mas.
+ *
+ * `cuenta` dice DE DONDE salio de verdad. Un pago por transferencia
+ * desde el banco y uno desde Mercado Pago son los dos "no sale del
+ * cajon", pero no son la misma plata, y a fin de mes hay que poder
+ * conciliar cada cuenta con su resumen.
+ *
+ * Por eso el tipo se deriva de la cuenta --cajon es lo unico que toca
+ * el turno-- y no al reves.
+ */
+export type CuentaDePago = 'cajon' | 'cajaGrande' | 'banco' | 'mercadoPago'
+
+export const ETIQUETA_CUENTA: Record<CuentaDePago, string> = {
+  cajon: 'Cajón del turno',
+  cajaGrande: 'Caja grande',
+  banco: 'Banco',
+  mercadoPago: 'Mercado Pago',
+}
+
+/** Las cuentas que no tocan la caja del turno. */
+export function tipoSegunCuenta(cuenta: CuentaDePago): TipoMovimiento {
+  return cuenta === 'cajon' ? 'EGRESO_CAJA' : 'GASTO_CAJA_GRANDE'
+}
+
 export interface Movimiento {
   id: string
   fecha: string
   tipo: TipoMovimiento
+  /**
+   * De que cuenta salio la plata. Opcional: los movimientos cargados
+   * antes del 21/10/2026 no la tienen, y los de la planilla vieja
+   * tampoco. Sin esto no habia forma de decir "esto se pago por
+   * Mercado Pago", que es por lo que quedaron tres movimientos sin
+   * clasificar.
+   */
+  cuenta?: CuentaDePago | null
   concepto: string
   monto: number
   categoria: CategoriaGasto | null
@@ -813,8 +875,19 @@ class BaseECDM extends Dexie {
       // otro cuando se cargo en el equivocado, y eso mueve plata de una
       // caja a la otra: tiene que quedar escrito.
       ventas: ['codigo', 'descripcion', 'cantidad', 'precioUnitario', 'medioPago', 'jornadaId'],
-      movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable'],
-      proveedores: ['nombre', 'contacto', 'activo', 'notas'],
+      movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable', 'cuenta'],
+      proveedores: [
+        'nombre',
+        'contacto',
+        'activo',
+        'notas',
+        'alias',
+        'comoSeCompra',
+        'web',
+        'aliasCbu',
+        'titular',
+        'ciudad',
+      ],
       movimientosProveedor: ['tipo', 'monto', 'fecha', 'concepto'],
       usuarios: ['nombre', 'email', 'rol', 'activo', 'secciones'],
       // Las dos tablas de historial no se registran a si mismas: un

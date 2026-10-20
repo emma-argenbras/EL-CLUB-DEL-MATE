@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CATEGORIAS_GASTO,
+  ETIQUETA_CUENTA,
   db,
   nuevoId,
+  tipoSegunCuenta,
   type CategoriaGasto,
+  type CuentaDePago,
   type Movimiento,
   type TipoMovimiento,
 } from '../db/db'
@@ -117,6 +120,29 @@ export default function Gastos() {
                       {m.esVariable ? 'VARIABLE' : 'FIJO'}
                     </span>
                   </div>
+                  {/* La cuenta se puede completar desde acá, sin borrar
+                      y volver a cargar. Los movimientos viejos no la
+                      tienen --el campo no existía--, y son justamente
+                      los que hay que poder clasificar. */}
+                  <div className="item-sub">
+                    <select
+                      aria-label={`Cuenta de ${m.concepto}`}
+                      value={m.cuenta ?? ''}
+                      onChange={(e) =>
+                        db.movimientos.update(m.id, {
+                          cuenta: (e.target.value || null) as CuentaDePago | null,
+                        })
+                      }
+                      style={{ padding: '2px 6px', fontSize: '0.78rem', width: 'auto' }}
+                    >
+                      <option value="">¿De qué cuenta salió?</option>
+                      {(Object.keys(ETIQUETA_CUENTA) as CuentaDePago[]).map((c) => (
+                        <option key={c} value={c}>
+                          {ETIQUETA_CUENTA[c]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="item-monto">{plata(m.monto)}</div>
@@ -150,6 +176,7 @@ function FormularioGasto({ onSalir }: { onSalir: () => void }) {
   const [categoria, setCategoria] = useState<CategoriaGasto>('PROVEEDORES')
   const [esVariable, setEsVariable] = useState(false)
   const [tipo, setTipo] = useState<TipoMovimiento>('GASTO_CAJA_GRANDE')
+  const [cuenta, setCuenta] = useState<CuentaDePago | ''>('')
 
   function elegirCategoria(nueva: CategoriaGasto) {
     setCategoria(nueva)
@@ -167,6 +194,7 @@ function FormularioGasto({ onSalir }: { onSalir: () => void }) {
       concepto: concepto.trim(),
       monto: valor,
       categoria,
+      cuenta: cuenta || null,
       jornadaId: null,
       esVariable: tipo === 'INGRESO_CAJA_GRANDE' ? false : esVariable,
     }
@@ -188,6 +216,34 @@ function FormularioGasto({ onSalir }: { onSalir: () => void }) {
           <option value="GASTO_CAJA_GRANDE">Gasto pagado con caja grande</option>
           <option value="INGRESO_CAJA_GRANDE">Ingreso a caja grande</option>
         </select>
+      </div>
+
+      <div className="campo">
+        <label htmlFor="g-cuenta">¿De qué cuenta salió? (opcional)</label>
+        <select
+          id="g-cuenta"
+          value={cuenta}
+          onChange={(e) => {
+            const nueva = e.target.value as CuentaDePago | ''
+            setCuenta(nueva)
+            // Si sale del cajón del turno, es un egreso de esa caja y
+            // no un gasto de caja grande: el tipo lo decide la cuenta.
+            if (nueva && tipo !== 'INGRESO_CAJA_GRANDE') setTipo(tipoSegunCuenta(nueva))
+          }}
+        >
+          <option value="">Sin especificar</option>
+          {(Object.keys(ETIQUETA_CUENTA) as CuentaDePago[])
+            .filter((c) => c !== 'cajon')
+            .map((c) => (
+              <option key={c} value={c}>
+                {ETIQUETA_CUENTA[c]}
+              </option>
+            ))}
+        </select>
+        <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
+          Sirve para conciliar después cada cuenta con su resumen. Los gastos del cajón del
+          turno se cargan desde Caja, en "Egresos".
+        </p>
       </div>
 
       <div className="grilla grilla-2">

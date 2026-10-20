@@ -13,7 +13,9 @@ import {
   type Proveedor,
 } from '../db/db'
 import { costoDesactualizado } from '../lib/calculos'
+import { ETIQUETA_CUENTA, FORMAS_DE_COMPRA, tipoSegunCuenta, type CuentaDePago } from '../db/db'
 import { idDeProveedor } from '../lib/idProveedor'
+import { enlaceWhatsApp, soloDigitos } from '../lib/whatsapp'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
 
@@ -121,6 +123,158 @@ export default function Proveedores() {
 
 /* ------------------------------------------------------------------ */
 
+/**
+ * Los campos de la ficha de un proveedor. Uno solo, para el alta y para
+ * la edicion.
+ *
+ * Antes eran dos formularios distintos: el alta pedia nombre y
+ * contacto, la edicion agregaba los otros nombres. Resultado: un
+ * proveedor cargado nuevo nacia a medias y habia que entrar a editarlo
+ * para completarlo, cosa que nadie hace. Con la carga a mano eso es la
+ * diferencia entre tener la ficha del proveedor o no tenerla.
+ *
+ * Los datos son los que hacen falta para COMPRARLE: por donde se le
+ * escribe, a quien, a que cuenta se le transfiere y con que
+ * condiciones. No es una agenda: es lo que se necesita a la hora de
+ * reponer.
+ */
+function CamposProveedor({
+  valores,
+  alCambiar,
+}: {
+  valores: FichaProveedor
+  alCambiar: (cambios: Partial<FichaProveedor>) => void
+}) {
+  const campo = (
+    clave: keyof FichaProveedor,
+    etiqueta: string,
+    extra: { placeholder?: string; autoFocus?: boolean } = {},
+  ) => (
+    <div className="campo">
+      <label htmlFor={`pf-${clave}`}>{etiqueta}</label>
+      <input
+        id={`pf-${clave}`}
+        value={valores[clave] ?? ''}
+        onChange={(e) => alCambiar({ [clave]: e.target.value })}
+        {...extra}
+      />
+    </div>
+  )
+
+  return (
+    <>
+      {campo('nombre', 'Nombre', { placeholder: 'Ej: MOHICANO', autoFocus: true })}
+      {campo('contacto', 'Teléfono / WhatsApp', { placeholder: 'Ej: 345 4123456' })}
+
+      <div className="campo">
+        <label htmlFor="pf-comoSeCompra">¿Cómo se le compra?</label>
+        <select
+          id="pf-comoSeCompra"
+          value={valores.comoSeCompra ?? ''}
+          onChange={(e) => alCambiar({ comoSeCompra: e.target.value })}
+        >
+          <option value="">Sin especificar</option>
+          {FORMAS_DE_COMPRA.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {campo('web', 'Página web o Instagram', { placeholder: '@mohicano o mohicano.com.ar' })}
+      {campo('ciudad', 'Ciudad', { placeholder: 'Ej: Concordia' })}
+      {campo('aliasCbu', 'Alias o CBU para transferir')}
+      {campo('titular', 'Titular de esa cuenta', { placeholder: 'A nombre de quién' })}
+
+      <div className="campo">
+        <label htmlFor="pf-notas">Condiciones</label>
+        <textarea
+          id="pf-notas"
+          rows={3}
+          value={valores.notas ?? ''}
+          onChange={(e) => alCambiar({ notas: e.target.value })}
+          placeholder="Forma de pago, plazo, mínimo de compra…"
+        />
+      </div>
+
+      <div className="campo">
+        <label htmlFor="pf-alias">Otros nombres</label>
+        <input
+          id="pf-alias"
+          value={valores.alias ?? ''}
+          onChange={(e) => alCambiar({ alias: e.target.value })}
+          placeholder="Separados por coma"
+        />
+        <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
+          Otras formas en las que aparece escrito este mismo proveedor. La app las reconoce
+          como la misma ficha, así que no se crea una copia.
+        </p>
+      </div>
+    </>
+  )
+}
+
+/** La ficha tal como se edita: todo texto, incluidos los otros nombres. */
+interface FichaProveedor {
+  nombre: string
+  contacto: string
+  comoSeCompra: string
+  web: string
+  ciudad: string
+  aliasCbu: string
+  titular: string
+  notas: string
+  alias: string
+}
+
+function fichaVacia(): FichaProveedor {
+  return {
+    nombre: '',
+    contacto: '',
+    comoSeCompra: '',
+    web: '',
+    ciudad: '',
+    aliasCbu: '',
+    titular: '',
+    notas: '',
+    alias: '',
+  }
+}
+
+function fichaDe(p: Proveedor): FichaProveedor {
+  return {
+    nombre: p.nombre,
+    contacto: p.contacto ?? '',
+    comoSeCompra: p.comoSeCompra ?? '',
+    web: p.web ?? '',
+    ciudad: p.ciudad ?? '',
+    aliasCbu: p.aliasCbu ?? '',
+    titular: p.titular ?? '',
+    notas: p.notas ?? '',
+    alias: (p.alias ?? []).join(', '),
+  }
+}
+
+/** Lo que se guarda en la base a partir de lo que se escribio. */
+function datosDeLaFicha(f: FichaProveedor) {
+  const limpio = (v: string) => v.trim() || null
+  return {
+    nombre: f.nombre.trim(),
+    contacto: limpio(f.contacto),
+    comoSeCompra: limpio(f.comoSeCompra),
+    web: limpio(f.web),
+    ciudad: limpio(f.ciudad),
+    aliasCbu: limpio(f.aliasCbu),
+    titular: limpio(f.titular),
+    notas: limpio(f.notas),
+    alias: f.alias
+      .split(',')
+      .map((a) => a.trim())
+      .filter(Boolean),
+  }
+}
+
 function FormularioProveedor({
   onSalir,
   onCreado,
@@ -128,26 +282,23 @@ function FormularioProveedor({
   onSalir: () => void
   onCreado?: (id: string) => void
 }) {
-  const [nombre, setNombre] = useState('')
-  const [contacto, setContacto] = useState('')
+  const [ficha, setFicha] = useState<FichaProveedor>(fichaVacia)
   const [error, setError] = useState('')
 
   async function guardar() {
-    if (!nombre.trim()) return setError('Ponele un nombre al proveedor.')
+    if (!ficha.nombre.trim()) return setError('Ponele un nombre al proveedor.')
     // El id sale del nombre (ver lib/idProveedor.ts), asi que buscar
     // por id ya es buscar por nombre: encuentra tambien a "Mohicano "
     // cuando el que existe se llama "MOHICANO".
-    const id = idDeProveedor(nombre)
+    const id = idDeProveedor(ficha.nombre)
     const existe =
       (await db.proveedores.get(id)) ??
-      (await db.proveedores.where('nombre').equalsIgnoreCase(nombre.trim()).first())
+      (await db.proveedores.where('nombre').equalsIgnoreCase(ficha.nombre.trim()).first())
     if (existe) return setError(`Ya existe un proveedor "${existe.nombre}".`)
 
     await db.proveedores.add({
       id,
-      nombre: nombre.trim(),
-      contacto: contacto.trim() || null,
-      notas: null,
+      ...datosDeLaFicha(ficha),
       activo: true,
       creadoEn: Date.now(),
       actualizadoEn: Date.now(),
@@ -160,25 +311,10 @@ function FormularioProveedor({
     <div className="tarjeta">
       <p className="tarjeta-titulo">Proveedor nuevo</p>
       {error && <div className="aviso aviso-error">{error}</div>}
-      <div className="campo">
-        <label htmlFor="prov-nombre">Nombre</label>
-        <input
-          id="prov-nombre"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Ej: MOHICANO"
-          autoFocus
-        />
-      </div>
-      <div className="campo">
-        <label htmlFor="prov-contacto">Contacto (opcional)</label>
-        <input
-          id="prov-contacto"
-          value={contacto}
-          onChange={(e) => setContacto(e.target.value)}
-          placeholder="Teléfono, WhatsApp…"
-        />
-      </div>
+      <CamposProveedor
+        valores={ficha}
+        alCambiar={(cambios) => setFicha((prev) => ({ ...prev, ...cambios }))}
+      />
       <div className="botonera">
         <button onClick={onSalir}>Cancelar</button>
         <button className="boton-principal" onClick={guardar}>
@@ -201,9 +337,7 @@ function DetalleProveedor({
   onVolver: () => void
 }) {
   const [editando, setEditando] = useState(false)
-  const [nombre, setNombre] = useState(proveedor.nombre)
-  const [contacto, setContacto] = useState(proveedor.contacto ?? '')
-  const [alias, setAlias] = useState((proveedor.alias ?? []).join(', '))
+  const [ficha, setFicha] = useState<FichaProveedor>(() => fichaDe(proveedor))
   const [porcentaje, setPorcentaje] = useState('')
   const [mensaje, setMensaje] = useState('')
 
@@ -213,13 +347,11 @@ function DetalleProveedor({
   const vencidos = ordenados.filter((p) => costoDesactualizado(p)).length
 
   async function guardarDatos() {
+    const datos = datosDeLaFicha(ficha)
     await db.proveedores.update(proveedor.id, {
-      nombre: nombre.trim() || proveedor.nombre,
-      contacto: contacto.trim() || null,
-      alias: alias
-        .split(',')
-        .map((a) => a.trim())
-        .filter(Boolean),
+      ...datos,
+      nombre: datos.nombre || proveedor.nombre,
+      actualizadoEn: Date.now(),
     })
     setEditando(false)
   }
@@ -359,32 +491,10 @@ function DetalleProveedor({
 
       {editando ? (
         <div className="tarjeta">
-          <div className="campo">
-            <label htmlFor="ed-nombre">Nombre</label>
-            <input id="ed-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          </div>
-          <div className="campo">
-            <label htmlFor="ed-contacto">Contacto</label>
-            <input
-              id="ed-contacto"
-              value={contacto}
-              onChange={(e) => setContacto(e.target.value)}
-            />
-          </div>
-          <div className="campo">
-            <label htmlFor="ed-alias">Otros nombres</label>
-            <input
-              id="ed-alias"
-              value={alias}
-              onChange={(e) => setAlias(e.target.value)}
-              placeholder="Separados por coma"
-            />
-            <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
-              Otras formas en las que aparece escrito este mismo proveedor. La app las
-              reconoce como la misma ficha, así que no se crea una copia — tampoco al
-              importar la lista de precios.
-            </p>
-          </div>
+          <CamposProveedor
+            valores={ficha}
+            alCambiar={(cambios) => setFicha((prev) => ({ ...prev, ...cambios }))}
+          />
           <div className="botonera">
             <button onClick={() => setEditando(false)}>Cancelar</button>
             <button className="boton-principal" onClick={guardarDatos}>
@@ -425,6 +535,63 @@ function DetalleProveedor({
             {productos.length} productos
             {vencidos > 0 ? ` · ${vencidos} con costo vencido` : ''}
           </p>
+
+          {/* La ficha se lee acá. Si estos datos solo se vieran al
+              editar, cargarlos no serviría de nada: se cargan para
+              usarlos en el momento de comprar. */}
+          {proveedor.comoSeCompra && (
+            <div className="fila">
+              <span className="fila-etiqueta">Se le compra por</span>
+              <span className="fila-valor">{proveedor.comoSeCompra}</span>
+            </div>
+          )}
+          {proveedor.contacto && (
+            <div className="fila">
+              <span className="fila-etiqueta">Teléfono / WhatsApp</span>
+              <span className="fila-valor">
+                <a
+                  href={enlaceWhatsApp('', soloDigitos(proveedor.contacto))}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {proveedor.contacto}
+                </a>
+              </span>
+            </div>
+          )}
+          {proveedor.web && (
+            <div className="fila">
+              <span className="fila-etiqueta">Web / Instagram</span>
+              <span className="fila-valor">{proveedor.web}</span>
+            </div>
+          )}
+          {proveedor.ciudad && (
+            <div className="fila">
+              <span className="fila-etiqueta">Ciudad</span>
+              <span className="fila-valor">{proveedor.ciudad}</span>
+            </div>
+          )}
+          {proveedor.aliasCbu && (
+            <div className="fila">
+              <span className="fila-etiqueta">Para transferir</span>
+              <span className="fila-valor">
+                {proveedor.aliasCbu}
+                {proveedor.titular ? ` · ${proveedor.titular}` : ''}
+              </span>
+            </div>
+          )}
+          {proveedor.notas && (
+            <div className="fila" style={{ display: 'block' }}>
+              <span className="fila-etiqueta">Condiciones</span>
+              <div style={{ marginTop: 2 }}>{proveedor.notas}</div>
+            </div>
+          )}
+          {(proveedor.alias ?? []).length > 0 && (
+            <div className="fila">
+              <span className="fila-etiqueta">Otros nombres</span>
+              <span className="fila-valor">{(proveedor.alias ?? []).join(', ')}</span>
+            </div>
+          )}
           {proveedor.activo === false && (
             <p className="silencio" style={{ marginTop: 6, marginBottom: 0 }}>
               Ya no trabajamos con este proveedor. No aparece para elegir en productos nuevos.
@@ -926,7 +1093,7 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
   const [medioPago, setMedioPago] = useState<MedioPago>('EFECTIVO')
   const [notas, setNotas] = useState('')
   const [error, setError] = useState('')
-  const [deDondeSale, setDeDondeSale] = useState<'cajaGrande' | 'cajon'>('cajaGrande')
+  const [cuenta, setCuenta] = useState<CuentaDePago>('cajaGrande')
 
   /**
    * El turno abierto, si hay. Sin esto, un pago hecho con la plata del
@@ -946,8 +1113,8 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
       return
     }
 
-    const delCajon = deDondeSale === 'cajon' && turnoAbierto
-    if (deDondeSale === 'cajon' && !turnoAbierto) {
+    const delCajon = cuenta === 'cajon' && turnoAbierto
+    if (cuenta === 'cajon' && !turnoAbierto) {
       setError('No hay ningún turno abierto, así que la plata no puede salir del cajón.')
       return
     }
@@ -974,7 +1141,12 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
       await db.movimientos.add({
         id: idGasto,
         fecha,
-        tipo: delCajon ? 'EGRESO_CAJA' : 'GASTO_CAJA_GRANDE',
+        // El tipo sale de la cuenta: el cajon es lo unico que toca el
+        // turno. Banco y Mercado Pago no tocan ninguna caja, pero el
+        // gasto se registra igual --una sola vez-- con su cuenta, para
+        // poder conciliar cada una con su resumen.
+        tipo: tipoSegunCuenta(cuenta),
+        cuenta,
         concepto: `Pago a ${proveedor.nombre}${notas.trim() ? ` (${notas.trim()})` : ''}`,
         monto: numero,
         categoria: 'PROVEEDORES',
@@ -1016,18 +1188,23 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
           <label htmlFor="p-origen">¿De dónde sale la plata?</label>
           <select
             id="p-origen"
-            value={deDondeSale}
-            onChange={(e) => setDeDondeSale(e.target.value as 'cajaGrande' | 'cajon')}
+            value={cuenta}
+            onChange={(e) => setCuenta(e.target.value as CuentaDePago)}
           >
-            <option value="cajaGrande">De la caja grande</option>
             <option value="cajon" disabled={!turnoAbierto}>
-              Del cajón del turno{turnoAbierto ? '' : ' (no hay turno abierto)'}
+              {ETIQUETA_CUENTA.cajon}
+              {turnoAbierto ? '' : ' (no hay turno abierto)'}
             </option>
+            <option value="cajaGrande">{ETIQUETA_CUENTA.cajaGrande}</option>
+            <option value="banco">{ETIQUETA_CUENTA.banco}</option>
+            <option value="mercadoPago">{ETIQUETA_CUENTA.mercadoPago}</option>
           </select>
           <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
-            {deDondeSale === 'cajon'
+            {cuenta === 'cajon'
               ? 'Se descuenta del efectivo esperado del turno abierto, así el cierre da bien.'
-              : 'No toca la caja del turno. Si pagaste con plata del cajón, elegí la otra opción o el turno va a cerrar con faltante.'}
+              : cuenta === 'cajaGrande'
+                ? 'No toca la caja del turno. Si pagaste con plata del cajón, elegí esa opción o el turno va a cerrar con faltante.'
+                : `No toca ninguna caja: el gasto queda registrado con la cuenta de ${ETIQUETA_CUENTA[cuenta]}, para poder conciliarla después.`}
           </p>
         </div>
       <div className="campo">

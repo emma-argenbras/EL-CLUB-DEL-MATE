@@ -698,6 +698,15 @@ export const AYUDA: EntradaAyuda[] = [
 
   // ---------- Gastos ----------
   {
+    id: 'cuenta-de-un-gasto',
+    categoria: 'Gastos',
+    pregunta: '¿Cómo anoto de qué cuenta salió un gasto?',
+    respuesta:
+      'Al cargarlo hay un campo "¿De qué cuenta salió?" con caja grande, banco y Mercado Pago. Es opcional, pero conviene completarlo: es lo que después permite comparar cada cuenta con su resumen.\n\nLos gastos que salen del cajón del turno se cargan desde Caja, en "Egresos", y ya quedan contra ese turno.\n\nA los gastos que ya están cargados también se les puede poner la cuenta: en la lista de Gastos, cada uno tiene un selector abajo. Sirve para los movimientos viejos, que se cargaron cuando este campo no existía.',
+    palabrasClave: ['cuenta', 'banco', 'mercado pago', 'de donde salio', 'conciliar', 'clasificar'],
+    requiereSeccion: 'gastos',
+  },
+  {
     id: 'fijo-variable',
     categoria: 'Gastos',
     pregunta: '¿Qué diferencia hay entre un gasto fijo y uno variable?',
@@ -848,8 +857,8 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Proveedores',
     pregunta: 'Le pagué a un proveedor con plata del cajón, ¿cómo lo cargo?',
     respuesta:
-      'Al registrar el pago, arriba de todo está "¿De dónde sale la plata?" con dos opciones: "De la caja grande" o "Del cajón del turno".\n\nElegí "Del cajón del turno" y el pago se descuenta del efectivo esperado del turno abierto, así el cierre da bien. Si elegís "De la caja grande", no toca la caja del turno.\n\nEsto importa: antes todo pago se tomaba como salido de la caja grande, así que pagar del cajón hacía que el turno cerrara con un faltante por ese monto y nada lo explicaba.\n\nEn los dos casos el gasto aparece una sola vez en Gastos, no dos. La opción del cajón solo está disponible si hay un turno abierto.',
-    palabrasClave: ['pago', 'cajon', 'caja grande', 'faltante', 'efectivo', 'de donde sale'],
+      'Al registrar el pago, arriba de todo está "¿De dónde sale la plata?" con cuatro opciones: cajón del turno, caja grande, banco y Mercado Pago.\n\n**Cajón del turno**: se descuenta del efectivo esperado del turno abierto, así el cierre da bien. Es el único que toca la caja. Solo aparece si hay un turno abierto.\n\n**Caja grande, banco y Mercado Pago**: no tocan ninguna caja, pero el gasto queda registrado igual, una sola vez, con la cuenta anotada. Eso es lo que después permite conciliar cada cuenta con su resumen.\n\nEsto importa: antes todo pago se tomaba como salido de la caja grande, así que pagar del cajón hacía que el turno cerrara con un faltante por ese monto y nada lo explicaba.',
+    palabrasClave: ['pago', 'cajon', 'caja grande', 'banco', 'mercado pago', 'faltante', 'efectivo', 'de donde sale'],
     requiereSeccion: 'proveedores',
   },
   {
@@ -859,6 +868,15 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'No hace falta salir de la compra. En la lista de productos del renglón, elegí "+ Producto nuevo…": te pide el código y el nombre, lo crea con ese proveedor ya asignado, y queda elegido en el renglón.\n\nEl costo y el stock se los pone la compra sola cuando la guardás, igual que a cualquier otro producto. El precio de venta queda vacío a propósito: eso lo decidís después, mirando el costo y la rentabilidad, y mientras tanto el producto aparece en el aviso de "sin precio de venta" para que no se te pase.',
     palabrasClave: ['producto nuevo', 'compra', 'alta', 'no esta en el catalogo'],
+    requiereSeccion: 'proveedores',
+  },
+  {
+    id: 'ficha-proveedor',
+    categoria: 'Proveedores',
+    pregunta: '¿Qué datos le puedo cargar a un proveedor?',
+    respuesta:
+      'Todo lo que hace falta para comprarle: teléfono/WhatsApp, cómo se le compra (WhatsApp, página web, en persona, viajante, teléfono), página web o Instagram, ciudad, alias o CBU para transferirle con el titular de esa cuenta, y las condiciones (forma de pago, plazo, mínimo de compra).\n\nSon los mismos campos al crearlo y al editarlo, así que un proveedor nuevo se puede cargar completo de una. Todos son opcionales menos el nombre.\n\nDespués se leen en la ficha del proveedor, sin entrar a editar — que es cuando se necesitan: a la hora de reponer. El teléfono queda como un link: tocándolo se abre el WhatsApp.',
+    palabrasClave: ['ficha', 'datos del proveedor', 'telefono', 'cbu', 'alias', 'ciudad', 'condiciones'],
     requiereSeccion: 'proveedores',
   },
   {
