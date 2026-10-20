@@ -234,15 +234,49 @@ function DetalleProveedor({
     onVolver()
   }
 
+  /**
+   * Marca el proveedor inactivo, o lo reactiva.
+   *
+   * Marcar inactivo arrastra a sus productos: los deja descontinuados,
+   * que es lo que apaga el aviso de "costo desactualizado" --nadie va a
+   * actualizar el costo de algo que no se vuelve a comprar--.
+   *
+   * El problema era la vuelta: reactivar devolvia el proveedor pero
+   * dejaba a los productos descontinuados para siempre, y nada lo
+   * decia. Con el orden de proveedores hecho a mano, marcar uno
+   * inactivo por error y reactivarlo dejaba 40 productos marcados sin
+   * que se notara. Ahora la reactivacion ofrece deshacerlo, y la
+   * confirmacion de marcar inactivo dice que eso es lo que va a pasar.
+   */
   async function alternarActivo() {
     if (proveedor.activo === false) {
-      await db.proveedores.update(proveedor.id, { activo: true })
+      const marcados = productos.filter((p) => p.descontinuado)
+      let desmarcar = false
+      if (marcados.length > 0) {
+        desmarcar = confirm(
+          `Reactivar "${proveedor.nombre}".\n\n${marcados.length} de sus productos están marcados como descontinuados, probablemente de cuando se lo marcó inactivo.\n\n¿Querés sacarles también esa marca?\n\nAceptar: se reactiva el proveedor y sus ${marcados.length} productos vuelven a figurar normales.\nCancelar: se reactiva el proveedor y los productos quedan descontinuados.`,
+        )
+      }
+      await db.transaction('rw', db.proveedores, db.productos, async () => {
+        await db.proveedores.update(proveedor.id, { activo: true })
+        if (desmarcar) {
+          for (const p of marcados) {
+            await db.productos.update(p.codigo, { descontinuado: false })
+          }
+        }
+      })
+      setMensaje(
+        desmarcar
+          ? `"${proveedor.nombre}" vuelve a estar activo y ${marcados.length} productos dejaron de estar descontinuados.`
+          : `"${proveedor.nombre}" vuelve a estar activo.`,
+      )
       return
     }
+
     const sinMarcar = productos.filter((p) => !p.descontinuado)
     const avisoProductos =
       sinMarcar.length > 0
-        ? ` Sus ${sinMarcar.length} productos van a dejar de figurar como "costo desactualizado" (siguen viéndose en el catálogo igual que siempre, solo se apaga el aviso).`
+        ? `\n\nSus ${sinMarcar.length} productos quedan marcados como DESCONTINUADOS: siguen viéndose y vendiéndose igual, pero dejan de pedir que les actualices el costo.\n\nSi después lo reactivás, la app te va a preguntar si querés sacarles esa marca.`
         : ''
     if (!confirm(`¿Marcar "${proveedor.nombre}" como inactivo?${avisoProductos}`)) return
     await db.transaction('rw', db.proveedores, db.productos, async () => {
@@ -363,7 +397,15 @@ function DetalleProveedor({
           <div className="fila" style={{ borderBottom: 'none' }}>
             <span className="fila-etiqueta">
               <strong style={{ color: 'var(--tinta)', fontSize: '1.05rem' }}>{proveedor.nombre}</strong>
-              {proveedor.contacto ? ` · ${proveedor.contacto}` : ''}
+              {/* Si no hay contacto se dice, en vez de no mostrar nada:
+                  sin esto el campo parecia no existir, y se reporto
+                  justamente asi ("al editar no me aparece el contacto").
+                  Aparecia: lo que no aparecia era el renglon vacio. */}
+              {proveedor.contacto ? (
+                ` · ${proveedor.contacto}`
+              ) : (
+                <span className="silencio"> · sin contacto cargado</span>
+              )}
               {proveedor.activo === false && (
                 <span className="chip" style={{ marginLeft: 6 }}>
                   Inactivo

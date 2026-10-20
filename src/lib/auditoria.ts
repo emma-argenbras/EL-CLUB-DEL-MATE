@@ -17,6 +17,7 @@ import {
   totalArqueo,
 } from './calculos'
 import { plata } from './formato'
+import { fantasmasDeLosProductos } from './proveedorDeProducto'
 
 /**
  * Auditoria automatica del negocio.
@@ -481,6 +482,31 @@ function auditarProductos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       comoSeResuelve: 'Al editar cada producto, elegile el proveedor en la lista.',
       ruta: '/productos',
       cantidad: sinProveedor.length,
+      requiereSeccion: 'productos',
+    })
+  }
+
+  // Los que apuntan a una ficha de proveedor que no existe. No entran
+  // en el aviso de arriba --su proveedorId no es null-- y tampoco
+  // aparecen dentro de ningun proveedor, asi que sin este aviso no hay
+  // forma de llegar a ellos: quedan invisibles para los dos lados.
+  const fantasmas = fantasmasDeLosProductos(visibles, new Map(datos.proveedores.map((p) => [p.id, p])))
+  const conFantasma = fantasmas.reduce((s, f) => s + f.productos, 0)
+  if (conFantasma > 0) {
+    const quienes = fantasmas
+      .slice(0, 3)
+      .map((f) => `${f.nombre ?? 'sin nombre'} (${f.productos})`)
+      .join(', ')
+    hallazgos.push({
+      id: 'productos-proveedor-inexistente',
+      modulo: 'productos',
+      nivel: 'importante',
+      titulo: `${conFantasma} ${plural(conFantasma, 'producto tiene', 'productos tienen')} un proveedor que no existe`,
+      detalle: `Tienen cargado un proveedor cuya ficha no está: ${quienes}${fantasmas.length > 3 ? ' y otros' : ''}. No figuran como "sin proveedor" y tampoco aparecen dentro de ningún proveedor, así que no se los encuentra buscando de la forma habitual.`,
+      comoSeResuelve:
+        'En Productos, filtrá por "Proveedor inexistente" y elegile a cada uno el proveedor que corresponde.',
+      ruta: '/productos?proveedor=fantasma',
+      cantidad: conFantasma,
       requiereSeccion: 'productos',
     })
   }

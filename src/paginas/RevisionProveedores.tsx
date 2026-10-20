@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { nubeConfigurada } from '../sync/config'
+import { esDueno } from '../sync/permisos'
 import { useSesion } from '../sync/useSesion'
 import {
   aplicarPlanProveedores,
@@ -48,6 +49,13 @@ export default function RevisionProveedores() {
   // constancia es justo lo que el historial existe para que no pase,
   // asi que con la nube configurada y sin sesion el boton no va.
   const hayQuienFirme = !nubeConfigurada || Boolean(sesion.perfil)
+
+  // Aplicar el plan reescribe cientos de productos de una. Desde el
+  // 20/10 el orden de los proveedores se hace a mano, asi que este
+  // boton no es una herramienta del dia a dia: es la salida de
+  // emergencia, y queda del lado del dueño. La revision --que es la
+  // lista de trabajo-- la sigue viendo un encargado completa.
+  const puedeAplicar = esDueno(sesion.perfil)
 
   async function aplicar() {
     if (!plan || !confirm(textoDeConfirmacion(plan))) return
@@ -252,7 +260,12 @@ export default function RevisionProveedores() {
             queda en el historial como «Limpieza de proveedores», con el valor de antes y el de
             después, y no se borra ningún producto ni ninguna venta.
           </p>
-          {hayQuienFirme ? (
+          {!puedeAplicar ? (
+            <div className="aviso aviso-ojo" style={{ marginBottom: 0 }}>
+              Esta pantalla es la lista de trabajo para ordenar los proveedores a mano, desde
+              Proveedores y Productos. Aplicar el plan de una sola vez lo hace un dueño.
+            </div>
+          ) : hayQuienFirme ? (
             <button
               className="boton-principal"
               style={{ width: '100%' }}
