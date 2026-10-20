@@ -249,7 +249,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Historial de cambios',
     pregunta: 'Aparecen cientos de cambios de la misma persona en el mismo minuto, ¿qué pasó?',
     respuesta:
-      'Casi siempre es una operación en bloque, no alguien editando a mano a toda velocidad. Dos pistas para distinguirlo: si el renglón tiene un motivo entre comillas («Aumento +8% a Fulano», «Importación Excel»), vino de ahí; y si dos campos distintos tienen exactamente la misma cantidad de cambios, es señal de que los cambió la misma operación.\n\nHay un caso particular que conviene conocer, porque pasó: el 14/10/2026 quedaron 1.506 cambios de productos a nombre de ventas@elclubdelmate.com, el día del primer ingreso de ese celular. No los hizo nadie. Era la primera sincronización del dispositivo bajando del servidor los costos y proveedores que ya existían, y un error de la app los anotó como si fueran ediciones a mano. Los datos de los productos nunca estuvieron mal; lo único equivocado era el historial. El error se arregló el 15/10 y no puede volver a pasar.\n\nEsos 1.506 renglones siguen ahí porque el historial no se borra (ni para arreglarlo). Al filtrar por fechas conviene saltear ese día.',
+      'Casi siempre es una operación en bloque, no alguien editando a mano a toda velocidad. Dos pistas para distinguirlo: si el renglón tiene un motivo entre comillas («Aumento +8% a Fulano», «Limpieza de proveedores»), vino de ahí; y si dos campos distintos tienen exactamente la misma cantidad de cambios, es señal de que los cambió la misma operación.\n\nHay un caso particular que conviene conocer, porque pasó: el 14/10/2026 quedaron 1.506 cambios de productos a nombre de ventas@elclubdelmate.com, el día del primer ingreso de ese celular. No los hizo nadie. Era la primera sincronización del dispositivo bajando del servidor los costos y proveedores que ya existían, y un error de la app los anotó como si fueran ediciones a mano. Los datos de los productos nunca estuvieron mal; lo único equivocado era el historial. El error se arregló el 15/10 y no puede volver a pasar.\n\nEsos 1.506 renglones siguen ahí porque el historial no se borra (ni para arreglarlo). Al filtrar por fechas conviene saltear ese día.',
     palabrasClave: ['muchos cambios', 'bloque', '1506', 'sandra', 'sincronizacion', '14/10'],
     soloOwner: true,
   },
@@ -430,6 +430,24 @@ export const AYUDA: EntradaAyuda[] = [
       'Ajustes → "Modo consulta de precios" → "Prender en este dispositivo".\n\nSe configura por dispositivo y no viaja a los demás: el celular del salón lo tiene prendido y el tuyo sigue abriendo en el Panel como siempre. Desde ahí mismo está "Probarlo" para ver cómo queda antes de dejarlo así.\n\nNo es un candado: desde esa pantalla se puede ir al resto de la app, y el menú de abajo sigue estando. Lo único que cambia es por dónde arranca la app y que no muestra los avisos del negocio.',
     palabrasClave: ['modo consulta', 'salon', 'kiosco', 'celular del local'],
     soloOwner: true,
+  },
+  {
+    id: 'filtrar-por-proveedor',
+    categoria: 'Productos',
+    pregunta: '¿Cómo veo todos los productos de un proveedor?',
+    respuesta:
+      'En Productos, abajo del buscador hay una lista para elegir el proveedor. Se combina con el buscador y con los filtros de alertas: por ejemplo, "los de MOHICANO que están sin stock".\n\nLa lista también tiene dos opciones especiales: "Sin proveedor asignado", para los que todavía no tienen ninguno, y "Proveedor inexistente", que es un caso particular que conviene conocer (está explicado en la pregunta de abajo).',
+    palabrasClave: ['filtrar', 'por proveedor', 'ver los de', 'lista'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'proveedor-inexistente',
+    categoria: 'Productos',
+    pregunta: '¿Qué significa "proveedor inexistente" en un producto?',
+    respuesta:
+      'Que el producto tiene un proveedor cargado, pero la ficha de ese proveedor no está en la app. Pasa cuando el proveedor se creó en otro dispositivo y esa ficha nunca llegó al servidor.\n\nEsos productos eran los más difíciles de encontrar: no figuraban como "sin proveedor" —porque proveedor tienen— y tampoco aparecían dentro de ningún proveedor —porque esa ficha no existe—. Quedaban en el medio, invisibles.\n\nAhora el producto lo dice en rojo, con el nombre que trae escrito, y se los puede listar juntos con el filtro "Proveedor inexistente". Para arreglarlo, entrá a cada uno y elegile el proveedor que corresponde; si no existe, creálo ahí mismo con "+ Proveedor nuevo…".',
+    palabrasClave: ['proveedor inexistente', 'no existe', 'invisible', 'no aparece'],
+    requiereSeccion: 'productos',
   },
   {
     id: 'buscar-producto',
@@ -756,6 +774,24 @@ export const AYUDA: EntradaAyuda[] = [
 
   // ---------- Sincronización y respaldo ----------
   {
+    id: 'pasar-venta-de-turno',
+    categoria: 'Caja',
+    pregunta: 'Cargué una venta en el turno equivocado, ¿cómo la paso al otro?',
+    respuesta:
+      'En la lista de ventas del turno, cada venta tiene un botón "Pasar a mañana" o "Pasar a tarde", según cuál sea el otro turno del día. La plata deja de contar en esta caja y pasa a contar en la otra, y queda registrado en el historial.\n\nSolo se puede entre turnos del MISMO día, y solo si los dos están abiertos. Si alguno está cerrado, la app te va a decir que lo reabras primero: un turno cerrado se cerró contando una plata, y meterle o sacarle una venta después haría que ese conteo ya no corresponda. Reabriéndolo, el cierre se vuelve a contar con la plata de verdad.',
+    palabrasClave: ['pasar venta', 'turno equivocado', 'mover venta', 'mañana', 'tarde'],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'turnos-repetidos-mes',
+    categoria: 'Caja',
+    pregunta: '¿Cómo encuentro todos los días con turnos repetidos de un mes?',
+    respuesta:
+      'Ajustes → "Turnos del día" → elegí el mes en "Buscar días con turnos repetidos". La app te muestra solo los días que tienen más de un turno cargado para el mismo momento, y tocando uno lo abrís abajo para ver los dos y borrar el que sobra.\n\nSin eso había que entrar día por día a ciegas, 31 veces por mes.',
+    palabrasClave: ['duplicados', 'repetidos', 'mes', 'agosto', 'buscar'],
+    soloOwner: true,
+  },
+  {
     id: 'borrar-turno',
     categoria: 'Caja',
     pregunta: 'Quedó el mismo día cargado dos veces, ¿cómo saco el que sobra?',
@@ -774,6 +810,22 @@ export const AYUDA: EntradaAyuda[] = [
     soloOwner: true,
   },
   {
+    id: 'carteles-sin-conectar',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Me aparece un cartel rojo que dice que el dispositivo no está conectado',
+    respuesta:
+      'Quiere decir que ese aparato no tiene activada la sincronización: lo que cargues ahí se guarda solo en ese aparato, no lo ve nadie más del equipo, y se pierde si el aparato se pierde o se rompe.\n\nNo sigas cargando: avisá para que lo conecten. Se arregla actualizando la app e iniciando sesión; si ya cargaste cosas ahí, avisá antes de borrar nada, porque ese aparato puede ser la única copia.\n\nEl cartel está arriba de todo y en todas las pantallas a propósito. Este aviso existía antes pero estaba escondido en Ajustes, donde un empleado ni siquiera entra, y por eso un celular estuvo tres días cargando datos que nadie veía.',
+    palabrasClave: ['no conectado', 'cartel rojo', 'sin nube', 'no sube', 'solo en este dispositivo'],
+  },
+  {
+    id: 'cartel-sin-subir',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Dice "hay N cosas sin subir al servidor", ¿qué hago?',
+    respuesta:
+      'Significa que este dispositivo tiene datos guardados que todavía no llegaron a los demás. Normalmente es pasajero: pasa cuando se cargó algo sin señal, y se sube solo apenas vuelve internet.\n\nQué mirar: si tenés internet y el número no baja en unos minutos, algo está trabado. Avisá antes de seguir cargando, y sobre todo no borres los datos de la app ni la desinstales: ese dispositivo puede ser la única copia de lo que figura sin subir.\n\nLa app controla esto cada cinco minutos, comparando cuántos registros tiene acá contra cuántos hay en el servidor.',
+    palabrasClave: ['sin subir', 'pendiente', 'no sincroniza', 'no llega', 'cartel'],
+  },
+  {
     id: 'codigos-con-barra',
     categoria: 'Sincronización y respaldo',
     pregunta: 'Hay productos que veo en un celular y no en otro, ¿por qué?',
@@ -783,11 +835,38 @@ export const AYUDA: EntradaAyuda[] = [
     soloOwner: true,
   },
   {
+    id: 'reactivar-proveedor',
+    categoria: 'Proveedores',
+    pregunta: 'Marqué un proveedor como inactivo por error, ¿cómo lo deshago?',
+    respuesta:
+      'Entrá al proveedor y tocá "Reactivar".\n\nOjo con esto: marcar un proveedor como inactivo también deja sus productos marcados como DESCONTINUADOS (es lo que apaga el aviso de "costo desactualizado", porque nadie va a actualizar el costo de algo que no se vuelve a comprar).\n\nAl reactivarlo, la app te pregunta si querés sacarles también esa marca. Te conviene decir que sí si lo habías marcado por error. Si en cambio esos productos de verdad se dejaron de vender, decí que no y quedan descontinuados.',
+    palabrasClave: ['reactivar', 'inactivo', 'descontinuado', 'deshacer', 'error'],
+    requiereSeccion: 'proveedores',
+  },
+  {
+    id: 'pago-de-donde-sale',
+    categoria: 'Proveedores',
+    pregunta: 'Le pagué a un proveedor con plata del cajón, ¿cómo lo cargo?',
+    respuesta:
+      'Al registrar el pago, arriba de todo está "¿De dónde sale la plata?" con dos opciones: "De la caja grande" o "Del cajón del turno".\n\nElegí "Del cajón del turno" y el pago se descuenta del efectivo esperado del turno abierto, así el cierre da bien. Si elegís "De la caja grande", no toca la caja del turno.\n\nEsto importa: antes todo pago se tomaba como salido de la caja grande, así que pagar del cajón hacía que el turno cerrara con un faltante por ese monto y nada lo explicaba.\n\nEn los dos casos el gasto aparece una sola vez en Gastos, no dos. La opción del cajón solo está disponible si hay un turno abierto.',
+    palabrasClave: ['pago', 'cajon', 'caja grande', 'faltante', 'efectivo', 'de donde sale'],
+    requiereSeccion: 'proveedores',
+  },
+  {
+    id: 'producto-nuevo-desde-compra',
+    categoria: 'Proveedores',
+    pregunta: 'Estoy cargando una compra y el producto no está en el catálogo, ¿qué hago?',
+    respuesta:
+      'No hace falta salir de la compra. En la lista de productos del renglón, elegí "+ Producto nuevo…": te pide el código y el nombre, lo crea con ese proveedor ya asignado, y queda elegido en el renglón.\n\nEl costo y el stock se los pone la compra sola cuando la guardás, igual que a cualquier otro producto. El precio de venta queda vacío a propósito: eso lo decidís después, mirando el costo y la rentabilidad, y mientras tanto el producto aparece en el aviso de "sin precio de venta" para que no se te pase.',
+    palabrasClave: ['producto nuevo', 'compra', 'alta', 'no esta en el catalogo'],
+    requiereSeccion: 'proveedores',
+  },
+  {
     id: 'alias-proveedor',
     categoria: 'Proveedores',
     pregunta: 'El mismo proveedor me quedó cargado con dos nombres distintos, ¿cómo los junto?',
     respuesta:
-      'Entrá a Proveedores, abrí la ficha que querés conservar, tocá "Editar" y cargá el otro nombre en "Otros nombres". Si hay varios, separalos con coma.\n\nDesde ese momento la app sabe que son el mismo: no vuelve a crear una ficha aparte, ni cuando alguien lo escribe así en un producto ni cuando se importa la lista de precios.\n\nSirve para los casos que la app no puede adivinar sola, como "ARANDU" y "ARANDUPÒ": para ella son dos palabras distintas, pero vos sabés que es el mismo proveedor. Se resuelve cargando el alias, sin esperar una versión nueva de la app.',
+      'Entrá a Proveedores, abrí la ficha que querés conservar, tocá "Editar" y cargá el otro nombre en "Otros nombres". Si hay varios, separalos con coma.\n\nDesde ese momento la app sabe que son el mismo: no vuelve a crear una ficha aparte, lo escriba quien lo escriba y desde donde lo escriba.\n\nSirve para los casos que la app no puede adivinar sola, como "ARANDU" y "ARANDUPÒ": para ella son dos palabras distintas, pero vos sabés que es el mismo proveedor. Se resuelve cargando el alias, sin esperar una versión nueva de la app.',
     palabrasClave: ['alias', 'otros nombres', 'dos nombres', 'juntar', 'unificar', 'arandu'],
     requiereSeccion: 'proveedores',
   },
@@ -805,7 +884,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Sincronización y respaldo',
     pregunta: '¿Por qué aparece el mismo proveedor cargado varias veces?',
     respuesta:
-      'Porque hasta ahora cada dispositivo le ponía al proveedor un número interno distinto. El celular de cada persona armó su propia ficha de "MOHICANO", y cuando los celulares sincronizaron quedaron todas, con los productos repartidos entre ellas.\n\nDesde el 17/10/2026 ese número sale del nombre: dos celulares que nunca se hablaron llegan a la misma ficha para el mismo proveedor, así que no se vuelve a armar solo. Las fichas que ya estaban repetidas se juntan con el arreglo de "Revisión de proveedores".\n\nEs lo mismo que hace que la importación de la lista de precios caiga sobre los proveedores que ya existen, en vez de crear una copia de cada uno.',
+      'Porque hasta ahora cada dispositivo le ponía al proveedor un número interno distinto. El celular de cada persona armó su propia ficha de "MOHICANO", y cuando los celulares sincronizaron quedaron todas, con los productos repartidos entre ellas.\n\nDesde el 17/10/2026 ese número sale del nombre: dos celulares que nunca se hablaron llegan a la misma ficha para el mismo proveedor, así que no se vuelve a armar solo. Las fichas que ya estaban repetidas se juntan con el arreglo de "Revisión de proveedores".\n\nEs lo mismo que hace que, cuando alguien escribe un proveedor a mano, la app reconozca al que ya existe en vez de crear una copia — aunque lo escriba con otra mayúscula, con acento o con un espacio de más.',
     palabrasClave: ['repetidos', 'duplicados', 'dos veces', 'mismo proveedor'],
     soloOwner: true,
   },

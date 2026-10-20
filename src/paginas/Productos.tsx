@@ -12,6 +12,13 @@ import {
   sinStock,
 } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
+import {
+  estadoDelProveedor,
+  fantasmasDeLosProductos,
+  textoDelProveedor,
+  FILTRO_FANTASMA,
+  FILTRO_SIN_PROVEEDOR,
+} from '../lib/proveedorDeProducto'
 import { useSesion } from '../sync/useSesion'
 import { estaAlMando } from '../sync/permisos'
 import { CompartirCatalogo, CompartirProducto } from '../componentes/BotonWhatsApp'
@@ -71,14 +78,31 @@ export default function Productos() {
   // boton tenia que acordarse de apagar todos los demas a mano; con
   // cinco alertas eso ya no cerraba.
   const [filtro, setFiltro] = useState<Filtro>(filtroDeLaURL(parametros))
+  // El filtro por proveedor va aparte del de alertas: son dos preguntas
+  // distintas ("que proveedor" y "que problema") y se combinan.
+  const [proveedorFiltro, setProveedorFiltro] = useState<string>(
+    parametros.get('proveedor') ?? '',
+  )
   const [verArchivados, setVerArchivados] = useState(false)
 
   const total = useLiveQuery(() => db.productos.filter(productoVisible).count(), [])
   const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
-  const nombresProveedor = useMemo(
-    () => new Map((proveedores ?? []).map((p) => [p.id, p.nombre])),
+  const fichasPorId = useMemo(
+    () => new Map((proveedores ?? []).map((p) => [p.id, p])),
     [proveedores],
   )
+
+  /**
+   * Los proveedores que los productos usan y que no existen como ficha.
+   * Van al selector para que esos productos se puedan encontrar: antes
+   * no aparecian ni en "sin proveedor" ni dentro de ningun proveedor.
+   */
+  const fantasmas = useLiveQuery(async () => {
+    const todos = await db.productos.filter(productoVisible).toArray()
+    return fantasmasDeLosProductos(todos, fichasPorId)
+  }, [fichasPorId])
+
+  const cuantosFantasmas = (fantasmas ?? []).reduce((s, f) => s + f.productos, 0)
 
   const solicitudes = useLiveQuery(
     () =>
@@ -88,7 +112,7 @@ export default function Productos() {
     [esOwner],
   )
 
-  const filtrando = filtro !== null
+  const filtrando = filtro !== null || proveedorFiltro !== ''
 
   const resultados = useLiveQuery(async () => {
     if (verArchivados) {
@@ -98,12 +122,22 @@ export default function Productos() {
     if (!partes.length && !filtrando) {
       return db.productos.orderBy('descripcion').filter(productoVisible).limit(50).toArray()
     }
-    const encontrados = await db.productos
+    let encontrados = await db.productos
       .filter(
         (p) => productoVisible(p) && partes.every((parte) => p.busqueda.includes(parte)),
       )
       .limit(filtrando ? 2000 : 100)
       .toArray()
+
+    if (proveedorFiltro !== '') {
+      encontrados = encontrados.filter((p) => {
+        const estado = estadoDelProveedor(p, fichasPorId)
+        if (proveedorFiltro === FILTRO_SIN_PROVEEDOR) return estado.tipo === 'sin'
+        if (proveedorFiltro === FILTRO_FANTASMA) return estado.tipo === 'fantasma'
+        return estado.tipo === 'ok' && estado.id === proveedorFiltro
+      })
+      if (filtro === null) return encontrados.slice(0, 300)
+    }
     if (filtro === 'bajoCosto') return encontrados.filter(precioBajoCosto).slice(0, 100)
     if (filtro === 'precioAtrasado') {
       // Los que mas plata dejan sobre la mesa, primero.
@@ -121,7 +155,7 @@ export default function Productos() {
     if (filtro === 'sinStock') return encontrados.filter(sinStock).slice(0, 100)
     if (filtro === 'costoViejo') return encontrados.filter((p) => costoDesactualizado(p)).slice(0, 100)
     return encontrados
-  }, [consulta, filtro, verArchivados, filtrando])
+  }, [consulta, filtro, verArchivados, filtrando, proveedorFiltro, fichasPorId])
 
   const conteoAlertas = useLiveQuery(async () => {
     const todos = await db.productos.filter(productoVisible).toArray()
@@ -353,6 +387,46 @@ export default function Productos() {
           inputMode="search"
           disabled={verArchivados}
         />
+        <select
+          aria-label="Filtrar por proveedor"
+          style={{ marginTop: 8 }}
+          value={proveedorFiltro}
+          onChange={(e) => setProveedorFiltro(e.target.value)}
+          disabled={verArchivados}
+        >
+          <option value="">Todos los proveedores</option>
+          <option value={FILTRO_SIN_PROVEEDOR}>— Sin proveedor asignado —</option>
+          {cuantosFantasmas > 0 && (
+            <option value={FILTRO_FANTASMA}>
+              — Proveedor inexistente ({cuantosFantasmas}) —
+            </option>
+          )}
+          {(proveedores ?? [])
+            .filter((prov) => prov.activo !== false || prov.id === proveedorFiltro)
+            .map((prov) => (
+              <option key={prov.id} value={prov.id}>
+                {prov.nombre}
+                {prov.activo === false ? ' (inactivo)' : ''}
+              </option>
+            ))}
+        </select>
+        {proveedorFiltro === FILTRO_FANTASMA && (
+          <div className="aviso aviso-ojo" style={{ marginTop: 8, marginBottom: 0 }}>
+            Estos productos tienen cargado un proveedor cuya ficha no existe. No figuran como
+            "sin proveedor" y tampoco aparecen dentro de ningún proveedor, así que no se los
+            encuentra de otra forma. Entrá a cada uno y elegile el proveedor que corresponde.
+            {(fantasmas ?? []).length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                {(fantasmas ?? []).map((f) => (
+                  <div key={f.nombre ?? 'sin-nombre'} className="item-sub">
+                    {f.nombre ?? 'sin nombre'}: {f.productos}{' '}
+                    {f.productos === 1 ? 'producto' : 'productos'}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="botonera" style={{ marginTop: 10 }}>
           <button className="boton-principal" onClick={() => setCreando(true)}>
             + Producto nuevo
@@ -394,9 +468,18 @@ export default function Productos() {
                     <div className="item-titulo">{p.descripcion}</div>
                     <div className="item-sub">
                       {p.codigo}
-                      {p.proveedorId && nombresProveedor.get(p.proveedorId)
-                        ? ` · ${nombresProveedor.get(p.proveedorId)}`
-                        : ''}
+                      {(() => {
+                        const estado = estadoDelProveedor(p, fichasPorId)
+                        const texto = textoDelProveedor(estado)
+                        if (!texto) return ''
+                        // El fantasma se marca distinto: no es un dato
+                        // mas del producto, es algo para arreglar.
+                        return estado.tipo === 'fantasma' ? (
+                          <span className="negativo"> · {texto}</span>
+                        ) : (
+                          ` · ${texto}`
+                        )
+                      })()}
                       {p.stock !== null && p.stock !== undefined ? ` · stock ${p.stock}` : ''}
                       {sinStock(p) && (
                         <span className="chip chip-alerta" style={{ marginLeft: 6 }}>

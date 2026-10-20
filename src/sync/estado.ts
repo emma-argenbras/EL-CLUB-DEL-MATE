@@ -12,6 +12,18 @@ export interface EstadoSync {
   email: string | null
   error: string | null
   ultimaRecepcion: number | null
+  /**
+   * Cuantos registros hay en este dispositivo que el servidor no tiene.
+   *
+   * null mientras no se pudo averiguar (sin sesion, sin internet, o
+   * antes del primer control). Cero es distinto de null: cero quiere
+   * decir "se controlo y esta todo arriba".
+   *
+   * Existe por lo que paso el 19/10: el celular de Gabi tenia un turno
+   * entero sin subir y nadie se entero en tres dias. El indicador de la
+   * nube decia si estaba conectada, no si quedaba algo pendiente.
+   */
+  sinSubir: number | null
 }
 
 let estado: EstadoSync = {
@@ -19,6 +31,7 @@ let estado: EstadoSync = {
   email: null,
   error: null,
   ultimaRecepcion: null,
+  sinSubir: null,
 }
 
 const oyentes = new Set<() => void>()

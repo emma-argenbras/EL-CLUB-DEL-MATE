@@ -234,15 +234,49 @@ function DetalleProveedor({
     onVolver()
   }
 
+  /**
+   * Marca el proveedor inactivo, o lo reactiva.
+   *
+   * Marcar inactivo arrastra a sus productos: los deja descontinuados,
+   * que es lo que apaga el aviso de "costo desactualizado" --nadie va a
+   * actualizar el costo de algo que no se vuelve a comprar--.
+   *
+   * El problema era la vuelta: reactivar devolvia el proveedor pero
+   * dejaba a los productos descontinuados para siempre, y nada lo
+   * decia. Con el orden de proveedores hecho a mano, marcar uno
+   * inactivo por error y reactivarlo dejaba 40 productos marcados sin
+   * que se notara. Ahora la reactivacion ofrece deshacerlo, y la
+   * confirmacion de marcar inactivo dice que eso es lo que va a pasar.
+   */
   async function alternarActivo() {
     if (proveedor.activo === false) {
-      await db.proveedores.update(proveedor.id, { activo: true })
+      const marcados = productos.filter((p) => p.descontinuado)
+      let desmarcar = false
+      if (marcados.length > 0) {
+        desmarcar = confirm(
+          `Reactivar "${proveedor.nombre}".\n\n${marcados.length} de sus productos están marcados como descontinuados, probablemente de cuando se lo marcó inactivo.\n\n¿Querés sacarles también esa marca?\n\nAceptar: se reactiva el proveedor y sus ${marcados.length} productos vuelven a figurar normales.\nCancelar: se reactiva el proveedor y los productos quedan descontinuados.`,
+        )
+      }
+      await db.transaction('rw', db.proveedores, db.productos, async () => {
+        await db.proveedores.update(proveedor.id, { activo: true })
+        if (desmarcar) {
+          for (const p of marcados) {
+            await db.productos.update(p.codigo, { descontinuado: false })
+          }
+        }
+      })
+      setMensaje(
+        desmarcar
+          ? `"${proveedor.nombre}" vuelve a estar activo y ${marcados.length} productos dejaron de estar descontinuados.`
+          : `"${proveedor.nombre}" vuelve a estar activo.`,
+      )
       return
     }
+
     const sinMarcar = productos.filter((p) => !p.descontinuado)
     const avisoProductos =
       sinMarcar.length > 0
-        ? ` Sus ${sinMarcar.length} productos van a dejar de figurar como "costo desactualizado" (siguen viéndose en el catálogo igual que siempre, solo se apaga el aviso).`
+        ? `\n\nSus ${sinMarcar.length} productos quedan marcados como DESCONTINUADOS: siguen viéndose y vendiéndose igual, pero dejan de pedir que les actualices el costo.\n\nSi después lo reactivás, la app te va a preguntar si querés sacarles esa marca.`
         : ''
     if (!confirm(`¿Marcar "${proveedor.nombre}" como inactivo?${avisoProductos}`)) return
     await db.transaction('rw', db.proveedores, db.productos, async () => {
@@ -363,7 +397,15 @@ function DetalleProveedor({
           <div className="fila" style={{ borderBottom: 'none' }}>
             <span className="fila-etiqueta">
               <strong style={{ color: 'var(--tinta)', fontSize: '1.05rem' }}>{proveedor.nombre}</strong>
-              {proveedor.contacto ? ` · ${proveedor.contacto}` : ''}
+              {/* Si no hay contacto se dice, en vez de no mostrar nada:
+                  sin esto el campo parecia no existir, y se reporto
+                  justamente asi ("al editar no me aparece el contacto").
+                  Aparecia: lo que no aparecia era el renglon vacio. */}
+              {proveedor.contacto ? (
+                ` · ${proveedor.contacto}`
+              ) : (
+                <span className="silencio"> · sin contacto cargado</span>
+              )}
               {proveedor.activo === false && (
                 <span className="chip" style={{ marginLeft: 6 }}>
                   Inactivo
@@ -650,7 +692,62 @@ function FormularioCompra({
     setLineas((prev) => prev.map((l, i) => (i === indice ? { ...l, ...cambios } : l)))
   }
 
+  /**
+   * Da de alta un producto sin salir de la compra, con el proveedor ya
+   * puesto.
+   *
+   * Antes habia que cortar la carga, ir a Productos, crearlo, volver y
+   * empezar de nuevo. Cargando a mano eso pasa seguido: casi toda
+   * compra trae algo que todavia no esta en el catalogo.
+   *
+   * El precio de venta queda vacio a proposito: lo pone quien lo
+   * decide, mirando el costo y la rentabilidad, no el apuro de la
+   * carga. El producto aparece despues en el aviso de "sin precio de
+   * venta".
+   */
+  async function crearProductoNuevo(indice: number) {
+    const codigo = prompt('Código del producto nuevo (el que usa el proveedor o el del local):')
+    if (codigo === null) return
+    const cod = codigo.trim().toUpperCase()
+    if (!cod) return
+
+    const existe = await db.productos.get(cod)
+    if (existe) {
+      alert(`Ya existe un producto con el código ${cod}: "${existe.descripcion}". Elegilo de la lista.`)
+      return
+    }
+
+    const descripcion = prompt(`Nombre del producto ${cod}:`)
+    if (descripcion === null) return
+    if (!descripcion.trim()) {
+      alert('Hace falta el nombre.')
+      return
+    }
+
+    await db.productos.add({
+      codigo: cod,
+      descripcion: descripcion.trim(),
+      proveedor: proveedor.nombre,
+      proveedorId: proveedor.id,
+      fechaCompra: null,
+      precioCompra: null,
+      rentabilidad: null,
+      precioVenta: null,
+      fechaPrecioVenta: null,
+      busqueda: normalizar(`${cod} ${descripcion}`),
+      stock: null,
+      activo: true,
+    })
+    // El costo y el stock los deja la compra al guardarse, como con
+    // cualquier otro producto: no hace falta cargarlos dos veces.
+    actualizarLinea(indice, { codigo: cod })
+  }
+
   function elegirProducto(indice: number, codigo: string) {
+    if (codigo === 'nuevo') {
+      void crearProductoNuevo(indice)
+      return
+    }
     const producto = disponibles.find((p) => p.codigo === codigo)
     setLineas((prev) =>
       prev.map((l, i) =>
@@ -683,15 +780,25 @@ function FormularioCompra({
       return
     }
 
-    const items: ItemCompra[] = validas.map((l) => {
-      const producto = disponibles.find((p) => p.codigo === l.codigo)!
-      return {
+    // Se lee de la base y no de la lista que tiene la pantalla: un
+    // producto recien dado de alta desde aca todavia puede no estar en
+    // esa lista, y antes eso reventaba al guardar. De paso, el stock
+    // que se suma es el de este momento y no el de cuando se abrio el
+    // formulario.
+    const items: ItemCompra[] = []
+    for (const l of validas) {
+      const producto = await db.productos.get(l.codigo)
+      if (!producto) {
+        setError(`No encuentro el producto ${l.codigo}. Volvé a elegirlo de la lista.`)
+        return
+      }
+      items.push({
         codigo: l.codigo,
         descripcion: producto.descripcion,
         cantidad: leerNumero(l.cantidad)!,
         costoUnitario: leerNumero(l.costoUnitario)!,
-      }
-    })
+      })
+    }
     const montoTotal = items.reduce((s, it) => s + it.cantidad * it.costoUnitario, 0)
 
     await db.transaction('rw', db.movimientosProveedor, db.productos, async () => {
@@ -708,7 +815,8 @@ function FormularioCompra({
       }
       await db.movimientosProveedor.add(registro)
       for (const it of items) {
-        const producto = disponibles.find((p) => p.codigo === it.codigo)!
+        const producto = await db.productos.get(it.codigo)
+        if (!producto) continue
         const stockNuevo = producto.stock != null ? producto.stock + it.cantidad : it.cantidad
         await db.productos.update(it.codigo, {
           stock: stockNuevo,
@@ -745,6 +853,7 @@ function FormularioCompra({
                   {p.descripcion}
                 </option>
               ))}
+              <option value="nuevo">+ Producto nuevo…</option>
             </select>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -817,11 +926,29 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
   const [medioPago, setMedioPago] = useState<MedioPago>('EFECTIVO')
   const [notas, setNotas] = useState('')
   const [error, setError] = useState('')
+  const [deDondeSale, setDeDondeSale] = useState<'cajaGrande' | 'cajon'>('cajaGrande')
+
+  /**
+   * El turno abierto, si hay. Sin esto, un pago hecho con la plata del
+   * cajon se registraba igual como salido de la caja grande, y el turno
+   * cerraba con un faltante por el monto del pago: la plata ya no
+   * estaba en el cajon y nada lo explicaba.
+   */
+  const turnoAbierto = useLiveQuery(
+    async () => (await db.jornadas.where('estado').equals('abierto').first()) ?? null,
+    [],
+  )
 
   async function guardar() {
     const numero = leerNumero(monto)
     if (!numero || numero <= 0) {
       setError('Cargá un monto válido.')
+      return
+    }
+
+    const delCajon = deDondeSale === 'cajon' && turnoAbierto
+    if (deDondeSale === 'cajon' && !turnoAbierto) {
+      setError('No hay ningún turno abierto, así que la plata no puede salir del cajón.')
       return
     }
 
@@ -840,14 +967,18 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
         creadoPor: sesion.email,
       }
       await db.movimientosProveedor.add(registro)
+      // Un solo movimiento, siempre: lo que cambia es de que caja
+      // sale. Contra el turno, el cierre lo descuenta solo del efectivo
+      // esperado; contra la caja grande, no toca el arqueo. En los dos
+      // casos el gasto aparece una vez en Gastos, no dos.
       await db.movimientos.add({
         id: idGasto,
         fecha,
-        tipo: 'GASTO_CAJA_GRANDE',
+        tipo: delCajon ? 'EGRESO_CAJA' : 'GASTO_CAJA_GRANDE',
         concepto: `Pago a ${proveedor.nombre}${notas.trim() ? ` (${notas.trim()})` : ''}`,
         monto: numero,
         categoria: 'PROVEEDORES',
-        jornadaId: null,
+        jornadaId: delCajon ? turnoAbierto.id : null,
         esVariable: true,
       })
     })
@@ -881,6 +1012,24 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
         </div>
       </div>
 
+        <div className="campo">
+          <label htmlFor="p-origen">¿De dónde sale la plata?</label>
+          <select
+            id="p-origen"
+            value={deDondeSale}
+            onChange={(e) => setDeDondeSale(e.target.value as 'cajaGrande' | 'cajon')}
+          >
+            <option value="cajaGrande">De la caja grande</option>
+            <option value="cajon" disabled={!turnoAbierto}>
+              Del cajón del turno{turnoAbierto ? '' : ' (no hay turno abierto)'}
+            </option>
+          </select>
+          <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
+            {deDondeSale === 'cajon'
+              ? 'Se descuenta del efectivo esperado del turno abierto, así el cierre da bien.'
+              : 'No toca la caja del turno. Si pagaste con plata del cajón, elegí la otra opción o el turno va a cerrar con faltante.'}
+          </p>
+        </div>
       <div className="campo">
         <label htmlFor="p-medio">Medio de pago</label>
         <select id="p-medio" value={medioPago} onChange={(e) => setMedioPago(e.target.value as MedioPago)}>

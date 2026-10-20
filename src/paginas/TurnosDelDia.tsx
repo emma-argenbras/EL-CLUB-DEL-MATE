@@ -33,8 +33,35 @@ interface Fila {
 export default function TurnosDelDia() {
   const sesion = useSesion()
   const [fecha, setFecha] = useState(hoyISO())
+  const [mes, setMes] = useState(hoyISO().slice(0, 7))
   const [trabajando, setTrabajando] = useState(false)
   const [mensaje, setMensaje] = useState<string | null>(null)
+
+  /**
+   * Los dias del mes que tienen mas de un turno cargado para el mismo
+   * momento. Sin esto, encontrar los duplicados de agosto era entrar
+   * dia por dia a ciegas, 31 veces.
+   */
+  const diasConRepetidos = useLiveQuery(async () => {
+    const jornadas = await db.jornadas
+      .where('fecha')
+      .between(`${mes}-00`, `${mes}-32`)
+      .toArray()
+    const cuantos = new Map<string, number>()
+    for (const j of jornadas) {
+      const clave = `${j.fecha}|${j.turno}`
+      cuantos.set(clave, (cuantos.get(clave) ?? 0) + 1)
+    }
+    const porDia = new Map<string, number>()
+    for (const [clave, n] of cuantos) {
+      if (n < 2) continue
+      const dia = clave.split('|')[0]
+      porDia.set(dia, (porDia.get(dia) ?? 0) + n - 1)
+    }
+    return [...porDia.entries()]
+      .map(([dia, demas]) => ({ dia, demas }))
+      .sort((a, b) => a.dia.localeCompare(b.dia))
+  }, [mes])
 
   const filas = useLiveQuery(async (): Promise<Fila[]> => {
     const jornadas = await db.jornadas.where('fecha').equals(fecha).toArray()
@@ -122,6 +149,40 @@ export default function TurnosDelDia() {
           Acá se ven <strong>todos</strong> los turnos de ese día, incluso si quedaron dos para el
           mismo. En Caja se ve uno solo.
         </p>
+      </div>
+
+      <div className="tarjeta">
+        <div className="campo">
+          <label htmlFor="t-mes">Buscar días con turnos repetidos</label>
+          <input id="t-mes" type="month" value={mes} onChange={(e) => setMes(e.target.value)} />
+        </div>
+        {diasConRepetidos === undefined ? (
+          <p className="silencio" style={{ marginBottom: 0 }}>Revisando…</p>
+        ) : diasConRepetidos.length === 0 ? (
+          <p className="silencio" style={{ marginBottom: 0 }}>
+            Ningún día de ese mes tiene turnos repetidos.
+          </p>
+        ) : (
+          <>
+            <p className="silencio" style={{ marginTop: 0 }}>
+              {diasConRepetidos.length === 1
+                ? 'Un día tiene turnos repetidos:'
+                : `${diasConRepetidos.length} días tienen turnos repetidos:`}{' '}
+              tocá uno para verlo acá abajo.
+            </p>
+            <div className="botonera" style={{ flexWrap: 'wrap' }}>
+              {diasConRepetidos.map((d) => (
+                <button
+                  key={d.dia}
+                  className={d.dia === fecha ? 'boton-chico boton-principal' : 'boton-chico'}
+                  onClick={() => setFecha(d.dia)}
+                >
+                  {fechaLinda(d.dia)} (+{d.demas})
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {mensaje && <div className="aviso aviso-ok">{mensaje}</div>}
