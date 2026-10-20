@@ -46,6 +46,10 @@ const TABLAS: NombreTabla[] = [
   // cambios que hizo otra persona en otro dispositivo, que es el punto
   // de tener un historial.
   'historial',
+  // Los borrados a proposito. Tienen que viajar: son la unica forma de
+  // que un dispositivo que estuvo desconectado no vuelva a subir lo que
+  // se borro mientras no miraba.
+  'borrados',
 ]
 
 /**
@@ -183,6 +187,22 @@ async function empujarTodoLocal() {
   const firestore = obtenerFirestore()
   const operaciones: { tabla: NombreTabla; clave: string; datos: Record<string, unknown> }[] = []
 
+  // Lo que se borro a proposito, preguntado AL SERVIDOR y no a la copia
+  // local: este es justamente el caso en que la copia local esta
+  // atrasada. Sin esto, un dispositivo que estuvo apagado mientras se
+  // borraba un turno lo vuelve a subir al encenderse, y el borrado se
+  // deshace solo.
+  const borrados = new Set<string>()
+  try {
+    const docs = await getDocs(collection(firestore, 'negocios', ID_NEGOCIO, 'borrados'))
+    for (const d of docs.docs) borrados.add(aClaveLocal(d.id))
+  } catch (e) {
+    // Si no se pueden leer, se sube igual: perder un dato por no poder
+    // leer una lista seria peor que revivir uno borrado, que al menos
+    // se vuelve a borrar.
+    console.warn('No se pudo leer la lista de borrados:', e)
+  }
+
   for (const tabla of TABLAS) {
     const enElServidor = new Set(
       (await getDocs(collection(firestore, 'negocios', ID_NEGOCIO, tabla))).docs.map((d) => d.id),
@@ -194,6 +214,7 @@ async function empujarTodoLocal() {
       // Se compara contra el nombre que el documento tiene alla, no el
       // de aca: para los codigos con barra no son el mismo.
       if (enElServidor.has(aClaveDeNube(clave))) continue
+      if (borrados.has(`${tabla}/${clave}`)) continue
       operaciones.push({ tabla, clave, datos: limpiar(fila as Record<string, unknown>) })
     }
   }

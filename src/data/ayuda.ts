@@ -756,6 +756,24 @@ export const AYUDA: EntradaAyuda[] = [
 
   // ---------- Sincronización y respaldo ----------
   {
+    id: 'borrar-turno',
+    categoria: 'Caja',
+    pregunta: 'Quedó el mismo día cargado dos veces, ¿cómo saco el que sobra?',
+    respuesta:
+      'Ajustes → "Turnos del día". Elegís el día y ahí se ven todos los turnos cargados, incluso si hay dos para el mismo momento — en Caja se ve uno solo, por eso el duplicado parece invisible.\n\nCada uno muestra la caja inicial, cuántas ventas tiene, por cuánto y quién atendió, así se distingue cuál es el bueno. El que sobra se borra con "Borrar este turno": te muestra todo lo que se va a borrar, te pide confirmar, y después te pide el motivo, que es obligatorio.\n\nSe borra el turno con sus ventas y sus movimientos de caja. Queda registrado en el historial con tu nombre y el motivo, y no se puede deshacer.\n\nEl stock no se devuelve, a propósito: se descontó en el dispositivo donde se cargó la venta, así que devolverlo acá lo dejaría inflado. Si hace falta, se corrige a mano.',
+    palabrasClave: ['borrar turno', 'duplicado', 'dos veces', 'turno repetido', 'sacar turno'],
+    soloOwner: true,
+  },
+  {
+    id: 'turno-borrado-vuelve',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Si borro un turno, ¿puede volver a aparecer solo?',
+    respuesta:
+      'No. Cuando se borra algo a propósito queda anotado como borrado, y los demás dispositivos lo respetan.\n\nHace falta porque cada dispositivo, al abrir la app, sube lo que tiene y el servidor no. Sin esa marca, un celular que estaba apagado cuando se borró el turno lo volvería a subir al encenderse, y el borrado se desharía solo.\n\nEl borrado llega a todos los dispositivos en segundos, igual que cualquier otro cambio. Un dispositivo que esté apagado lo recibe la próxima vez que abra la app con internet.',
+    palabrasClave: ['vuelve a aparecer', 'resucita', 'borrado', 'duplicado otra vez'],
+    soloOwner: true,
+  },
+  {
     id: 'codigos-con-barra',
     categoria: 'Sincronización y respaldo',
     pregunta: 'Hay productos que veo en un celular y no en otro, ¿por qué?',
