@@ -128,13 +128,39 @@ service cloud.firestore {
     // queda abierta a cualquiera logueado (aunque este desactivado, para
     // no cortar la primera sincronizacion de un fundador recien creado,
     // que todavia no tiene perfil propio en el instante en que arranca).
+    // Un dato cargado no se pisa con vacio.
+    //
+    // El 20/10/2026 un celular al que le habian borrado los datos
+    // volvio a entrar, se rearmo desde el catalogo publico --que no
+    // lleva costos ni proveedores-- y subio esos productos vacios
+    // encima de los del servidor. Quedaron ~280 productos sin
+    // proveedor y 120 sin costo, sin un solo renglon en el historial.
+    //
+    // La app ya no lo intenta (ver sembrarCatalogo), pero esto es lo
+    // que lo hace imposible: protege aunque el dispositivo tenga una
+    // version vieja, que es justo el caso que no se puede controlar.
+    //
+    // La contra, dicha de frente: borrar a proposito un costo que esta
+    // cargado tampoco se va a poder. Es raro, y es un precio barato
+    // por no volver a perder 280 proveedores sin enterarse.
+    function noPisaConVacio(campo) {
+      return !(
+        resource.data.get(campo, null) != null &&
+        request.resource.data.get(campo, null) == null
+      );
+    }
+
     match /negocios/el-club-del-mate/productos/{codigo} {
       allow read: if estaLogueado();
       allow create: if estoyActivo();
       allow update: if estoyActivo() && (
         estoyAlMando() ||
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['archivado', 'precioVenta'])
-      );
+      ) &&
+        noPisaConVacio('precioCompra') &&
+        noPisaConVacio('proveedorId') &&
+        noPisaConVacio('proveedor') &&
+        noPisaConVacio('rentabilidad');
       allow delete: if false;
     }
 
