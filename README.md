@@ -587,6 +587,47 @@ marca inactivo *porque* los productos se descontinuaron de verdad.
 
 ---
 
+## La cuenta de cada movimiento
+
+`tipo` y `cuenta` son dos preguntas distintas, y las dos hacen falta.
+
+**`tipo` decide la aritmética.** `EGRESO_CAJA` sale del cajón del turno y el cierre lo
+descuenta del efectivo esperado; `GASTO_CAJA_GRANDE` no toca ese cajón. La app **no
+lleva un saldo de caja grande**: ese tipo significa "es un gasto del negocio que no sale
+del cajón", nada más.
+
+**`cuenta` dice de dónde salió de verdad**: cajón, caja grande, banco o Mercado Pago. Un
+pago por transferencia desde el banco y uno desde Mercado Pago son los dos "no sale del
+cajón", pero no son la misma plata, y a fin de mes hay que poder conciliar cada cuenta
+con su resumen.
+
+Por eso **el tipo se deriva de la cuenta** (`tipoSegunCuenta`), y no al revés: el cajón
+es lo único que toca el turno.
+
+El campo es opcional a propósito: los movimientos cargados antes del 21/10/2026 no lo
+tienen, y los de la planilla vieja tampoco. Para esos, la lista de Gastos trae un
+selector en cada renglón — es lo que permite clasificar los tres movimientos de Mercado
+Pago que estaban pendientes sin borrarlos y volver a cargarlos.
+
+## La ficha del proveedor
+
+Con la carga a mano, la ficha dejó de ser una agenda y pasó a ser lo que se necesita
+para **comprarle**: por dónde se le escribe, a quién, a qué cuenta se le transfiere y
+con qué condiciones.
+
+Los campos son `contacto` (teléfono/WhatsApp), `comoSeCompra`, `web`, `ciudad`,
+`aliasCbu`, `titular` y `notas` (condiciones), más los `alias` que ya estaban.
+
+Lo que importa del cambio no son los campos sino que **el alta y la edición usan el
+mismo formulario** (`CamposProveedor`). Antes eran dos: el alta pedía nombre y contacto,
+la edición agregaba los otros nombres. Un proveedor cargado nuevo nacía a medias y había
+que entrar a editarlo para completarlo, cosa que nadie hace.
+
+Y se leen **sin entrar a editar**, en la ficha del proveedor: si solo se vieran al
+editar, cargarlos no serviría de nada. El teléfono sale como enlace de WhatsApp.
+
+---
+
 ## El lío de los proveedores
 
 Al 17/10/2026: 34 proveedores cargados, **33 inactivos**, varios repetidos con el mismo
@@ -1272,7 +1313,8 @@ producto desde una compra, y el detector de turnos repetidos por mes.
 - [ ] Los **772 productos sin proveedor**: se les asigna proveedor a mano desde
       Productos, de a uno o filtrando por los que no tienen.
 - [ ] Los ~10 códigos duplicados que la planilla colapsó en uno.
-- [ ] Los 3 movimientos de Mercado Pago sin clasificar ($ 1.623.000).
+- [ ] Los 3 movimientos de Mercado Pago sin clasificar ($ 1.623.000). Desde el 21/10 se
+      les puede poner la cuenta desde la lista de Gastos, sin borrarlos: falta hacerlo.
 
 **Mejoras conocidas**
 
