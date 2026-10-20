@@ -445,8 +445,17 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Qué significa "proveedor inexistente" en un producto?',
     respuesta:
-      'Que el producto tiene un proveedor cargado, pero la ficha de ese proveedor no está en la app. Pasa cuando el proveedor se creó en otro dispositivo y esa ficha nunca llegó al servidor.\n\nEsos productos eran los más difíciles de encontrar: no figuraban como "sin proveedor" —porque proveedor tienen— y tampoco aparecían dentro de ningún proveedor —porque esa ficha no existe—. Quedaban en el medio, invisibles.\n\nAhora el producto lo dice en rojo, con el nombre que trae escrito, y se los puede listar juntos con el filtro "Proveedor inexistente". Para arreglarlo, entrá a cada uno y elegile el proveedor que corresponde; si no existe, creálo ahí mismo con "+ Proveedor nuevo…".',
+      'Que el producto tiene un proveedor cargado, pero la ficha de ese proveedor no está en la app. Pasa cuando el proveedor se creó en otro dispositivo y esa ficha nunca llegó al servidor.\n\nEsos productos eran los más difíciles de encontrar: no figuraban como "sin proveedor" —porque proveedor tienen— y tampoco aparecían dentro de ningún proveedor —porque esa ficha no existe—. Quedaban en el medio, invisibles.\n\nPara arreglarlos, filtrá por "Proveedor inexistente": abajo aparece la lista de esos proveedores con cuántos productos tiene cada uno, y un botón "Ver y asociar". Se hace de a un proveedor y te muestra antes qué productos va a tocar. No cambia precios, costos ni stock, y queda en el historial.',
     palabrasClave: ['proveedor inexistente', 'no existe', 'invisible', 'no aparece'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'asociar-proveedor-inexistente',
+    categoria: 'Productos',
+    pregunta: '¿Cómo arreglo de una todos los productos de un proveedor inexistente?',
+    respuesta:
+      'En Productos, filtrá por "Proveedor inexistente". Abajo del filtro aparece cada uno de esos proveedores con cuántos productos tiene, y un botón "Ver y asociar".\n\nAl abrirlo te muestra la lista completa de los productos que se van a asociar, para que mires antes de confirmar. Después tocás el botón y quedan todos enganchados a la ficha.\n\nSi ya existe una ficha con un nombre parecido, la app te la ofrece. Por ejemplo, para "THOR MATES BRIAN AGUIAR" te va a preguntar si es el mismo que "THOR MATES": si decís que sí, usa esa ficha y guarda el nombre largo como otro nombre suyo, así la próxima vez cae solo en el lugar correcto. Si decís que no, crea una ficha nueva.\n\nNo cambia precios, costos ni stock: solo el proveedor. Y queda todo en el historial.',
+    palabrasClave: ['asociar', 'proveedor inexistente', 'enganchar', 'crear ficha', 'en bloque'],
     requiereSeccion: 'productos',
   },
   {

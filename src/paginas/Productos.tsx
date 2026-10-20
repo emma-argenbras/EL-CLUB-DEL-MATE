@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSearchParams } from 'react-router-dom'
-import { asegurarProveedor, db, productoVisible, type HistorialProducto, type Producto } from '../db/db'
+import {
+  asegurarProveedor,
+  db,
+  productoVisible,
+  type HistorialProducto,
+  type Producto,
+  type Proveedor,
+} from '../db/db'
 import {
   costoDesactualizado,
   margenPorcentual,
@@ -12,6 +19,7 @@ import {
   sinStock,
 } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
+import { asociarFantasma, fichaParecida, productosDelFantasma } from '../db/asociarFantasmas'
 import {
   estadoDelProveedor,
   fantasmasDeLosProductos,
@@ -84,6 +92,11 @@ export default function Productos() {
     parametros.get('proveedor') ?? '',
   )
   const [verArchivados, setVerArchivados] = useState(false)
+  // El aviso de "listo" vive aca y no en la tarjeta del proveedor:
+  // apenas se asocian los productos, ese proveedor deja de ser un
+  // fantasma y la tarjeta se va de la lista. Si el mensaje viviera
+  // adentro, se iria con ella y el trabajo terminaria sin confirmacion.
+  const [asociados, setAsociados] = useState<string[]>([])
 
   const total = useLiveQuery(() => db.productos.filter(productoVisible).count(), [])
   const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
@@ -415,18 +428,31 @@ export default function Productos() {
             Estos productos tienen cargado un proveedor cuya ficha no existe. No figuran como
             "sin proveedor" y tampoco aparecen dentro de ningún proveedor, así que no se los
             encuentra de otra forma. Entrá a cada uno y elegile el proveedor que corresponde.
-            {(fantasmas ?? []).length > 0 && (
-              <div style={{ marginTop: 6 }}>
-                {(fantasmas ?? []).map((f) => (
-                  <div key={f.nombre ?? 'sin-nombre'} className="item-sub">
-                    {f.nombre ?? 'sin nombre'}: {f.productos}{' '}
-                    {f.productos === 1 ? 'producto' : 'productos'}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
+        {proveedorFiltro === FILTRO_FANTASMA &&
+          asociados.map((mensaje, i) => (
+            <div className="aviso aviso-ok" key={i}>
+              {mensaje}
+            </div>
+          ))}
+        {proveedorFiltro === FILTRO_FANTASMA &&
+          (fantasmas ?? []).map((f) => (
+            <AsociarFantasma
+              key={f.nombre ?? 'sin-nombre'}
+              nombre={f.nombre}
+              productos={f.productos}
+              proveedores={proveedores ?? []}
+              onHecho={(mensaje) => setAsociados((prev) => [...prev, mensaje])}
+            />
+          ))}
+        {proveedorFiltro === FILTRO_FANTASMA &&
+          (fantasmas ?? []).length === 0 &&
+          asociados.length > 0 && (
+            <div className="aviso aviso-ok">
+              No queda ningún producto con un proveedor inexistente. 🎉
+            </div>
+          )}
         <div className="botonera" style={{ marginTop: 10 }}>
           <button className="boton-principal" onClick={() => setCreando(true)}>
             + Producto nuevo
@@ -946,6 +972,145 @@ function Alerta({
       <button className="boton-chico" style={{ marginTop: 6 }} onClick={onToggle}>
         {activo ? 'Ver todos' : 'Ver esos productos'}
       </button>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Un proveedor que los productos usan y que no tiene ficha, con el
+ * boton para engancharlos.
+ *
+ * Se resuelve de a un proveedor y mostrando antes que productos se van
+ * a tocar. En la base real son 850 productos en 97 nombres: una
+ * limpieza automatica de todo eso seria un cambio enorme hecho a
+ * ciegas, y de a un producto no se termina nunca. El medio es este.
+ */
+function AsociarFantasma({
+  nombre,
+  productos,
+  proveedores,
+  onHecho,
+}: {
+  nombre: string | null
+  productos: number
+  proveedores: Proveedor[]
+  onHecho: (mensaje: string) => void
+}) {
+  const [abierto, setAbierto] = useState(false)
+  const [trabajando, setTrabajando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const lista = useLiveQuery(
+    async () => (abierto && nombre ? productosDelFantasma(nombre) : []),
+    [abierto, nombre],
+  )
+  const parecida = useMemo(
+    () => (nombre ? fichaParecida(nombre, proveedores) : null),
+    [nombre, proveedores],
+  )
+
+  if (!nombre) {
+    return (
+      <div className="aviso" style={{ marginTop: 8 }}>
+        Hay {productos} {productos === 1 ? 'producto' : 'productos'} con un proveedor sin
+        nombre. A esos hay que asignarles el proveedor de a uno, entrando a cada producto.
+      </div>
+    )
+  }
+
+  async function asociar(usarFicha?: Proveedor) {
+    if (!nombre) return
+    const aDonde = usarFicha ? usarFicha.nombre : nombre
+    if (
+      !confirm(
+        `Vas a asociar ${productos} ${productos === 1 ? 'producto' : 'productos'} a "${aDonde}".\n\n${
+          usarFicha
+            ? `Se usa la ficha que ya existe, y "${nombre}" queda como otro nombre suyo para que no se vuelva a separar.`
+            : 'Se crea la ficha con ese nombre.'
+        }\n\nNo se tocan precios, costos ni stock. Queda en el historial.`,
+      )
+    )
+      return
+
+    setTrabajando(true)
+    setError(null)
+    try {
+      const r = await asociarFantasma(nombre, usarFicha)
+      onHecho(
+        `${r.productos} ${r.productos === 1 ? 'producto quedó asociado' : 'productos quedaron asociados'} a "${r.fichaNombre}"${r.creada ? ', con la ficha recién creada' : ', reusando la ficha que ya existía'}.`,
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta" style={{ marginTop: 8 }}>
+      <div className="fila" style={{ borderBottom: 'none' }}>
+        <span className="fila-etiqueta">
+          <strong style={{ color: 'var(--tinta)' }}>{nombre}</strong>
+          <br />
+          {productos} {productos === 1 ? 'producto' : 'productos'}
+        </span>
+        <button className="boton-chico" onClick={() => setAbierto((v) => !v)}>
+          {abierto ? 'Cerrar' : 'Ver y asociar'}
+        </button>
+      </div>
+
+      {abierto && (
+        <>
+          {error && <div className="aviso aviso-error">{error}</div>}
+
+          {parecida && (
+            <div className="aviso aviso-ojo">
+              Ya existe un proveedor que se llama <strong>{parecida.nombre}</strong>. ¿Es el
+              mismo?
+              <div className="botonera" style={{ marginTop: 8 }}>
+                <button
+                  className="boton-principal"
+                  disabled={trabajando}
+                  onClick={() => asociar(parecida)}
+                >
+                  Sí, asociar a "{parecida.nombre}"
+                </button>
+              </div>
+            </div>
+          )}
+
+          <p className="silencio" style={{ marginTop: 0 }}>
+            Estos son los productos que se van a asociar. No se tocan precios, costos ni
+            stock.
+          </p>
+          <ul className="lista" style={{ maxHeight: 260, overflowY: 'auto' }}>
+            {(lista ?? []).slice(0, 100).map((p) => (
+              <li className="item" key={p.codigo}>
+                <div className="item-titulo">{p.descripcion}</div>
+                <div className="item-sub">{p.codigo}</div>
+              </li>
+            ))}
+          </ul>
+          {(lista ?? []).length > 100 && (
+            <p className="silencio">y {(lista ?? []).length - 100} más.</p>
+          )}
+
+          <button
+            className="boton-principal"
+            style={{ width: '100%', marginTop: 8 }}
+            disabled={trabajando}
+            onClick={() => asociar()}
+          >
+            {trabajando
+              ? 'Asociando…'
+              : parecida
+                ? `No, crear ficha nueva "${nombre}"`
+                : `Crear ficha "${nombre}" y asociar ${productos}`}
+          </button>
+        </>
+      )}
     </div>
   )
 }
