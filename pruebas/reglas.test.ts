@@ -665,3 +665,115 @@ describe('compras y pagos a proveedores', () => {
     await assertFails(setDoc(doc(db, `${NEGOCIO}/movimientosProveedor/mp1`), COMPRA))
   })
 })
+
+/**
+ * Un dato cargado no se pisa con vacio.
+ *
+ * El 20/10/2026 un celular rearmado desde el catalogo publico subio
+ * productos sin costo ni proveedor encima de los del servidor:
+ * quedaron ~280 sin proveedor y 120 sin costo, sin un renglon en el
+ * historial. La app ya no lo intenta; esto es lo que lo hace
+ * imposible, incluso desde una version vieja.
+ */
+describe('no se pisa un dato cargado con vacio', () => {
+  const COMPLETO = {
+    codigo: 'MR001',
+    descripcion: 'MATE RAFAEL',
+    proveedor: 'MATES RAFAEL MISIONES SARAPICO SHOPPING',
+    proveedorId: 'prov-mates-rafael',
+    fechaCompra: '2026-08-12',
+    precioCompra: 9500,
+    rentabilidad: 1.3,
+    precioVenta: 21000,
+    fechaPrecioVenta: '2026-08-12',
+    busqueda: 'mr001 mate rafael',
+    stock: null,
+    activo: true,
+  }
+
+  async function sembrarCompleto() {
+    await entorno.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${NEGOCIO}/productos/MR001`), COMPLETO)
+    })
+  }
+
+  it('el caso exacto del 20/10: el catalogo publico encima del producto cargado', async () => {
+    await sembrarCompleto()
+    const db = comoSandra()
+    // Tal cual lo arma sembrarCatalogo: solo codigo, descripcion y
+    // precio de venta; todo lo demas en null.
+    await assertFails(
+      setDoc(doc(db, `${NEGOCIO}/productos/MR001`), {
+        ...COMPLETO,
+        proveedor: null,
+        proveedorId: null,
+        fechaCompra: null,
+        precioCompra: null,
+        rentabilidad: null,
+      }),
+    )
+  })
+
+  it('no se puede vaciar el costo', async () => {
+    await sembrarCompleto()
+    await assertFails(updateDoc(doc(comoSandra(), `${NEGOCIO}/productos/MR001`), { precioCompra: null }))
+  })
+
+  it('no se puede vaciar el proveedor', async () => {
+    await sembrarCompleto()
+    await assertFails(updateDoc(doc(comoSandra(), `${NEGOCIO}/productos/MR001`), { proveedorId: null }))
+  })
+
+  it('no se puede vaciar la rentabilidad', async () => {
+    await sembrarCompleto()
+    await assertFails(updateDoc(doc(comoSandra(), `${NEGOCIO}/productos/MR001`), { rentabilidad: null }))
+  })
+
+  it('tampoco puede un dueño: no es cuestion de permisos', async () => {
+    // El que pisa no es alguien sin permiso: es un dispositivo que cree
+    // tener la version buena del producto.
+    await sembrarCompleto()
+    await assertFails(updateDoc(doc(comoEmma(), `${NEGOCIO}/productos/MR001`), { precioCompra: null }))
+  })
+
+  it('pero SI se puede cambiar un costo por otro', async () => {
+    await sembrarCompleto()
+    await assertSucceeds(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/productos/MR001`), { precioCompra: 11000 }),
+    )
+  })
+
+  it('y SI se puede completar un costo que estaba vacio', async () => {
+    // Lo que importa recuperar: llenar lo que quedo en null.
+    await entorno.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${NEGOCIO}/productos/MR001`), {
+        ...COMPLETO,
+        precioCompra: null,
+        proveedorId: null,
+        proveedor: null,
+        rentabilidad: null,
+      })
+    })
+    await assertSucceeds(
+      updateDoc(doc(comoSandra(), `${NEGOCIO}/productos/MR001`), {
+        precioCompra: 9500,
+        proveedorId: 'prov-mates-rafael',
+        proveedor: 'MATES RAFAEL MISIONES SARAPICO SHOPPING',
+        rentabilidad: 1.3,
+      }),
+    )
+  })
+
+  it('y un producto nuevo se puede crear sin costo, como siempre', async () => {
+    await assertSucceeds(
+      setDoc(doc(comoSandra(), `${NEGOCIO}/productos/NUEVO1`), {
+        ...COMPLETO,
+        codigo: 'NUEVO1',
+        precioCompra: null,
+        proveedorId: null,
+        proveedor: null,
+        rentabilidad: null,
+      }),
+    )
+  })
+})
