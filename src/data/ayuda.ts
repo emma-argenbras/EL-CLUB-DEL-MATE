@@ -922,6 +922,33 @@ export const AYUDA: EntradaAyuda[] = [
     ],
   },
   {
+    id: 'costo-que-no-cierra',
+    categoria: 'Productos',
+    pregunta: '¿Qué significa "costo que no cierra" o el cartel de COSTO RARO?',
+    respuesta:
+      'Que ese producto se vende mucho más caro de lo que su costo explica. Casi siempre es un cero que falta al cargar el costo: por ejemplo TM051, con costo $ 3.100 y precio $ 71.900, cuando el costo real era $ 31.000.\n\nNo es lo mismo que "BAJO COSTO", que es el problema opuesto: ahí el costo es mayor que el precio y cada venta pierde plata.\n\nPor qué importa, más allá del reporte: con el costo diez veces más chico, el precio que la app sugiere para ese producto sale diez veces más barato. Alcanza con que alguien acepte esa sugerencia para vender a un décimo del precio.\n\nDónde están: en Productos, el filtro "costo que no cierra", o desde el Panel. La app solo avisa cuando el desvío es grande (seis veces o más), así que una oferta fuerte no lo dispara.',
+    palabrasClave: ['costo raro', 'no cierra', 'cero', 'margen absurdo', 'costo mal cargado'],
+    requiereSeccion: 'productos',
+    soloOwner: true,
+  },
+  {
+    id: 'actualizar-muchos-costos',
+    categoria: 'Productos',
+    pregunta: 'Tengo que actualizar muchos costos, ¿hay forma de no entrar uno por uno?',
+    respuesta:
+      'Sí: Ajustes → "Revisión de costos", o el enlace que aparece en Productos junto al aviso de costo vencido.\n\nMuestra los productos sin costo o con el costo vencido, se puede filtrar por proveedor —lo más cómodo es tener la factura de ese proveedor delante— y el costo se corrige en la misma lista, sin abrir cada ficha.\n\nSe guardan el costo y su fecha, y nada más: el precio de venta, la rentabilidad, el stock y el proveedor quedan como están. Y solo cambian los renglones que cargás vos.\n\nDos cosas que hace sola: mientras escribís te muestra en cuánto quedaría el margen, y si el número no cierra —un cero de más o de menos— te pregunta antes de guardar. Si alguien cambió ese costo desde otro dispositivo mientras tenías la lista abierta, no lo pisa: te avisa para que mires cuál de los dos va.\n\nLos descontinuados no aparecen: nadie los va a reponer.',
+    palabrasClave: [
+      'actualizar costos',
+      'muchos costos',
+      'costo vencido',
+      'revision de costos',
+      'de a muchos',
+      'lista',
+    ],
+    requiereSeccion: 'productos',
+    soloOwner: true,
+  },
+  {
     id: 'productos-sin-costo-20-10',
     categoria: 'Productos',
     pregunta: 'Hay productos que quedaron sin costo y sin proveedor, ¿cómo los recupero?',

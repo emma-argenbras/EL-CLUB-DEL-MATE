@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   asegurarProveedor,
   db,
@@ -13,6 +13,7 @@ import {
   costoDesactualizado,
   margenPorcentual,
   precioAtrasado,
+  costoSospechoso,
   precioBajoCosto,
   precioDesactualizado,
   redondearPrecio,
@@ -38,6 +39,7 @@ type Filtro =
   | 'precioAtrasado'
   | 'sinStock'
   | 'bajoCosto'
+  | 'costoSospechoso'
   | 'sinPrecio'
   | 'stockNegativo'
   | 'sinNombre'
@@ -49,6 +51,7 @@ const DESCRIPCION_FILTRO: Record<Exclude<Filtro, null>, string> = {
   precioAtrasado: 'mostrando solo los que están por debajo de su rentabilidad',
   sinStock: 'mostrando solo los que están sin stock',
   bajoCosto: 'mostrando solo los que se venden bajo costo',
+  costoSospechoso: 'mostrando solo aquellos cuyo costo no cierra con el precio',
   sinPrecio: 'mostrando solo los que no tienen precio de venta',
   stockNegativo: 'mostrando solo los que tienen el stock en negativo',
   sinNombre: 'mostrando solo los que figuran sin nombre',
@@ -65,6 +68,7 @@ const sinNombrePropio = (p: Producto) => {
 /** El Panel enlaza a Productos con el filtro ya puesto. */
 function filtroDeLaURL(parametros: URLSearchParams): Filtro {
   if (parametros.get('bajoCosto') === '1') return 'bajoCosto'
+  if (parametros.get('costoSospechoso') === '1') return 'costoSospechoso'
   if (parametros.get('sinPrecio') === '1') return 'sinPrecio'
   if (parametros.get('stockNegativo') === '1') return 'stockNegativo'
   if (parametros.get('sinNombre') === '1') return 'sinNombre'
@@ -152,6 +156,12 @@ export default function Productos() {
       if (filtro === null) return encontrados.slice(0, 300)
     }
     if (filtro === 'bajoCosto') return encontrados.filter(precioBajoCosto).slice(0, 100)
+    if (filtro === 'costoSospechoso') {
+      return encontrados
+        .filter((p) => costoSospechoso(p))
+        .sort((a, b) => (costoSospechoso(b)?.veces ?? 0) - (costoSospechoso(a)?.veces ?? 0))
+        .slice(0, 100)
+    }
     if (filtro === 'precioAtrasado') {
       // Los que mas plata dejan sobre la mesa, primero.
       return encontrados
@@ -176,6 +186,7 @@ export default function Productos() {
       desactualizados: todos.filter((p) => costoDesactualizado(p)).length,
       agotados: todos.filter(sinStock).length,
       bajoCosto: todos.filter(precioBajoCosto).length,
+      costoSospechoso: todos.filter((p) => costoSospechoso(p)).length,
       precioAtrasado: todos.filter((p) => precioAtrasado(p)).length,
       precioViejo: todos.filter((p) => precioDesactualizado(p)).length,
       sinPrecio: todos.filter(sinPrecioDeVenta).length,
@@ -186,6 +197,7 @@ export default function Productos() {
   const desactualizados = conteoAlertas?.desactualizados
   const agotados = conteoAlertas?.agotados
   const bajoCosto = conteoAlertas?.bajoCosto
+  const costoRaro = conteoAlertas?.costoSospechoso
   const atrasados = conteoAlertas?.precioAtrasado
   const precioViejo = conteoAlertas?.precioViejo
   const sinPrecio = conteoAlertas?.sinPrecio
@@ -314,6 +326,18 @@ export default function Productos() {
           </Alerta>
 
           <Alerta
+            n={costoRaro}
+            tono="error"
+            activo={filtro === 'costoSospechoso'}
+            onToggle={() => setFiltro(filtro === 'costoSospechoso' ? null : 'costoSospechoso')}
+          >
+            <strong>{costoRaro}</strong>{' '}
+            {costoRaro === 1 ? 'producto tiene' : 'productos tienen'} un costo que no cierra con
+            su precio: se venden mucho más caro de lo que ese costo explica, como si al costo le
+            faltara un cero. Ojo que el precio sugerido de esos productos sale por el piso.
+          </Alerta>
+
+          <Alerta
             n={sinPrecio}
             tono="error"
             activo={filtro === 'sinPrecio'}
@@ -388,6 +412,14 @@ export default function Productos() {
             <strong>{desactualizados}</strong> de {total} productos tienen el{' '}
             <strong>costo</strong> vencido o sin cargar. Esto no cambia lo que le cobrás al
             cliente: hace que el margen del reporte salga más alto de lo real.
+            {esOwner && (
+              <>
+                {' '}
+                <Link to="/revision-costos">
+                  Corregirlos de a muchos, filtrando por proveedor →
+                </Link>
+              </>
+            )}
           </Alerta>
         </>
       )}
@@ -525,6 +557,16 @@ export default function Productos() {
                           BAJO COSTO
                         </span>
                       )}
+                      {(() => {
+                        const raro = costoSospechoso(p)
+                        if (!raro) return null
+                        return (
+                          <span className="chip chip-alerta" style={{ marginLeft: 6 }}>
+                            COSTO RARO: {raro.veces.toFixed(0)}× lo que debería
+                            {raro.costoProbable ? ` · ¿será ${plata(raro.costoProbable)}?` : ''}
+                          </span>
+                        )
+                      })()}
                       {p.descontinuado ? (
                         <span className="chip" style={{ marginLeft: 6 }}>
                           Descontinuado

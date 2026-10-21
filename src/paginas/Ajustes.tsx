@@ -321,6 +321,22 @@ export default function Ajustes() {
       )}
 
       <div className="tarjeta">
+        <p className="tarjeta-titulo">Revisión de costos</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          Los productos sin costo o con el costo vencido, filtrados por proveedor y corregibles
+          en la misma lista, sin entrar uno por uno. Se guarda el costo y su fecha; el precio de
+          venta y el resto no se tocan.
+        </p>
+        <Link
+          className="boton-chico"
+          style={{ width: '100%', textAlign: 'center' }}
+          to="/revision-costos"
+        >
+          Revisar costos
+        </Link>
+      </div>
+
+      <div className="tarjeta">
         <p className="tarjeta-titulo">Revisión de proveedores</p>
         <p className="silencio" style={{ marginTop: 0 }}>
           Cuántos proveedores hay, cuáles están repetidos, cuáles están inactivos y cuáles usan
