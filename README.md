@@ -1142,6 +1142,56 @@ primer costo que cargué quedó en $ 31.
 
 ---
 
+## Unir proveedores
+
+Sandra terminó de asociar los productos —cero con "proveedor inexistente"— y quedaron
+fichas repetidas que el id derivado del nombre no junta solo, porque los nombres no
+normalizan igual: `SALDO`/`SALDOS`, `VICTOR ESTEBANEZ`/`VICTOR ESTEVANEZ`,
+`ARIEL GARCIA`/`ARIEL GARCIA MISIONES`, `DISTRIBUIDORA DE MATES`/`DISTRIBUIDORA MATES`,
+y tres proveedores con dos fichas idénticas cada uno.
+
+**Ajustes → "Unir proveedores"**, para dueño y encargada.
+
+### Lo que se mueve
+
+A la ficha que queda le pasan los productos **y toda la cuenta corriente de la otra**:
+compras y pagos. Esto último es la parte que no se puede olvidar — si la plata quedara
+colgada de un id borrado, no la encontraría nadie, y tener dos fichas es mejor que eso.
+Todo va dentro de una transacción: o se mueve todo, o no se mueve nada.
+
+El nombre de la ficha borrada queda como **"otro nombre"** de la que queda. No es
+cosmético: `asegurarProveedor()` mira los alias, así que si mañana alguien escribe el
+nombre viejo cae en la ficha buena en vez de volver a crear la copia.
+
+Si la ficha que queda tiene campos vacíos —teléfono, ciudad, alias para transferir— se
+completan con los de la absorbida. Los que ya tenía no se tocan.
+
+### Las sugerencias
+
+`src/lib/fichasParecidas.ts` arma la lista de sospechosos con tres criterios, y ninguno
+une nada solo:
+
+- **mismo nombre** una vez sacados acentos, puntuación, plurales y palabras de relleno
+  (`de`, `la`, `y`). Junta `SALDO`/`SALDOS` y `DISTRIBUIDORA DE MATES`/`DISTRIBUIDORA
+  MATES`;
+- **casi igual**: una sola letra de diferencia en una sola palabra, y solo en palabras de
+  cinco letras o más. Junta `ESTEBANEZ`/`ESTEVANEZ` y deja afuera `MATE`/`MATA`;
+- **empieza igual**: las palabras de una son el comienzo exacto de la otra. Junta
+  `ARIEL GARCIA`/`ARIEL GARCIA MISIONES` y deja afuera `MATES RAFAEL`/`MATES DEL LITORAL`,
+  que comparten la primera palabra y no son el mismo.
+
+Con las once fichas de prueba encuentra exactamente los cinco pares reales y ninguno más.
+Si dos fichas son el mismo proveedor lo sabe una persona, no una regla: la sugerencia
+ahorra el trabajo de buscarlos, la decisión es de quien está mirando.
+
+### Y un agujero del historial que esto destapó
+
+`movimientosProveedor` registraba `tipo`, `monto`, `fecha` y `concepto`, pero **no
+`proveedorId`**. O sea: mover una compra de un proveedor a otro —mover plata de una
+cuenta corriente a otra— no dejaba rastro. Ahora sí.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1717,6 +1767,10 @@ a muchos, y el arreglo de `leerNumero()` con el punto de los miles.
 
 **Hecho el 20/10, tarde** — el aviso de costos que no cierran, la revisión de costos de
 a muchos, y el arreglo de `leerNumero()` con el punto de los miles.
+
+**Hecho el 21/10** — el aviso de costos que no cierran, la revisión de costos de a
+muchos, el arreglo de `leerNumero()` con el punto de los miles, que la recuperación
+saltee los códigos repetidos, y unir proveedores.
 
 **Datos a ordenar**
 

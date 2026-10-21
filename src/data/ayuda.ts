@@ -989,6 +989,23 @@ export const AYUDA: EntradaAyuda[] = [
     soloOwner: true,
   },
   {
+    id: 'unir-proveedores',
+    categoria: 'Proveedores',
+    pregunta: 'El mismo proveedor quedó cargado dos veces, ¿cómo los junto?',
+    respuesta:
+      'En Ajustes → "Unir proveedores". Primero muestra las fichas que parecen la misma —SALDO y SALDOS, VICTOR ESTEBANEZ y VICTOR ESTEVANEZ, ARIEL GARCIA y ARIEL GARCIA MISIONES— y también se pueden elegir dos a mano.\n\nElegís cuál queda y cuál se absorbe. A la que queda le pasan los productos de la otra y toda su cuenta corriente: las compras y los pagos. Eso es lo importante — si la plata se quedara en una ficha borrada, no la encontraría nadie.\n\nEl nombre de la ficha que se borra queda guardado como "otro nombre" de la que queda. Así, si mañana alguien escribe el nombre viejo al cargar un producto, la app lo reconoce y no vuelve a crear la copia.\n\nSi la ficha que queda tiene datos vacíos —el teléfono, la ciudad, el alias para transferir— se completan con los de la otra. Los que ya tenía cargados no se tocan.\n\nAntes de confirmar muestra exactamente qué va a pasar: cuántos productos cambian, cuántas compras y pagos se mudan y cuánto saldo pasa. Queda todo en el historial.\n\nLo pueden hacer el dueño y la encargada.',
+    palabrasClave: [
+      'unir',
+      'juntar',
+      'proveedor repetido',
+      'dos veces',
+      'fichas repetidas',
+      'duplicado',
+      'fusionar',
+    ],
+    soloOwner: true,
+  },
+  {
     id: 'proveedores-repetidos-por-que',
     categoria: 'Sincronización y respaldo',
     pregunta: '¿Por qué aparece el mismo proveedor cargado varias veces?',
