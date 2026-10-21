@@ -1128,6 +1128,58 @@ cuenta corriente a otra— no dejaba rastro. Ahora sí.
 
 ---
 
+## Que un producto no se cargue dos veces
+
+Dos formas de duplicar un producto, con dos arreglos distintos.
+
+### Mismo código, otro dispositivo
+
+`guardar()` validaba "ya existe" **solo contra la base local**. Un dispositivo que estuvo
+un rato sin internet no tiene los productos que se crearon mientras tanto: para él ese
+código está libre. Al subirlo, `setDoc` **pisa** el del servidor y el producto que estaba
+desaparece debajo del nuevo — el mismo final del 20/10 por otro camino.
+
+Ahora, al crear, se pregunta también al servidor (`existeEnLaNube()`). Las tres
+respuestas son distintas y las tres importan:
+
+| Respuesta | Qué hace |
+|---|---|
+| ya existe | frena, y dice que está en el servidor aunque no se vea acá |
+| está libre | sigue normal |
+| **no se pudo saber** | avisa y pide confirmación |
+
+Lo tercero es lo que no se puede barrer bajo la alfombra: **no saber no es lo mismo que
+estar libre**. No se bloquea, porque trabajar sin internet tiene que poder hacerse y no
+poder cargar un producto en el mostrador sería peor; pero el cartel dice exactamente qué
+puede pasar.
+
+### Mismo producto, otro código
+
+El 21/10 se cargó `LST016` con la descripción de `MATERA RECTANGULAR`, que ya existía
+como `LST010`. Cuando eso pasa, el stock y las ventas quedan repartidos entre los dos y
+ninguno de los dos números sirve.
+
+Al escribir la descripción, la app avisa si ya hay un producto con esa misma descripción
+—o con una a una letra— y muestra su código y su costo. **Avisa y no frena**, a
+propósito: "LIMPIA BOMBILLA" lo venden cuatro proveedores y son cuatro productos con su
+propio costo. Quien está cargando es el único que puede saberlo.
+
+Y hay un filtro **"Repetidos por nombre"** que los agrupa para revisarlos de a tandas.
+
+### Lo que hay hoy
+
+Sobre el catálogo publicado (1.280 productos): **25 grupos, 60 productos** comparten
+descripción. La mayoría son legítimos —cuatro `LIMPIA BOMBILLA`, cuatro `YERBERO CUERO`,
+de proveedores distintos— y por eso el filtro es una lista para mirar, no un error que
+haya que arreglar. Los que importan son los que además comparten costo y proveedor.
+
+La comparación ignora mayúsculas, acentos, plurales y palabras de relleno, así que
+`TABLA GUAYUBIRA GRUESA 2 HERRADURAS` y `TABLA GUAYUBIRA GRUESA CON 2 HERRADURAS` caen
+en el mismo grupo. `con` cuenta como relleno y `sin` **no**: "TABLA CON HERRADURA" y
+"TABLA SIN HERRADURA" son dos productos distintos.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1704,6 +1756,10 @@ a muchos, y el arreglo de `leerNumero()` con el punto de los miles.
 **Hecho el 21/10** — el aviso de costos que no cierran, la revisión de costos de a
 muchos, el arreglo de `leerNumero()` con el punto de los miles, que la recuperación
 saltee los códigos repetidos, y unir proveedores.
+
+**Hecho el 21/10, a la tarde** — que un código repetido no se pueda crear desde un
+dispositivo atrasado, el aviso de producto con la misma descripción, y el filtro de
+repetidos por nombre.
 
 **Datos a ordenar**
 

@@ -931,6 +931,34 @@ export const AYUDA: EntradaAyuda[] = [
     ],
   },
   {
+    id: 'producto-ya-existe-descripcion',
+    categoria: 'Productos',
+    pregunta: 'Al cargar un producto me avisa que "ya existe uno con esa descripción", ¿qué hago?',
+    respuesta:
+      'Es un aviso, no un freno: podés seguir y crearlo igual.\n\nSirve para no cargar dos veces el mismo producto con códigos distintos. Cuando pasa eso, el stock y las ventas quedan repartidos entre los dos y ninguno de los dos números sirve.\n\nPero hay productos que se llaman igual y son distintos de verdad: "LIMPIA BOMBILLA" lo venden cuatro proveedores y cada uno tiene su costo. Por eso la app no decide: te muestra cuáles ya existen, con su código y su costo, y elegís vos.\n\nSi es el mismo producto, conviene editar el que ya está en vez de crear otro.',
+    palabrasClave: ['ya existe', 'descripcion repetida', 'duplicado', 'mismo nombre', 'aviso'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'codigo-ya-existe-servidor',
+    categoria: 'Productos',
+    pregunta: 'Me dice que el código ya existe en el servidor, pero yo no lo veo en la lista',
+    respuesta:
+      'Es correcto, y es a propósito. Alguien cargó ese código desde otro dispositivo y a este todavía no le llegó.\n\nSi la app te dejara crearlo igual, al sincronizar tu producto reemplazaría al del servidor y ese producto desaparecería. Por eso frena: elegí otro código.\n\nAparte: si no hay internet, la app no puede comprobarlo y te lo dice antes de guardar. Ahí sí te deja seguir —trabajar sin internet tiene que poder hacerse— pero sabiendo que si ese código ya existe en otro lado, lo vas a reemplazar.',
+    palabrasClave: ['codigo existe', 'servidor', 'no lo veo', 'repetido', 'sin internet'],
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'filtro-repetidos-por-nombre',
+    categoria: 'Productos',
+    pregunta: '¿Cómo veo si hay productos cargados dos veces?',
+    respuesta:
+      'En Productos hay un filtro que dice cuántos comparten la descripción con otro. Al tocarlo quedan agrupados, uno al lado del otro, con su código y su costo.\n\nNo todos están mal: cuatro proveedores venden "LIMPIA BOMBILLA" y son cuatro productos distintos. Lo que hay que buscar son los que además tienen el mismo costo y el mismo proveedor: esos son el mismo cargado dos veces.\n\nCuando encontrás uno repetido de verdad, lo que conviene es dejar el que tiene las ventas y archivar el otro, no borrarlo.',
+    palabrasClave: ['repetidos', 'dos veces', 'duplicados', 'misma descripcion', 'filtro'],
+    requiereSeccion: 'productos',
+    soloOwner: true,
+  },
+  {
     id: 'costo-que-no-cierra',
     categoria: 'Productos',
     pregunta: '¿Qué significa "costo que no cierra" o el cartel de COSTO RARO?',
