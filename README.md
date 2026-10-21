@@ -1087,6 +1087,50 @@ en el mismo grupo. `con` cuenta como relleno y `sin` **no**: "TABLA CON HERRADUR
 
 ---
 
+## Cambiar el código de un producto
+
+Sandra es la que ordena los productos, y hasta ahora la app no dejaba cambiarle el
+código a uno que ya existía. Cuando necesitaba renumerar algo se iba al Excel viejo, lo
+ordenaba ahí y lo pasaba a mano — y el 21/10 el Excel y la app terminaron diciendo cosas
+distintas sobre diez códigos del bloque `LST`.
+
+Al editar un producto hay un botón **«Cambiar el código»**.
+
+### Por qué no es editar un campo
+
+El código **es la clave** del producto (`db.productos` lo usa como id). Habilitar el
+campo y escribir encima crearía un producto nuevo y dejaría las ventas apuntando a un
+código que ya no existe.
+
+Así que el cambio muda el producto con todo lo que cuelga de él, en una sola
+transacción:
+
+- el registro en `productos`, con `busqueda` rehecho (lleva el código adentro);
+- `ventas.codigo`;
+- las líneas de compra, `movimientosProveedor.items[].codigo`.
+
+El código nuevo pasa por la misma puerta que al crear un producto (`codigoNuevo.ts`): no
+puede estar ocupado acá ni en el servidor, y sin conexión no se puede.
+
+### Lo que NO se mueve, y por qué
+
+Los renglones de `historial` del código viejo **se quedan donde están**. No es un olvido:
+el historial es de solo agregar, y las reglas de Firestore lo dicen explícitamente
+(`allow update, delete: if false`). Intentar reescribirlos haría que el servidor rechace
+la escritura.
+
+La vista previa lo dice antes de confirmar: cuántos renglones quedan bajo el código
+anterior. El cambio en sí queda anotado, así que el rastro se puede seguir.
+
+### Y el otro pedido de Sandra
+
+También había pedido **poder borrar productos para liberar códigos**. No se implementó el
+borrado, y no hace falta: con esto le cambia el código al producto y el viejo queda
+libre. Los productos se siguen archivando y no se borran, para que las ventas viejas
+sigan teniendo sentido.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1656,6 +1700,9 @@ saltee los códigos repetidos, y unir proveedores.
 **Hecho el 21/10, a la tarde** — que un código repetido no se pueda crear desde un
 dispositivo atrasado (y que sin conexión directamente no se puedan crear productos), el
 aviso de producto con la misma descripción, y el filtro de repetidos por nombre.
+
+**Hecho el 21/10, a la noche** — cambiar el código de un producto, que es lo que hacía
+que Sandra tuviera que pasar por el Excel.
 
 **Datos a ordenar**
 
