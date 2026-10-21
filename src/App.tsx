@@ -23,6 +23,7 @@ import Historial from './paginas/Historial'
 import Ayuda from './paginas/Ayuda'
 import ConsultaPrecios from './paginas/ConsultaPrecios'
 import RecuperarProductos from './paginas/RecuperarProductos'
+import RevisionCostos from './paginas/RevisionCostos'
 import RevisionProveedores from './paginas/RevisionProveedores'
 import TurnosDelDia from './paginas/TurnosDelDia'
 import Notificaciones from './componentes/Notificaciones'
@@ -244,6 +245,10 @@ export default function App() {
           <Route
             path="/recuperar"
             element={alMando ? <RecuperarProductos /> : <Navigate to="/caja" replace />}
+          />
+          <Route
+            path="/revision-costos"
+            element={alMando ? <RevisionCostos /> : <Navigate to="/caja" replace />}
           />
           <Route
             path="/revision-proveedores"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { haceCuanto } from './formato'
+import { haceCuanto, leerNumero } from './formato'
 
 describe('haceCuanto', () => {
   const ahora = new Date('2026-08-21T20:00:00Z').getTime()
@@ -26,5 +26,36 @@ describe('haceCuanto', () => {
 
   it('un reloj adelantado no dice "hace -3 minutos"', () => {
     expect(haceCuanto(ahora + 200_000, ahora)).toBe('recién')
+  })
+})
+
+describe('leerNumero', () => {
+  it('EL BUG: el punto de los miles, que es como se escribe acá', () => {
+    expect(leerNumero('31.000')).toBe(31000)
+    expect(leerNumero('1.500.000')).toBe(1500000)
+    expect(leerNumero('$ 31.000')).toBe(31000)
+  })
+
+  it('pero un punto decimal sigue siendo decimal', () => {
+    expect(leerNumero('3.5')).toBe(3.5)
+    expect(leerNumero('3.50')).toBe(3.5)
+    expect(leerNumero('0.5')).toBe(0.5)
+  })
+
+  it('la coma es el decimal de siempre', () => {
+    expect(leerNumero('31000,50')).toBe(31000.5)
+    expect(leerNumero('31.000,50')).toBe(31000.5)
+    expect(leerNumero('0,5')).toBe(0.5)
+  })
+
+  it('un número pelado no cambia', () => {
+    expect(leerNumero('31000')).toBe(31000)
+    expect(leerNumero('0')).toBe(0)
+    expect(leerNumero('-250')).toBe(-250)
+  })
+
+  it('vacío o basura da null', () => {
+    expect(leerNumero('')).toBeNull()
+    expect(leerNumero('abc')).toBeNull()
   })
 })

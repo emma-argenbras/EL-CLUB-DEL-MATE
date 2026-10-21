@@ -3,6 +3,7 @@ import type { Movimiento, Producto, Venta } from '../db/db'
 import {
   arqueoVacio,
   costoDesactualizado,
+  costoSospechoso,
   desglosarGastos,
   esCierreTardio,
   margenPorcentual,
@@ -565,5 +566,75 @@ describe('esCierreTardio', () => {
     // Puede pasar si alguien se equivoca de fecha al abrir. Es un error,
     // pero no es una correccion sobre el pasado: no va por autorizacion.
     expect(esCierreTardio({ fecha: '2026-08-23', turno: 'M' }, [{ turno: 'M' }], HOY)).toBe(false)
+  })
+})
+
+describe('costoSospechoso', () => {
+  it('EL CASO TM051: costo al que le falta un cero', () => {
+    // costo 3.100 y venta 71.900 con 130% de markup: el precio que esa
+    // rentabilidad pide seria 7.130, o sea diez veces menos.
+    const r = costoSospechoso(
+      producto({ precioCompra: 3100, precioVenta: 71900, rentabilidad: 1.3 }),
+    )
+    expect(r).not.toBeNull()
+    expect(r!.veces).toBeCloseTo(10.08, 1)
+    expect(r!.segun).toBe('rentabilidad')
+    expect(r!.costoProbable).toBe(31000)
+  })
+
+  it('un producto normal no salta', () => {
+    expect(
+      costoSospechoso(producto({ precioCompra: 31000, precioVenta: 71900, rentabilidad: 1.3 })),
+    ).toBeNull()
+  })
+
+  it('una oferta fuerte tampoco salta', () => {
+    // se vende al doble de lo que pide su rentabilidad: caro, no absurdo
+    expect(
+      costoSospechoso(producto({ precioCompra: 10000, precioVenta: 46000, rentabilidad: 1.3 })),
+    ).toBeNull()
+  })
+
+  it('justo en el limite no salta, y apenas pasado si', () => {
+    const casi = producto({ precioCompra: 1000, precioVenta: 2300 * 5.9, rentabilidad: 1.3 })
+    const pasado = producto({ precioCompra: 1000, precioVenta: 2300 * 6.1, rentabilidad: 1.3 })
+    expect(costoSospechoso(casi)).toBeNull()
+    expect(costoSospechoso(pasado)).not.toBeNull()
+  })
+
+  it('sin rentabilidad se mira el precio pelado, y con la vara mas alta', () => {
+    expect(costoSospechoso(producto({ precioCompra: 1000, precioVenta: 12000 }))).toBeNull()
+    const r = costoSospechoso(producto({ precioCompra: 1000, precioVenta: 23000 }))
+    expect(r).not.toBeNull()
+    expect(r!.segun).toBe('precio')
+  })
+
+  it('no sugiere un cero de mas cuando el numero no cierra', () => {
+    // 20 veces desviado: con un cero mas quedaria vendiendo a 2 veces
+    // menos de lo que costo, asi que el cero no es la explicacion.
+    const r = costoSospechoso(
+      producto({ precioCompra: 300, precioVenta: 300 * 2.65 * 20, rentabilidad: 1.65 }),
+    )
+    expect(r).not.toBeNull()
+    expect(r!.costoProbable).toBeUndefined()
+  })
+
+  it('vender bajo costo es el problema opuesto y no entra acá', () => {
+    expect(
+      costoSospechoso(producto({ precioCompra: 12500, precioVenta: 8750, rentabilidad: 1.3 })),
+    ).toBeNull()
+  })
+
+  it('sin costo o sin precio no se puede decir nada', () => {
+    expect(costoSospechoso(producto({ precioVenta: 71900, rentabilidad: 1.3 }))).toBeNull()
+    expect(costoSospechoso(producto({ precioCompra: 3100, rentabilidad: 1.3 }))).toBeNull()
+  })
+
+  it('un archivado no molesta', () => {
+    expect(
+      costoSospechoso(
+        producto({ precioCompra: 3100, precioVenta: 71900, rentabilidad: 1.3, archivado: true }),
+      ),
+    ).toBeNull()
   })
 })

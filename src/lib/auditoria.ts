@@ -10,6 +10,7 @@ import type {
 import {
   costoDesactualizado,
   precioAtrasado,
+  costoSospechoso,
   precioBajoCosto,
   precioDesactualizado,
   resumirJornada,
@@ -318,6 +319,33 @@ function auditarProductos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       ruta: '/productos?bajoCosto=1',
       cantidad: bajoCosto.length,
       monto: perdida,
+      requiereSeccion: 'productos',
+    })
+  }
+
+  // --- Costo absurdamente bajo: casi siempre un cero que falta ---
+  //
+  // Es critico por lo que pasa despues, no por lo que pasa ahora: con
+  // el costo diez veces mas chico, el "precio sugerido segun su
+  // rentabilidad" sale diez veces mas barato. Alcanza con que alguien
+  // acepte esa sugerencia para vender a un decimo.
+  const sospechosos = visibles
+    .map((p) => ({ p, s: costoSospechoso(p) }))
+    .filter((x): x is { p: Producto; s: NonNullable<ReturnType<typeof costoSospechoso>> } => x.s !== null)
+  if (sospechosos.length > 0) {
+    const conSugerencia = sospechosos.filter((x) => x.s.costoProbable !== undefined)
+    hallazgos.push({
+      id: 'productos-costo-sospechoso',
+      modulo: 'productos',
+      nivel: 'critico',
+      titulo: `${sospechosos.length} ${plural(sospechosos.length, 'producto tiene', 'productos tienen')} un costo que no cierra`,
+      detalle: `Se venden mucho más caro de lo que su costo explica${
+        conSugerencia.length > 0 ? ', como si al costo le faltara un cero' : ''
+      }. Mientras esté así, el margen del reporte miente y —lo más peligroso— el precio que la app sugiere para ese producto sale diez veces más barato de lo que corresponde.`,
+      comoSeResuelve:
+        'Abrí cada uno y fijate el costo contra la última factura del proveedor. Suele ser un cero de menos al cargarlo.',
+      ruta: '/productos?costoSospechoso=1',
+      cantidad: sospechosos.length,
       requiereSeccion: 'productos',
     })
   }
