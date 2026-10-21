@@ -944,7 +944,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: 'Me dice que el código ya existe en el servidor, pero yo no lo veo en la lista',
     respuesta:
-      'Es correcto, y es a propósito. Alguien cargó ese código desde otro dispositivo y a este todavía no le llegó.\n\nSi la app te dejara crearlo igual, al sincronizar tu producto reemplazaría al del servidor y ese producto desaparecería. Por eso frena: elegí otro código.\n\nAparte: si no hay internet, la app no puede comprobarlo y te lo dice antes de guardar. Ahí sí te deja seguir —trabajar sin internet tiene que poder hacerse— pero sabiendo que si ese código ya existe en otro lado, lo vas a reemplazar.',
+      'Es correcto, y es a propósito. Alguien cargó ese código desde otro dispositivo y a este todavía no le llegó.\n\nSi la app te dejara crearlo igual, al sincronizar tu producto reemplazaría al del servidor y ese producto desaparecería. Por eso frena: elegí otro código.\n\nY si no hay internet, la app no puede comprobarlo y directamente no deja crear productos nuevos: dice "Sin conexión no se pueden crear productos nuevos. Conectate y probá de nuevo.".\n\nEs a propósito. Los productos se dan de alta desde la computadora, que está conectada; en el mostrador no se crean productos, así que esto no traba ninguna venta. Y si se creara uno a ciegas con un código que ya existe, el producto del servidor se perdería sin forma de recuperarlo.\n\nTodo lo demás sí se puede hacer sin internet: vender, cobrar, cargar gastos y editar productos que ya existen.',
     palabrasClave: ['codigo existe', 'servidor', 'no lo veo', 'repetido', 'sin internet'],
     requiereSeccion: 'productos',
   },

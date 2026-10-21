@@ -1146,12 +1146,20 @@ respuestas son distintas y las tres importan:
 |---|---|
 | ya existe | frena, y dice que está en el servidor aunque no se vea acá |
 | está libre | sigue normal |
-| **no se pudo saber** | avisa y pide confirmación |
+| **no se pudo saber** | **frena**: «Sin conexión no se pueden crear productos nuevos. Conectate y probá de nuevo.» |
 
 Lo tercero es lo que no se puede barrer bajo la alfombra: **no saber no es lo mismo que
-estar libre**. No se bloquea, porque trabajar sin internet tiene que poder hacerse y no
-poder cargar un producto en el mostrador sería peor; pero el cartel dice exactamente qué
-puede pasar.
+estar libre**.
+
+La primera versión avisaba y dejaba seguir, por no trabar el mostrador. Emmanuel lo
+corrigió el 21/10 y tiene razón, por dos motivos que yo no había puesto en la balanza:
+los productos **los da de alta solo Sandra desde la Mac** (decisión del 20/10), así que
+frenar no traba ninguna venta; y mientras no exista el respaldo nocturno, **un producto
+pisado no se puede recuperar de ningún lado**. Cuando el respaldo esté andando se
+revisa.
+
+La regla vive en `src/lib/codigoNuevo.ts`, separada del formulario justamente para que
+los cuatro casos se puedan probar.
 
 ### Mismo producto, otro código
 
@@ -1168,10 +1176,15 @@ Y hay un filtro **"Repetidos por nombre"** que los agrupa para revisarlos de a t
 
 ### Lo que hay hoy
 
-Sobre el catálogo publicado (1.280 productos): **25 grupos, 60 productos** comparten
-descripción. La mayoría son legítimos —cuatro `LIMPIA BOMBILLA`, cuatro `YERBERO CUERO`,
-de proveedores distintos— y por eso el filtro es una lista para mirar, no un error que
-haya que arreglar. Los que importan son los que además comparten costo y proveedor.
+Medido sobre la base real el 21/10 a las 16:03: **25 grupos, 55 productos** comparten
+descripción.
+
+Y el número que de verdad importa: **solo 4 de esos grupos comparten también proveedor y
+costo**, y los cuatro son variantes legítimas —SUR X MAYOR con sufijos A/B/C, y SALDOS
+con precios distintos—. El único producto cargado dos veces de verdad era
+`MATERA RECTANGULAR` (`LST010` y `LST016`), y ya está resuelto.
+
+O sea: el catálogo está limpio. El filtro queda como control, no como lista de trabajo.
 
 La comparación ignora mayúsculas, acentos, plurales y palabras de relleno, así que
 `TABLA GUAYUBIRA GRUESA 2 HERRADURAS` y `TABLA GUAYUBIRA GRUESA CON 2 HERRADURAS` caen
@@ -1758,8 +1771,8 @@ muchos, el arreglo de `leerNumero()` con el punto de los miles, que la recuperac
 saltee los códigos repetidos, y unir proveedores.
 
 **Hecho el 21/10, a la tarde** — que un código repetido no se pueda crear desde un
-dispositivo atrasado, el aviso de producto con la misma descripción, y el filtro de
-repetidos por nombre.
+dispositivo atrasado (y que sin conexión directamente no se puedan crear productos), el
+aviso de producto con la misma descripción, y el filtro de repetidos por nombre.
 
 **Datos a ordenar**
 

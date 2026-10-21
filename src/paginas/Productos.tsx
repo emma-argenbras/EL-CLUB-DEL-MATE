@@ -6,6 +6,7 @@ import {
   type ProductoParecido,
 } from '../lib/descripcionesParecidas'
 import { existeEnLaNube } from '../sync/motor'
+import { decidirCodigoNuevo, mensajeDeCodigo } from '../lib/codigoNuevo'
 import { nubeConfigurada } from '../sync/config'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -711,37 +712,17 @@ function FormularioProducto({
     if (!cod) return setError('Falta el código.')
     if (!descripcion.trim()) return setError('Falta la descripción.')
     if (nuevo) {
-      const existe = await db.productos.get(cod)
-      if (existe) return setError(`Ya existe un producto con el código ${cod}.`)
-
-      // Y contra el servidor, que es lo que la base local no sabe. Un
-      // dispositivo que estuvo sin internet NO tiene los productos que
-      // se crearon mientras tanto: para el, el codigo esta libre. Al
-      // subirlo, setDoc pisa el del servidor y ese producto desaparece
-      // debajo del nuevo.
-      if (nubeConfigurada) {
+      // Tres preguntas, y la tercera --"no se pudo saber"-- NO es lo
+      // mismo que "esta libre": ver lib/codigoNuevo.ts.
+      const existeAca = (await db.productos.get(cod)) !== undefined
+      let enLaNube: boolean | null = false
+      if (nubeConfigurada && !existeAca) {
         setComprobando(true)
-        const enLaNube = await existeEnLaNube('productos', cod)
+        enLaNube = await existeEnLaNube('productos', cod)
         setComprobando(false)
-        if (enLaNube === true) {
-          return setError(
-            `Ya existe un producto con el código ${cod} en el servidor, aunque todavía no haya ` +
-              `llegado a este dispositivo. Elegí otro código.`,
-          )
-        }
-        if (enLaNube === null) {
-          // No se pudo averiguar. Eso NO es lo mismo que estar libre, y
-          // por eso se dice en voz alta en vez de seguir de largo. No se
-          // bloquea: la app funciona sin internet a proposito, y no
-          // poder cargar un producto en el mostrador seria peor.
-          const seguir = confirm(
-            `No se pudo comprobar contra el servidor si el código ${cod} ya existe, porque este ` +
-              `dispositivo no está conectado.\n\nSi ese código ya existe en otro dispositivo, al ` +
-              `sincronizar este producto va a reemplazarlo.\n\n¿Crearlo igual?`,
-          )
-          if (!seguir) return
-        }
       }
+      const problema = mensajeDeCodigo(decidirCodigoNuevo(existeAca, enLaNube), cod)
+      if (problema) return setError(problema)
     }
 
     let idProveedor = proveedorId || null
