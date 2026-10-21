@@ -888,7 +888,11 @@ class BaseECDM extends Dexie {
         'titular',
         'ciudad',
       ],
-      movimientosProveedor: ['tipo', 'monto', 'fecha', 'concepto'],
+      // proveedorId esta en la lista porque mover una compra o un pago
+      // de un proveedor a otro es mover PLATA de una cuenta corriente a
+      // otra. Sin esto, unir dos fichas movia los saldos sin dejar
+      // rastro, que es justo lo que el historial existe para evitar.
+      movimientosProveedor: ['tipo', 'monto', 'fecha', 'concepto', 'proveedorId'],
       usuarios: ['nombre', 'email', 'rol', 'activo', 'secciones'],
       // Las dos tablas de historial no se registran a si mismas: un
       // registro del registro no agrega nada y crece sin freno.

@@ -321,6 +321,23 @@ export default function Ajustes() {
       )}
 
       <div className="tarjeta">
+        <p className="tarjeta-titulo">Unir proveedores</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          Cuando el mismo proveedor quedó cargado dos veces. Muestra las fichas que parecen la
+          misma, y al unirlas pasan los productos y la cuenta corriente —compras y pagos— a la
+          que queda. El nombre de la otra queda guardado como «otro nombre», así no se vuelve a
+          crear sola.
+        </p>
+        <Link
+          className="boton-chico"
+          style={{ width: '100%', textAlign: 'center' }}
+          to="/unir-proveedores"
+        >
+          Unir proveedores
+        </Link>
+      </div>
+
+      <div className="tarjeta">
         <p className="tarjeta-titulo">Revisión de costos</p>
         <p className="silencio" style={{ marginTop: 0 }}>
           Los productos sin costo o con el costo vencido, filtrados por proveedor y corregibles
