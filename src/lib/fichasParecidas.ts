@@ -15,8 +15,14 @@ import type { Proveedor } from '../db/db'
  * "MATES RAFAEL" y "MATES DEL LITORAL" son el mismo o dos distintos.
  */
 
-/** Palabras que no distinguen a un proveedor de otro. */
-const DE_RELLENO = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y'])
+/**
+ * Palabras que no distinguen una cosa de otra.
+ *
+ * "con" esta y "sin" NO, a proposito: "TABLA CON 2 HERRADURAS" y "TABLA
+ * 2 HERRADURAS" son la misma, pero "TABLA CON HERRADURA" y "TABLA SIN
+ * HERRADURA" son dos productos distintos. Sacar las dos los juntaria.
+ */
+const DE_RELLENO = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'con'])
 
 /** El nombre en palabras, sin acentos, sin relleno y sin plurales. */
 export function palabrasClave(nombre: string): string[] {

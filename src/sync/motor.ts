@@ -11,6 +11,7 @@ import {
   deleteDoc,
   doc,
   getCountFromServer,
+  getDoc,
   getDocs,
   onSnapshot,
   setDoc,
@@ -290,6 +291,32 @@ export async function contarSinSubir(): Promise<number | null> {
     // Sin internet no se puede saber, y no saber no es lo mismo que
     // estar al dia: queda en null y el cartel no dice nada.
     console.warn('No se pudo controlar lo que falta subir:', e)
+    return null
+  }
+}
+
+/**
+ * Si esa clave ya existe en el servidor. null = no se pudo averiguar.
+ *
+ * Por que hace falta mirar el servidor y no alcanza con la base local:
+ * un dispositivo que estuvo un rato sin internet NO tiene los productos
+ * que se crearon mientras tanto. Si alguien carga ahi un producto con un
+ * codigo que ya existe, la base local dice que esta libre, el motor lo
+ * sube con setDoc --que pisa-- y el producto del servidor desaparece
+ * debajo del nuevo. Es el mismo final del 20/10 por otro camino.
+ *
+ * Las tres respuestas son distintas y las tres importan: true es "ya
+ * existe", false es "esta libre", y null es "no se pudo saber", que NO
+ * es lo mismo que estar libre y por eso no se confunden.
+ */
+export async function existeEnLaNube(tabla: NombreTabla, clave: string): Promise<boolean | null> {
+  const auth = obtenerAuth()
+  if (!auth.currentUser) return null
+  try {
+    const referencia = doc(obtenerFirestore(), 'negocios', ID_NEGOCIO, tabla, aClaveDeNube(clave))
+    return (await getDoc(referencia)).exists()
+  } catch (e) {
+    console.warn('No se pudo controlar si la clave ya existe en el servidor:', e)
     return null
   }
 }
