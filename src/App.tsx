@@ -24,6 +24,7 @@ import Ayuda from './paginas/Ayuda'
 import ConsultaPrecios from './paginas/ConsultaPrecios'
 import RecuperarProductos from './paginas/RecuperarProductos'
 import RevisionCostos from './paginas/RevisionCostos'
+import UnirProveedores from './paginas/UnirProveedores'
 import RevisionProveedores from './paginas/RevisionProveedores'
 import TurnosDelDia from './paginas/TurnosDelDia'
 import Notificaciones from './componentes/Notificaciones'
@@ -249,6 +250,10 @@ export default function App() {
           <Route
             path="/revision-costos"
             element={alMando ? <RevisionCostos /> : <Navigate to="/caja" replace />}
+          />
+          <Route
+            path="/unir-proveedores"
+            element={alMando ? <UnirProveedores /> : <Navigate to="/caja" replace />}
           />
           <Route
             path="/revision-proveedores"
