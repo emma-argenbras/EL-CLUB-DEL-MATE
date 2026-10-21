@@ -891,6 +891,13 @@ botón después: recuperando vuelven los nombres, y recién ahí hay algo que ag
 Todo queda en el historial con el motivo «Recuperación de costos y proveedores», y la
 confirmación dice cuántos productos toca antes de hacerlo.
 
+### Cómo salió
+
+Corrida el 20/10 a la noche sobre la base real: **740 productos rellenados.** Quedaron
+154 sin costo y 3 sin proveedor —los que ninguna fuente tenía— y **1.233 con el nombre
+del proveedor pero sin ficha**, que es exactamente el estado que resuelve el botón de
+"Ver y asociar". Por eso el orden era ese.
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño
@@ -1396,17 +1403,15 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 20/10/2026. Lo de arriba de la lista es lo que
-sigue.
+Lo que está pendiente de verdad, al 20/10/2026 a la noche. Lo de arriba de la lista es
+lo que sigue.
 
 **En curso**
 
-- [ ] **Recuperar los costos y proveedores del 20/10.** La pantalla está hecha
-      (Ajustes → "Recuperar costos y proveedores"); falta correrla sobre la base real,
-      con el historial y con la foto de los productos de agosto cargada como archivo.
-      Va **antes** que el botón de "Ver y asociar": recuperando primero vuelven los
-      nombres de proveedor, y recién ahí el botón los puede agrupar.
-- [ ] **Publicar el botón "Ver y asociar"** (PR #43), después de la recuperación.
+- [ ] **Agrupar los 1.233 productos con "proveedor inexistente".** Tienen el nombre
+      del proveedor pero no la ficha: así los dejó la recuperación, y es el estado que
+      el botón **"Ver y asociar"** sabe resolver. Se hace de a un proveedor, desde
+      Productos → filtro "Proveedor inexistente".
 - [ ] Automatizar la publicación de `firestore.rules` con una cuenta de servicio en
       GitHub Secrets (`FIREBASE_SERVICE_ACCOUNT`), para que las reglas no se peguen
       más a mano.
@@ -1447,10 +1452,15 @@ nombre.
 por proveedor, pasar una venta de turno, el origen de la plata de un pago, el alta de
 producto desde una compra, y el detector de turnos repetidos por mes.
 
-**Hecho el 20/10 a la noche** — el freno del sembrado: el catálogo público ya no se
-sube encima de los costos del servidor. Ver "Lo que pasó el 20/10". Las reglas con
-`noPisaConVacio()` se pegan a mano en la consola de Firebase; están en la rama, no en
-`main`.
+**Hecho el 20/10 a la noche** — el freno del sembrado (el catálogo público ya no se
+sube encima de los costos del servidor), la pantalla de recuperación y el botón "Ver y
+asociar". Ver "Lo que pasó el 20/10".
+
+**La recuperación, corrida el 20/10 a la noche: 740 productos rellenados.** Quedaron
+154 sin costo y 3 sin proveedor —los que ninguna fuente tenía, y se cargan a mano— y
+1.233 con el nombre del proveedor pero sin ficha, que es lo que agrupa el botón.
+
+Las reglas con `noPisaConVacio()` se pegan a mano en la consola de Firebase.
 
 **Datos a ordenar**
 
@@ -1459,8 +1469,12 @@ sube encima de los costos del servidor. Ver "Lo que pasó el 20/10". Las reglas 
       cuáles están repetidos, cuáles inactivos con productos vigentes y cuáles usan los
       productos sin tener ficha. Lo que cambia es que las correcciones las hace una
       persona desde Proveedores, no el botón de aplicar.
-- [ ] Los **772 productos sin proveedor**: se les asigna proveedor a mano desde
-      Productos, de a uno o filtrando por los que no tienen.
+- [ ] Los **154 productos sin costo y 3 sin proveedor** que quedaron después de la
+      recuperación: ninguna fuente los tenía, así que se cargan a mano desde Productos,
+      filtrando por los que no tienen.
+- [ ] Los **costos que volvieron marcados como vencidos**. Entraron con la fecha que
+      tenían de verdad, así que la app los pone en la lista de lo que hay que
+      actualizar. Es a propósito: el margen del reporte miente hasta que se revisen.
 - [ ] Los ~10 códigos duplicados que la planilla colapsó en uno.
 - [ ] **Las dos devoluciones de Mercado Pago** del 13 de mayo ($ 1.210.000) y el 21 de
       marzo ($ 193.000), $ 1.403.000 en total. Están anotadas como **ventas** en la
