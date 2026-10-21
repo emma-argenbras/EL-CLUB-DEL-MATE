@@ -99,6 +99,11 @@ export function leerFecha(celda: string): string | null {
  */
 export function leerFuenteCSV(texto: string, nombre: string, fecha: string | null): Fuente {
   const valores = new Map<string, ValoresProducto>()
+  // Todos los codigos vistos, tengan datos o no: un renglon vacio
+  // igual ocupa el codigo. Si no, una fila sin costo no marcaria el
+  // repetido y la otra entraria sola, que es el mismo error.
+  const vistos = new Set<string>()
+  const repetidos = new Set<string>()
   const lineas = texto.split(/\r?\n/)
 
   for (const [i, linea] of lineas.entries()) {
@@ -106,7 +111,19 @@ export function leerFuenteCSV(texto: string, nombre: string, fecha: string | nul
     const campos = partirLineaCSV(linea)
     const codigo = (campos[0] ?? '').trim().toUpperCase()
     if (!codigo) continue
-    if (valores.has(codigo)) continue
+    // Un codigo repetido en la planilla son DOS PRODUCTOS DISTINTOS con
+    // la misma clave, y no hay forma de saber cual de los dos es el que
+    // esta en la app. Quedarse con el primero fue exactamente el error
+    // del 21/10: LST009 en la planilla es "TABLAS GUAYUBIRA SURTIDAS
+    // CHICAS" ($ 1.800) en una fila y "MATERA BOLSO" ($ 40.000) en
+    // otra, y la app tiene la segunda. Se salteaba el 95% del costo.
+    // Se saltean los dos y se cargan a mano.
+    if (vistos.has(codigo)) {
+      valores.delete(codigo)
+      repetidos.add(codigo)
+      continue
+    }
+    vistos.add(codigo)
 
     const proveedor = (campos[2] ?? '').trim()
     const entrada: ValoresProducto = {}
@@ -121,7 +138,7 @@ export function leerFuenteCSV(texto: string, nombre: string, fecha: string | nul
     if (Object.keys(entrada).length > 0) valores.set(codigo, entrada)
   }
 
-  return { nombre, fecha, valores }
+  return { nombre, fecha, valores, repetidos: [...repetidos].sort() }
 }
 
 /* ---------------------------- JSON ---------------------------- */
@@ -145,9 +162,19 @@ export function leerFuenteJSON(texto: string, nombre: string, fecha: string | nu
     : ((dato as { productos?: ProductoDeArchivo[] }).productos ?? [])
 
   const valores = new Map<string, ValoresProducto>()
+  const vistos = new Set<string>()
+  const repetidos = new Set<string>()
   for (const p of lista) {
     const codigo = (p?.codigo ?? '').trim().toUpperCase()
-    if (!codigo || valores.has(codigo)) continue
+    if (!codigo) continue
+    // La misma regla que el CSV: dos veces el mismo codigo son dos
+    // productos distintos y no hay como saber cual es cual.
+    if (vistos.has(codigo)) {
+      valores.delete(codigo)
+      repetidos.add(codigo)
+      continue
+    }
+    vistos.add(codigo)
     const entrada: ValoresProducto = {}
     if (typeof p.precioCompra === 'number') entrada.precioCompra = p.precioCompra
     if (typeof p.rentabilidad === 'number') entrada.rentabilidad = p.rentabilidad
@@ -155,7 +182,7 @@ export function leerFuenteJSON(texto: string, nombre: string, fecha: string | nu
     if (typeof p.proveedor === 'string' && p.proveedor.trim()) entrada.proveedor = p.proveedor.trim()
     if (Object.keys(entrada).length > 0) valores.set(codigo, entrada)
   }
-  return { nombre, fecha, valores }
+  return { nombre, fecha, valores, repetidos: [...repetidos].sort() }
 }
 
 /** Elige el lector segun como se llame el archivo. */

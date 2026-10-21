@@ -183,11 +183,25 @@ export default function RecuperarProductos() {
         </p>
 
         <ul className="lista">
-          {archivos.map((a, i) => (
+          {archivos.map((a, i) => {
+            const repetidos = fuentes.find((f) => f.nombre === a.nombreArchivo.replace(/\.(csv|json)$/i, ''))?.repetidos ?? []
+            return (
             <li className="item" key={a.id} style={{ display: 'block' }}>
               <div className="item-titulo">
                 {(usarHistorial ? 2 : 1) + i}. {a.nombreArchivo}
               </div>
+              {repetidos.length > 0 && (
+                <div className="item-sub negativo">
+                  {repetidos.length === 1
+                    ? '1 código aparece dos veces en este archivo y queda afuera'
+                    : `${repetidos.length} códigos aparecen más de una vez en este archivo y quedan afuera`}
+                  : {repetidos.join(', ')}.{' '}
+                  <span className="silencio">
+                    Son dos productos distintos con la misma clave y no hay forma de saber cuál
+                    está en la app. Se cargan a mano.
+                  </span>
+                </div>
+              )}
               <label className="item-sub" style={{ display: 'block' }}>
                 Fecha de los costos de este archivo, para los que no traigan la suya:{' '}
                 <input
@@ -219,7 +233,8 @@ export default function RecuperarProductos() {
                 </button>
               </div>
             </li>
-          ))}
+            )
+          })}
         </ul>
 
         <label className="item-sub" style={{ display: 'block' }}>
