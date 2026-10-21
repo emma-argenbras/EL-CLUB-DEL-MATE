@@ -42,6 +42,14 @@ export interface Fuente {
   /** La fecha a la que corresponde, si el dato no trae la suya. */
   fecha?: string | null
   valores: Map<string, ValoresProducto>
+  /**
+   * Los codigos que aparecen mas de una vez en la fuente, y que por eso
+   * quedan afuera.
+   *
+   * No es un detalle tecnico: son los que hay que cargar a mano, asi
+   * que la pantalla los muestra.
+   */
+  repetidos?: string[]
 }
 
 export interface CambioRecuperado {
