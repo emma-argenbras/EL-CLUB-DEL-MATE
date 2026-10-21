@@ -1063,6 +1063,70 @@ primer costo que cargué quedó en $ 31.
 
 ---
 
+## Dos cosas sobre los costos
+
+### El aviso de "costo que no cierra"
+
+Caso real: **TM051**, costo $ 3.100 y precio $ 71.900. Al costo le faltaba un cero.
+
+Es el problema opuesto a vender bajo costo, y hasta ahora no lo miraba nadie. Lo
+peligroso no es el reporte: es que **el precio que la app sugiere sale diez veces más
+barato**. Alcanza con que alguien acepte esa sugerencia para vender a un décimo.
+
+Lo detecta `costoSospechoso()`, y el criterio es el desvío contra **la rentabilidad del
+propio producto**, no contra el precio pelado. La diferencia importa: por precio pelado
+los más desviados de la base real son costos viejos de artículos baratos —inflación, no
+error— y el aviso sería puro ruido. Contra la propia rentabilidad, un cero de menos da
+exactamente 10×.
+
+El umbral es **6**. Con la base real: los markups van de 1,0 a 2,2 y el desvío casi
+nunca pasa de 3, así que en 6 no entra ninguna oferta normal de las 1.152 que tienen los
+tres datos cargados, y sí entran las dos que están mal. Sin rentabilidad cargada no hay
+contra qué comparar, así que ahí se mira el precio pelado con una vara más alta (15).
+
+Cuando el cero de más deja el precio donde corresponde, el aviso lo dice: *"¿no será
+$ 31.000?"*. Cuando no cierra, avisa igual pero sin sugerir un número inventado.
+
+Aparece en el Panel como hallazgo crítico, en Productos como filtro, y en cada renglón
+de la lista.
+
+### Revisión de costos
+
+**Ajustes → "Revisión de costos"**. Los productos sin costo o con el costo vencido,
+filtrables por proveedor y corregibles en la misma lista.
+
+Sandra actualiza costos con la factura del proveedor delante. Entrando y saliendo de la
+ficha de cada producto, de a cien, eso no se termina nunca.
+
+Se escriben **dos campos y nada más** —el costo y su fecha— y solo en los renglones que
+ella toca. El precio de venta, la rentabilidad, el stock y el proveedor quedan como
+están: esta pantalla corrige costos, no es un editor de productos.
+
+Tres cosas que hace sola:
+
+- Mientras se escribe, muestra en cuánto quedaría el margen y qué precio pediría el
+  markup. Es la forma de ver el cero de menos **antes** de guardar.
+- Si el número no cierra —el mismo criterio del aviso de arriba, o un costo que dejaría
+  el producto vendiéndose bajo costo— **pregunta antes de guardar**.
+- Si alguien cambió ese costo desde otro dispositivo mientras la lista estaba abierta,
+  **no lo pisa**: avisa y deja los dos valores a la vista. La pantalla no puede saber
+  cuál de los dos es el bueno.
+
+Los descontinuados quedan afuera: nadie los va a reponer y solo llenarían la lista.
+
+### Y un bug viejo que esto destapó
+
+`leerNumero()` leía **"31.000" como 31**. No era de esta pantalla: era de todas —Caja,
+Productos, Proveedores— porque `Number("31.000")` da 31, y el punto de los miles es lo
+más natural del mundo escribiendo acá.
+
+Ahora un punto seguido de grupos de exactamente tres dígitos es separador de miles
+(`31.000` → 31000, `1.500.000` → 1500000) y cualquier otro punto sigue siendo decimal
+(`3.5` → 3.5). Se encontró probando la pantalla en el navegador, no en las pruebas: el
+primer costo que cargué quedó en $ 31.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1632,6 +1696,9 @@ asociar". Ver "Lo que pasó el 20/10".
 1.233 con el nombre del proveedor pero sin ficha, que es lo que agrupa el botón.
 
 Las reglas con `noPisaConVacio()` se pegan a mano en la consola de Firebase.
+
+**Hecho el 20/10, tarde** — el aviso de costos que no cierran, la revisión de costos de
+a muchos, y el arreglo de `leerNumero()` con el punto de los miles.
 
 **Hecho el 20/10, tarde** — el aviso de costos que no cierran, la revisión de costos de
 a muchos, y el arreglo de `leerNumero()` con el punto de los miles.
