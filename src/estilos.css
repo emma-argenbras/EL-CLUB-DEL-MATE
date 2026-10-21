@@ -338,6 +338,20 @@ textarea {
   color: var(--tinta);
 }
 
+/*
+ * Un casillero no es un campo de texto. La regla de arriba lo estiraba
+ * al ancho del renglon --195px de casillero-- y cada pantalla que uso
+ * uno lo venia arreglando a mano con un width:auto suelto.
+ */
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  flex: none;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--verde);
+}
+
 input:focus,
 select:focus,
 textarea:focus {

@@ -14,6 +14,7 @@ import { CompartirCatalogo } from '../componentes/BotonWhatsApp'
 import {
   ETIQUETA_ROL,
   QUE_HACE_CADA_ROL,
+  esDueno,
   puedeBorrarTodo,
   puedeImportarRespaldo,
   puedeTocarUsuarioConRol,
@@ -299,6 +300,25 @@ export default function Ajustes() {
           Ver los turnos de un día
         </Link>
       </div>
+
+      {esDueno(sesion.perfil) && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Recuperar costos y proveedores</p>
+          <p className="silencio" style={{ marginTop: 0 }}>
+            Para los productos que quedaron sin costo o sin proveedor el 20/10. Saca los datos del
+            historial de la app y, si hace falta, de un archivo (el Excel, la foto de agosto).
+            Rellena <strong>solo lo que está vacío</strong>: no pisa nada de lo que se cargó
+            después. Muestra la vista previa antes de tocar nada.
+          </p>
+          <Link
+            className="boton-chico"
+            style={{ width: '100%', textAlign: 'center' }}
+            to="/recuperar"
+          >
+            Ver qué se puede recuperar
+          </Link>
+        </div>
+      )}
 
       <div className="tarjeta">
         <p className="tarjeta-titulo">Revisión de proveedores</p>
