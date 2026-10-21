@@ -1,0 +1,75 @@
+name: Respaldo nocturno
+
+# Baja todo Firestore y lo commitea en un repositorio privado.
+#
+# El plan Spark no tiene recuperacion a un momento determinado: si algo
+# se pisa, lo unico que queda es lo que alguien haya guardado. Cada
+# corrida deja una foto completa, asi que se puede volver a cualquier
+# noche, y el diff muestra que cambio en el dia.
+#
+# Hace falta cargar dos secrets (Settings > Secrets and variables >
+# Actions):
+#   FIREBASE_SERVICE_ACCOUNT  el JSON de una cuenta de servicio que solo
+#                             pueda LEER Firestore (rol Cloud Datastore
+#                             Viewer).
+#   RESPALDO_TOKEN            un token con permiso de escritura unicamente
+#                             sobre el repositorio privado de respaldos.
+on:
+  schedule:
+    # 03:17 de Argentina (UTC-3). Con el local cerrado y sin nadie
+    # cargando, y en un minuto raro porque el :00 es el mas congestionado.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+# Solo lee este repositorio: al de respaldos entra con su propio token.
+permissions:
+  contents: read
+
+concurrency:
+  group: respaldo
+  cancel-in-progress: false
+
+jobs:
+  respaldar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Traer el respaldo de anoche
+        uses: actions/checkout@v4
+        with:
+          repository: emma-argenbras/EL-CLUB-DEL-MATE-RESPALDOS
+          token: ${{ secrets.RESPALDO_TOKEN }}
+          path: respaldos
+
+      # Sin --no-save para no ensuciar package.json: firebase-admin solo
+      # hace falta aca, no en la app.
+      - run: npm install --no-save firebase-admin@13.6.0 tsx@4.21.0
+
+      - name: Bajar Firestore
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: npx tsx scripts/respaldar-firestore.ts respaldos/datos
+
+      # Se guarda SIEMPRE, aunque la alarma haya sonado: el respaldo del
+      # dia en que algo sale mal es justamente el que mas sirve.
+      - name: Guardar
+        if: always()
+        working-directory: respaldos
+        run: |
+          git config user.name  "Respaldo automatico"
+          git config user.email "noreply@elclubdelmate.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Sin cambios desde anoche."
+          else
+            git commit -m "Respaldo $(TZ=America/Argentina/Cordoba date '+%Y-%m-%d %H:%M')"
+            git push
+          fi

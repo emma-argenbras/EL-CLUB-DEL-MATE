@@ -900,6 +900,52 @@ del proveedor pero sin ficha**, que es exactamente el estado que resuelve el bot
 
 ---
 
+## El respaldo nocturno
+
+El plan Spark de Firebase **no tiene recuperación a un momento determinado** ni el
+export administrado de Google: los dos piden Blaze. El 20/10 eso se notó — lo único que
+hubo para recuperar los costos fue el historial de la app y una foto vieja de git. Si
+ese día no hubiera estado el Excel, no se recuperaba.
+
+### Cómo funciona
+
+Todas las noches a las 03:17 de Argentina, una GitHub Action baja **todas las
+colecciones** de Firestore con una cuenta de servicio de solo lectura y las commitea en
+un repositorio **privado y aparte**, uno por archivo: `productos.json`, `ventas.json`,
+`historial.json` y el resto.
+
+Cada commit es una foto completa. Eso da dos cosas que no teníamos:
+
+- **Volver a cualquier noche.** Es lo que el plan Spark no da.
+- **Ver qué cambió en el día.** El diff de la mañana muestra producto por producto lo
+  que se movió. Lo del 20/10 habría saltado a la vista.
+
+Los archivos se guardan con las claves ordenadas y un dato por renglón, justamente para
+que ese diff se pueda leer.
+
+### La alarma
+
+Un respaldo que nadie mira sirve para recuperar, pero no avisa. Así que la corrida
+compara con la de anoche y **termina con error** —y GitHub manda el mail— si:
+
+- una colección perdió más del 5 % de sus documentos, o
+- más de 20 productos se quedaron **sin costo o sin proveedor** de un día para el otro.
+
+Lo segundo es lo que importa: el 20/10 no desapareció ningún producto, se vaciaron.
+Contar documentos no lo habría visto. La lógica está en `src/lib/respaldoAlarma.ts`, con
+sus pruebas, incluida la que reproduce ese día (899 → 619 proveedores).
+
+Cuando la alarma suena, **el respaldo se guarda igual**: el respaldo del día en que algo
+sale mal es justamente el que más sirve.
+
+### Lo que cuesta
+
+Una corrida lee cada documento una vez. Con la base de hoy son unos pocos miles de
+lecturas sobre las 50.000 diarias que da Spark, y el `resumen.json` de cada noche anota
+cuántas fueron, así se ve venir si alguna vez empieza a apretar.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1065,16 +1111,16 @@ plan gratuito de Firebase.
 va a usar el agente. Está en un JSON limpio, con precio actualizado, y se regenera con
 un comando. Cuando la etapa 2 arranque, no hay que armar eso de cero.
 
-### ⚠️ Pendiente de seguridad: `productos.seed.json`
+### `productos.seed.json`: resuelto
 
-El catálogo público no expone nada confidencial, pero el archivo que usa la app para
-la carga inicial, `public/productos.seed.json`, **sí lleva el precio de compra, la
-rentabilidad y el proveedor de cada producto**, y hoy se sirve público en
-`app.elclubdelmate.com/productos.seed.json`.
+Durante meses `public/productos.seed.json` se sirvió público en
+`app.elclubdelmate.com/productos.seed.json` **con el precio de compra, la rentabilidad y
+el proveedor de cada producto**. Salió de `public/` en el #28 y hoy no está ni en
+`public/` ni en `dist/`: la carga inicial usa `catalogo.json`, que solo lleva código,
+descripción y precio de venta.
 
-No es algo que haya introducido el catálogo — viene de antes—, pero conviene
-resolverlo. La forma prolija es mover la carga inicial del catálogo detrás del login
-(traerla de Firestore en vez de un JSON público). Queda anotado como próximo paso.
+Lo que queda de eso es el historial de git, que sigue siendo público hasta que el
+repositorio pase a privado (ver "Próximos pasos").
 
 ---
 
@@ -1412,9 +1458,15 @@ lo que sigue.
       del proveedor pero no la ficha: así los dejó la recuperación, y es el estado que
       el botón **"Ver y asociar"** sabe resolver. Se hace de a un proveedor, desde
       Productos → filtro "Proveedor inexistente".
-- [ ] Automatizar la publicación de `firestore.rules` con una cuenta de servicio en
-      GitHub Secrets (`FIREBASE_SERVICE_ACCOUNT`), para que las reglas no se peguen
-      más a mano.
+- [ ] **Prender el respaldo nocturno y la publicación de reglas.** El código está
+      hecho y probado contra el emulador (`.github/workflows/respaldo.yml`,
+      `.github/workflows/reglas.yml`); falta que Emmanuel cree la cuenta de servicio, el
+      repositorio privado de respaldos y los dos secrets. Hasta entonces los workflows
+      quedan **en la rama y no en `main`**, porque sin los secrets fallarían todas las
+      noches.
+- [ ] **Pasar la publicación a Firebase Hosting** para poder tener el repositorio
+      privado sin pagar GitHub Pro. Pages en un repositorio privado necesita Pro;
+      Hosting es gratis en Spark, con dominio propio y certificado incluidos.
 
 > **Cancelado el 20/10/2026: la importación del Excel.** Estaba planificada como una
 > carga única desde `BASE DE DATOS ECDM 2026` (108 precios de venta, 724 costos, 53
@@ -1436,9 +1488,9 @@ lo que sigue.
       se cae. Está explicado en "Qué se publica y qué no".
 - [ ] Activar la protección de rama en `main` (pull request + check `verificar`
       obligatorios).
-- [ ] `public/productos.seed.json`: ver "Pendiente de seguridad" más arriba.
 - [ ] Pegar en la consola de Firebase las reglas con `noPisaConVacio()` (241 líneas).
       Es la capa que protege aunque un dispositivo tenga una versión vieja de la app.
+      Cuando esté el workflow de reglas, esto deja de hacerse a mano.
 
 **Hecho el 15/10** — `datos/` salió del repositorio y hay un chequeo
 (`npm run revisar-versionados`) que falla si vuelve a entrar algo privado al árbol.
@@ -1476,16 +1528,61 @@ Las reglas con `noPisaConVacio()` se pegan a mano en la consola de Firebase.
       tenían de verdad, así que la app los pone en la lista de lo que hay que
       actualizar. Es a propósito: el margen del reporte miente hasta que se revisen.
 - [ ] Los ~10 códigos duplicados que la planilla colapsó en uno.
-- [ ] **Las dos devoluciones de Mercado Pago** del 13 de mayo ($ 1.210.000) y el 21 de
-      marzo ($ 193.000), $ 1.403.000 en total. Están anotadas como **ventas** en la
-      planilla vieja, sin código de producto, así que inflan la venta del año en un 3 %
-      (ver "Todo 2026 ya está cargado"). No son gastos: el selector de cuenta de Gastos
-      no las alcanza. Hay que decidir qué se hace con ellas.
+- [ ] **Los tres asientos de Mercado Pago cargados como ventas, $ 1.623.000.** No son
+      ventas ni devoluciones a clientes: es plata que entró de Emmanuel desde Mercado
+      Pago y terminó en la caja grande. Los tres tienen la misma forma — una "venta"
+      sin código de producto y, **el mismo día y por el mismo monto, un movimiento
+      `A_CAJA_GRANDE`**:
 
-      > Una versión anterior de esta lista decía "3 movimientos de Mercado Pago sin
-      > clasificar ($ 1.623.000)". Ese dato lo escribí mal el 15/10 al rehacer la lista:
-      > no coincide ni en cantidad ni en monto con lo único que está documentado, que es
-      > lo de arriba. No hay un tercer movimiento que yo pueda verificar.
+      | Fecha | Monto | Cómo figura |
+      |---|---|---|
+      | 21/03 | $ 193.000 | DEVOLUCION POR TRANSFERENCIA A EMMA DE MERCADO PAGO |
+      | 30/04 | $ 220.000 | INGRESO EN CAJA GRANDE (POR UNA TRANSFERENCIA EMMA ) |
+      | 13/05 | $ 1.210.000 | DEVOLUCION EMMA (MERCADO PAGO) |
+
+      La plata **nunca pasó por el cajón**: el 13/05 el arqueo abrió en $ 97.630 y
+      cerró en $ 136.630, cuando la mediana del mes es $ 145.130. La "venta" y el
+      `A_CAJA_GRANDE` se anulan entre sí dentro del turno; son dos asientos para que
+      la planilla cerrara, no dos movimientos de plata.
+
+      Inflan la venta del año en 3,6 % ($ 45.002.867 → $ 43.379.867) y, como van sin
+      costo, entran enteros al margen de contribución.
+
+      > Una versión anterior de esta lista decía que "3 movimientos de Mercado Pago
+      > ($ 1.623.000)" era un dato que yo había escrito mal, y que lo documentado eran
+      > dos devoluciones por $ 1.403.000. **Esa corrección estaba equivocada: el dato
+      > original era el correcto.** Son tres asientos y suman exactamente $ 1.623.000.
+      > Se verificó contra `datos/historico-2026-03/04/05.seed.json` en el historial de
+      > git, que es donde están los registros de la planilla vieja.
+
+- [ ] **Los 10 códigos repetidos de la planilla.** En `BASE DE DATOS ECDM 2026` hay diez
+      códigos usados dos veces. Al importar ganó una de las dos filas y la otra se
+      perdió, así que hoy faltan hasta diez productos en la app:
+
+      | Código | Una fila es | La otra es |
+      |---|---|---|
+      | `509-54` | TAPON N2 LUMINOX | TAPA PARA BOTELLA CHICA |
+      | `151-327` | BILLETERA CUERO 2 VOLANTES | BILLETERA DOS VOLANTES |
+      | `221-264` | PORTA TERMO SIRE | PORTA TERMO SIRE |
+      | `LST006` | PALA PIZZERA GUAYUBIRA | TABLA SALIGNA CON AGARRES MADERA |
+      | `LST009` | TABLAS GUAYUBIRA SURTIDAS CHICAS | MATERA BOLSO |
+      | `LST010` | TABLAS GUAYUBIRA SURTIDAS GRANDES | MATERA RECTANGULAR |
+      | `LST011` | TABLA PIZZERA REDONDA GUAYUBIRA Y CEDRO | YERBERO CUERO |
+      | `LST 50 X 30` | TABLA GUAYUBIRA 2 MANIJAS | TABLA CON DIJE 2 MANIJAS |
+      | `SF001` | CINTO NIÑO CUERO CRUDO | PERCHERO PARED |
+      | `VE001` | PIEDRA NATURAL DE LA CORDILLERA DE LOS ANDES | CUCHILLO ACERO AL CARBONO 14CM |
+
+      Dos de los diez son la misma cosa cargada dos veces (`151-327` y `221-264`, que
+      solo se diferencia por espacios al final): ahí no falta nada. Los otros ocho son
+      productos distintos y hay que darle un código nuevo a uno de los dos.
+
+      Aparte hay dos pares que no chocan por poco, porque el código difiere en un
+      espacio: `LST 49 X30` (TABLA SALIGNA) contra `LST 49 X 30` (TABLA CON 2 MANIJAS),
+      y `LST 43X24` (TABLA PETERIBI) contra `LST43X24` (TABLA GUAYUBIRA). Son productos
+      distintos y conviene separarlos antes de que alguien normalice los espacios.
+
+      El bloque `LST` usa las medidas como código (`LST53X36`), y por eso choca: dos
+      tablas de la misma medida son el mismo código. Esa es la causa de fondo.
 
 **Mejoras conocidas**
 

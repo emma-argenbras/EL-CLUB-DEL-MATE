@@ -907,6 +907,15 @@ export const AYUDA: EntradaAyuda[] = [
     soloOwner: true,
   },
   {
+    id: 'hay-respaldo-de-todo',
+    categoria: 'Sincronización y respaldo',
+    pregunta: '¿Hay una copia de todo, por si se pierde algo otra vez?',
+    respuesta:
+      'Sí. Todas las noches, a las 03:17, se baja una copia completa de todo lo que hay en el servidor —productos, ventas, turnos, gastos, proveedores e historial— y se guarda en un lugar privado, aparte de la app.\n\nCada noche queda su propia copia, así que se puede volver a cualquier día, no solo al último. Y como se guarda una al lado de la otra, se puede ver exactamente qué cambió de un día para el otro.\n\nAdemás avisa sola: si de un día para el otro desaparecen registros, o si muchos productos se quedan sin costo o sin proveedor, manda un mail. Eso es lo que faltó el 20/10/2026, cuando los costos se vaciaron a las 16:40 y nos enteramos al otro día.\n\nNo reemplaza al servidor ni a la sincronización: es la red por si el servidor queda mal.',
+    palabrasClave: ['respaldo', 'copia', 'backup', 'se perdio', 'recuperar', 'seguridad'],
+    soloOwner: true,
+  },
+  {
     id: 'borrar-datos-del-celular',
     categoria: 'Sincronización y respaldo',
     pregunta: 'La app quedó rara en mi celular, ¿borro los datos y la reinstalo?',

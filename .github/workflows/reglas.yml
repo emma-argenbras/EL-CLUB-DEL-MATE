@@ -1,0 +1,56 @@
+name: Publicar las reglas de Firestore
+
+# Las reglas se pegaban a mano en la consola de Firebase, y dos veces se
+# pegaron cortadas por la mitad. Aca se publican solas cuando cambia
+# firestore.rules en main, y nunca sin haber pasado antes por el
+# emulador.
+#
+# Usa el mismo secret FIREBASE_SERVICE_ACCOUNT del respaldo nocturno,
+# que ademas del rol de lectura necesita "Firebase Rules Admin".
+on:
+  push:
+    branches: [main]
+    paths: ['firestore.rules']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reglas
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # El emulador de Firestore corre sobre Java.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - run: npm ci
+      - run: npm install --no-save firebase-tools@14.24.0
+
+      # Las 54 pruebas contra el emulador, incluida la del caso del
+      # 20/10. Si alguna se pone en rojo no se publica nada y las reglas
+      # que estan en el aire siguen siendo las anteriores.
+      - run: npx firebase emulators:exec --only firestore "npx vitest run --config vitest.reglas.config.ts"
+
+      - name: Publicar
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROYECTO: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/cuenta.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/cuenta.json" \
+            npx firebase deploy --only firestore:rules --project "$PROYECTO" --non-interactive
+          rm -f "$RUNNER_TEMP/cuenta.json"
