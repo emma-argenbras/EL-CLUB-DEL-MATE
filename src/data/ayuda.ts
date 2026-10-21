@@ -931,6 +931,23 @@ export const AYUDA: EntradaAyuda[] = [
     ],
   },
   {
+    id: 'cambiar-codigo-producto',
+    categoria: 'Productos',
+    pregunta: '¿Puedo cambiarle el código a un producto que ya está cargado?',
+    respuesta:
+      'Sí. Entrá a editar el producto y abajo del código vas a ver el botón "Cambiar el código".\n\nNo es solo escribir otro número: el código es la identidad del producto, así que al cambiarlo la app se lleva con él todas sus ventas y las compras donde aparece. Si no hiciera eso, las ventas quedarían apuntando a un código que ya no existe y el reporte perdería el producto.\n\nAntes de confirmar te dice cuántas ventas y cuántas compras se mueven, y que el código viejo queda libre.\n\nDos cosas a tener en cuenta. Si el código nuevo ya existe, no te deja: hay que elegir otro. Y los renglones del historial viejo quedan guardados bajo el código anterior, porque el historial no se puede editar a propósito — el cambio en sí queda anotado, así que el rastro se puede seguir.\n\nEsto es también la forma de liberar un código: en vez de borrar el producto, cambiale el código y el viejo queda libre.',
+    palabrasClave: [
+      'cambiar codigo',
+      'modificar codigo',
+      'renumerar',
+      'codigo nuevo',
+      'liberar codigo',
+      'borrar producto',
+    ],
+    requiereSeccion: 'productos',
+    soloOwner: true,
+  },
+  {
     id: 'producto-ya-existe-descripcion',
     categoria: 'Productos',
     pregunta: 'Al cargar un producto me avisa que "ya existe uno con esa descripción", ¿qué hago?',
