@@ -786,6 +786,113 @@ propone nada más.
 
 ---
 
+## Lo que pasó el 20/10: el catálogo público pisó los costos
+
+A las 16:40 del 20/10/2026 quedaron cientos de productos sin costo y sin proveedor.
+MR001 a MR006, que tenían los dos, aparecieron vacíos; los productos con ficha de
+proveedor bajaron de 899 a 619; 820 de 1.352 quedaron sin costo. El precio de venta
+quedó intacto en todos.
+
+### La causa
+
+`sembrarCatalogo()` escribe los 1.280 productos de `public/catalogo.json` en la base
+del dispositivo. Ese archivo es el catálogo público: lleva código, descripción y
+precio de venta, y **no lleva** costo, proveedor, rentabilidad ni fecha de compra —
+todos vienen en `null`, que es justamente lo que lo hace publicable.
+
+Ese `bulkPut` no estaba envuelto en `comoRemoto()`, así que cada producto pasaba por
+los ganchos de escritura y el motor de sincronización lo subía al servidor.
+
+Falta una pieza más para que eso rompa algo. En `App.tsx`, `iniciarMotor()` —que es
+quien engancha `pushCambio`— corre **antes** que `sembrarCatalogo()`, y `pushCambio`
+solo se abstiene mientras no haya `auth.currentUser`. En un celular al que le borraron
+los datos, la sesión de Firebase se restaura sola a los pocos cientos de milisegundos:
+a mitad del `bulkPut` deja de haber freno, y los productos que faltaban suben con
+`setDoc` encima de los buenos.
+
+Eso explica las cinco cosas que se vieron, y conviene leerlas juntas porque cada una
+sola lleva a otra conclusión:
+
+- los nulos caen **exactamente** en los campos que el catálogo público no trae;
+- el precio de venta quedó igual, porque el catálogo sí lo trae;
+- **no quedó un solo renglón en el historial**: el perfil todavía no había cargado,
+  `obtenerAutor()` devolvía `null`, y el historial no anota lo que no le puede
+  atribuir a nadie (ver "El historial de modificaciones");
+- fueron ~280 productos y no 1.280: los que alcanzaron a pasar antes de que se
+  restaurara la sesión no subieron;
+- 16:40, que es la hora en que se rearmó el celular.
+
+Quedan descartados los dos sospechosos de siempre: los meses históricos no hacen nada
+porque sus archivos ya no están publicados y `bajarJSONSiEsta()` devuelve `null`, y
+`aplicarPreciosNuevos()` sí estaba envuelto en `comoRemoto()`.
+
+### Los dos frenos
+
+Son dos capas distintas a propósito, porque protegen de cosas distintas.
+
+**1. En la app** (publicado el 20/10 a las 21). El `bulkPut` del sembrado va dentro de
+`comoRemoto()`. Sembrar es traer una copia de algo que ya es de todos, igual que
+aplicar un cambio que baja del servidor: se guarda en el dispositivo y no se sube
+nunca. Lo cubren tres pruebas en `src/db/sembrarNoSube.test.ts`.
+
+**2. En el servidor** (`firestore.rules`). Un dato cargado no se puede reemplazar por
+uno vacío:
+
+```
+function noPisaConVacio(campo) {
+  return !(
+    resource.data.get(campo, null) != null &&
+    request.resource.data.get(campo, null) == null
+  );
+}
+```
+
+Vale para `precioCompra`, `proveedorId`, `proveedor` y `rentabilidad`. Esta capa es la
+que importa de verdad, porque protege **aunque el dispositivo tenga una versión vieja
+de la app** — que es justo el caso que no se puede controlar desde acá. Ocho pruebas
+en `pruebas/reglas.test.ts`, incluida la del caso exacto del 20/10.
+
+La contra, dicha de frente: **vaciar un costo a propósito tampoco se va a poder.** Un
+costo que quedó mal se corrige poniendo el que corresponde, no dejándolo en blanco. Es
+un precio barato y está decidido así.
+
+### La pantalla de recuperación
+
+**Ajustes → Recuperar costos y proveedores**, solo para el dueño. Busca lo que falta y
+lo rellena, con vista previa antes de escribir nada.
+
+La regla de oro, y no se negocia: **solo rellena lo que está vacío.** Nunca pisa un
+valor cargado. Si no, recuperar lo viejo borraría lo que se cargó esta semana, que es
+el mismo error del 20/10 al revés. `aplicarPlanRecuperacion()` vuelve a leer cada
+producto justo antes de escribirlo, así que algo cargado entre la vista previa y el
+botón tampoco se pisa.
+
+Las fuentes se consultan **en orden** y gana la primera que tenga el dato:
+
+1. **El historial de la app.** La más nueva y la más precisa: guarda, producto por
+   producto y campo por campo, el último valor que tuvo. Incluye los 1.506 renglones
+   del 14/10, que son los costos reales del servidor de ese día.
+2. **Los archivos que se carguen** (`.csv` o `.json`): el Excel viejo, o una copia
+   anterior de los productos. Se leen en el dispositivo, no se suben a ningún lado y
+   no quedan guardados.
+
+**El costo viaja con su fecha y con su rentabilidad, y los tres salen de la misma
+fuente.** Mezclar el costo de una con la fecha de otra deja un dato que no existió
+nunca. Y la fecha es la de verdad, no la de hoy: un costo de agosto que entrara con la
+fecha de hoy pasaría por actual y nadie lo volvería a mirar; con su fecha, la app lo
+marca como **costo vencido** y queda en la lista de lo que hay que actualizar, que es
+donde corresponde. La vista previa dice cuántos van a quedar así.
+
+El proveedor vuelve con su nombre y con el id derivado de ese nombre. Si la ficha
+existe queda enganchado solo; si no, queda como "proveedor inexistente", que es lo que
+el botón de **"Ver y asociar"** sabe resolver. Por eso la recuperación va primero y el
+botón después: recuperando vuelven los nombres, y recién ahí hay algo que agrupar.
+
+Todo queda en el historial con el motivo «Recuperación de costos y proveedores», y la
+confirmación dice cuántos productos toca antes de hacerlo.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1289,11 +1396,17 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 15/10/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 20/10/2026. Lo de arriba de la lista es lo que
 sigue.
 
 **En curso**
 
+- [ ] **Recuperar los costos y proveedores del 20/10.** La pantalla está hecha
+      (Ajustes → "Recuperar costos y proveedores"); falta correrla sobre la base real,
+      con el historial y con la foto de los productos de agosto cargada como archivo.
+      Va **antes** que el botón de "Ver y asociar": recuperando primero vuelven los
+      nombres de proveedor, y recién ahí el botón los puede agrupar.
+- [ ] **Publicar el botón "Ver y asociar"** (PR #43), después de la recuperación.
 - [ ] Automatizar la publicación de `firestore.rules` con una cuenta de servicio en
       GitHub Secrets (`FIREBASE_SERVICE_ACCOUNT`), para que las reglas no se peguen
       más a mano.
@@ -1319,6 +1432,8 @@ sigue.
 - [ ] Activar la protección de rama en `main` (pull request + check `verificar`
       obligatorios).
 - [ ] `public/productos.seed.json`: ver "Pendiente de seguridad" más arriba.
+- [ ] Pegar en la consola de Firebase las reglas con `noPisaConVacio()` (241 líneas).
+      Es la capa que protege aunque un dispositivo tenga una versión vieja de la app.
 
 **Hecho el 15/10** — `datos/` salió del repositorio y hay un chequeo
 (`npm run revisar-versionados`) que falla si vuelve a entrar algo privado al árbol.
@@ -1331,6 +1446,11 @@ nombre.
 "La carga a mano": los dos carteles, los productos con proveedor inexistente, el filtro
 por proveedor, pasar una venta de turno, el origen de la plata de un pago, el alta de
 producto desde una compra, y el detector de turnos repetidos por mes.
+
+**Hecho el 20/10 a la noche** — el freno del sembrado: el catálogo público ya no se
+sube encima de los costos del servidor. Ver "Lo que pasó el 20/10". Las reglas con
+`noPisaConVacio()` se pegan a mano en la consola de Firebase; están en la rama, no en
+`main`.
 
 **Datos a ordenar**
 

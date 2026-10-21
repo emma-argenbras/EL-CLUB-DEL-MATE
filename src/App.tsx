@@ -22,6 +22,7 @@ import Ajustes from './paginas/Ajustes'
 import Historial from './paginas/Historial'
 import Ayuda from './paginas/Ayuda'
 import ConsultaPrecios from './paginas/ConsultaPrecios'
+import RecuperarProductos from './paginas/RecuperarProductos'
 import RevisionProveedores from './paginas/RevisionProveedores'
 import TurnosDelDia from './paginas/TurnosDelDia'
 import Notificaciones from './componentes/Notificaciones'
@@ -239,6 +240,10 @@ export default function App() {
           <Route
             path="/turnos"
             element={alMando ? <TurnosDelDia /> : <Navigate to="/caja" replace />}
+          />
+          <Route
+            path="/recuperar"
+            element={alMando ? <RecuperarProductos /> : <Navigate to="/caja" replace />}
           />
           <Route
             path="/revision-proveedores"

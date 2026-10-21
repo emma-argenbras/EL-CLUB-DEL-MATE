@@ -907,6 +907,52 @@ export const AYUDA: EntradaAyuda[] = [
     soloOwner: true,
   },
   {
+    id: 'borrar-datos-del-celular',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'La app quedó rara en mi celular, ¿borro los datos y la reinstalo?',
+    respuesta:
+      'Avisá antes de hacerlo. Casi siempre no hace falta: con cerrar la app y volver a abrirla, o con el botón "Actualizar" cuando aparece, alcanza.\n\nEl 20/10/2026 un celular al que le borraron los datos volvió a armarse desde el catálogo público —que tiene los nombres y los precios de venta, pero no los costos ni los proveedores— y esa copia a medias se subió al servidor encima de la buena. Quedaron cientos de productos sin costo y sin proveedor.\n\nEso ya no puede volver a pasar: desde el 20/10 a la noche, lo que la app arma sola se guarda en el celular y no se sube nunca, y el servidor tampoco acepta que un dato cargado se reemplace por uno vacío. Igual conviene avisar antes, porque si el celular tenía algo sin sincronizar, eso sí se pierde al borrar los datos.',
+    palabrasClave: [
+      'borrar datos',
+      'reinstalar',
+      'desinstalar',
+      'app rara',
+      'vaciar',
+      'empezar de cero',
+    ],
+  },
+  {
+    id: 'productos-sin-costo-20-10',
+    categoria: 'Productos',
+    pregunta: 'Hay productos que quedaron sin costo y sin proveedor, ¿cómo los recupero?',
+    respuesta:
+      'En Ajustes → "Recuperar costos y proveedores". Esa pantalla busca el dato que falta y lo rellena.\n\nLo busca en este orden, y gana la primera fuente que lo tenga: (1) el historial de la app, que guarda campo por campo el último valor que tuvo cada producto; (2) los archivos que le cargues, como el Excel viejo o una copia anterior de los productos.\n\nDos cosas importantes. La primera: solo rellena lo que está vacío. Nunca pisa un costo ni un proveedor cargado, así que no deshace nada de lo que se cargó después. La segunda: cada costo entra con la fecha que tenía de verdad, no con la de hoy. Por eso muchos van a aparecer como "costo vencido" apenas entren, y está bien que así sea: significa que hay que revisarlos, no que estén mal. Un costo de hace un año que entrara con la fecha de hoy pasaría por actual y nadie lo volvería a mirar.\n\nAntes de tocar nada muestra la vista previa: cuántos productos se rellenan, qué le entra a cada uno y de qué fuente sale.',
+    palabrasClave: [
+      'sin costo',
+      'sin proveedor',
+      'recuperar',
+      'se perdieron',
+      'quedaron vacios',
+      'costos perdidos',
+    ],
+    soloOwner: true,
+  },
+  {
+    id: 'no-deja-borrar-costo',
+    categoria: 'Productos',
+    pregunta: 'No me deja dejar en blanco el costo de un producto, ¿por qué?',
+    respuesta:
+      'Es a propósito, desde el 20/10/2026. El servidor no acepta que un costo, un proveedor o una rentabilidad que ya están cargados se reemplacen por un valor vacío.\n\nEstá puesto para que un dispositivo con una versión vieja de la app, o con los datos a medias, no pueda borrar lo que ya está bien. Ese fue justamente el problema del 20/10.\n\nLa contra es esta: vaciar un costo a propósito tampoco se puede. Si un costo quedó mal, se corrige poniendo el que corresponde, no dejándolo en blanco.',
+    palabrasClave: [
+      'no deja borrar',
+      'no guarda',
+      'costo vacio',
+      'dejar en blanco',
+      'error al guardar',
+    ],
+    soloOwner: true,
+  },
+  {
     id: 'proveedores-repetidos-por-que',
     categoria: 'Sincronización y respaldo',
     pregunta: '¿Por qué aparece el mismo proveedor cargado varias veces?',
