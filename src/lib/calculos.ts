@@ -291,6 +291,67 @@ export function precioAtrasado(
   return { actual: venta, sugerido, falta: sugerido - venta }
 }
 
+/**
+ * Cuanto se puede desviar el precio de lo que el costo explica antes de
+ * que sea un error de carga y no una oferta.
+ *
+ * Con la base real: los markups que se usan van de 1,0 a 2,2 --o sea,
+ * se vende entre 2 y 3,2 veces el costo-- y el desvio contra la propia
+ * rentabilidad del producto casi nunca pasa de 3. Un cero de menos en
+ * el costo lo lleva a 10. En 6 no entra ninguna oferta normal de las
+ * 1.152 que tienen los tres datos cargados, y si entran las dos que
+ * estan mal.
+ */
+export const DESVIO_COSTO_SOSPECHOSO = 6
+
+/** Sin rentabilidad cargada no hay con que comparar mas que el precio pelado. */
+export const VECES_COSTO_SOSPECHOSO = 15
+
+export interface CostoSospechoso {
+  /** Cuantas veces mas caro se vende de lo que el costo cargado explica. */
+  veces: number
+  /** De donde salio la cuenta. */
+  segun: 'rentabilidad' | 'precio'
+  /**
+   * El costo con un cero mas, cuando ese numero da un precio que cierra.
+   *
+   * Es la correccion mas probable: TM051 con costo 3.100 y venta 71.900
+   * no es una ganga, es que el costo son 31.000. Solo se ofrece cuando
+   * el cero de mas deja el precio donde corresponde; si no, se avisa
+   * igual pero sin sugerir un numero inventado.
+   */
+  costoProbable?: number
+}
+
+/**
+ * Un costo tan bajo que el margen no tiene sentido.
+ *
+ * No es lo mismo que vender bajo costo --eso es precioBajoCosto() y es
+ * plata que se pierde-- sino al reves: el costo cargado es tan chico
+ * que el producto parece dejar una ganancia que no existe. Casi siempre
+ * es un cero que falta, y mientras esta asi el reporte de margen miente
+ * y el precio sugerido queda por el piso.
+ */
+export function costoSospechoso(producto: Producto): CostoSospechoso | null {
+  if (producto.archivado) return null
+  const costo = producto.precioCompra
+  const venta = producto.precioVenta
+  if (!costo || !venta || costo <= 0 || venta <= 0) return null
+  // Vender bajo costo es el problema opuesto y ya tiene su propio aviso.
+  if (venta <= costo) return null
+
+  const rent = producto.rentabilidad
+  const segun = rent != null && rent > -1 ? 'rentabilidad' : 'precio'
+  const veces = segun === 'rentabilidad' ? venta / (costo * (1 + rent!)) : venta / costo
+  const limite = segun === 'rentabilidad' ? DESVIO_COSTO_SOSPECHOSO : VECES_COSTO_SOSPECHOSO
+  if (veces < limite) return null
+
+  // El cero de mas solo se sugiere si deja el precio donde deberia estar.
+  const conUnCeroMas = veces / 10
+  const cierra = segun === 'rentabilidad' ? conUnCeroMas >= 0.7 && conUnCeroMas <= 1.5 : conUnCeroMas >= 1.5 && conUnCeroMas <= 4
+  return { veces, segun, ...(cierra ? { costoProbable: costo * 10 } : {}) }
+}
+
 export function precioBajoCosto(producto: Producto): boolean {
   if (producto.archivado) return false
   if (!producto.precioCompra || !producto.precioVenta) return false

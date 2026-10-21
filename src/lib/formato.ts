@@ -76,14 +76,36 @@ export function normalizar(texto: string): string {
 }
 
 /** Lee un numero escrito por una persona: "1.234,50", "1234.5", "$ 900". */
+/**
+ * Un punto solo, sin coma: "31.000" en Argentina son treinta y un mil,
+ * no treinta y uno con cero. Pero "3.5" si es tres con medio, porque
+ * nadie escribe un separador de miles de un solo digito.
+ *
+ * La regla que los separa es la forma: grupos de EXACTAMENTE tres
+ * digitos despues de cada punto. 31.000 y 1.500.000 entran; 3.5, 3.50 y
+ * 0.5 no.
+ */
+const MILES_CON_PUNTO = /^-?\d{1,3}(\.\d{3})+$/
+
+/**
+ * Lee un numero escrito a mano, como se escribe acá.
+ *
+ * Esto estaba mal y se encontro probando la pantalla de revision de
+ * costos: escribir "31.000" guardaba 31. No era solo de esa pantalla,
+ * era de todas --Caja, Productos, Proveedores-- porque Number("31.000")
+ * da 31, y escribir el punto de los miles es lo mas natural del mundo.
+ */
 export function leerNumero(texto: string): number | null {
   if (typeof texto === 'number') return texto
   let limpio = String(texto).replace(/[^\d,.-]/g, '')
   if (!limpio) return null
   if (limpio.includes(',') && limpio.includes('.')) {
+    // "31.000,50": los puntos son miles y la coma es el decimal.
     limpio = limpio.replace(/\./g, '').replace(',', '.')
   } else if (limpio.includes(',')) {
     limpio = limpio.replace(',', '.')
+  } else if (MILES_CON_PUNTO.test(limpio)) {
+    limpio = limpio.replace(/\./g, '')
   }
   const valor = Number(limpio)
   return Number.isFinite(valor) ? valor : null
