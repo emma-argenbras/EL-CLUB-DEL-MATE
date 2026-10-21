@@ -876,6 +876,21 @@ Las fuentes se consultan **en orden** y gana la primera que tenga el dato:
    anterior de los productos. Se leen en el dispositivo, no se suben a ningún lado y
    no quedan guardados.
 
+**Un código repetido en una fuente queda afuera.** Si el mismo código aparece dos veces
+en el archivo son dos productos distintos con la misma clave, y no hay forma de saber
+cuál de los dos es el que está en la app. La pantalla los lista por su nombre para
+cargarlos a mano.
+
+> Esto se agregó el 21/10, después de que pasara. El lector se quedaba con la **primera**
+> fila, y en el bloque `LST` la primera no es la que quedó en la app: `LST009` es "TABLAS
+> GUAYUBIRA SURTIDAS CHICAS" ($ 1.800) en una fila y "MATERA BOLSO" ($ 40.000) en otra, y
+> la app tiene la segunda. Entró con un costo 95 % más barato. Lo destapó el aviso de
+> "costo que no cierra", que marcó cinco. Los otros dos afectados —`221-264` y
+> `151-327`— no lo dispararon porque el costo equivocado era plausible.
+>
+> Quedarse con el primero, con el último o con el más caro son todas formas de elegir a
+> ciegas. La única respuesta honesta es no elegir.
+
 **El costo viaja con su fecha y con su rentabilidad, y los tres salen de la misma
 fuente.** Mezclar el costo de una con la fecha de otra deja un dato que no existió
 nunca. Y la fecha es la de verdad, no la de hoy: un costo de agosto que entrara con la

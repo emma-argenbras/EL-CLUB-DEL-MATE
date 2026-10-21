@@ -112,16 +112,42 @@ describe('leerFuenteCSV', () => {
     expect(leerFuenteCSV(CSV, 'Excel', null).valores.size).toBe(3)
   })
 
-  it('un codigo repetido no pisa al primero', () => {
-    // En la planilla hay codigos repetidos con productos distintos: no
-    // se puede elegir a ciegas cual es el bueno.
+  it('EL ERROR DEL 21/10: un codigo repetido queda AFUERA, no se elige el primero', () => {
+    // En la planilla LST009 son dos productos distintos: "TABLAS
+    // GUAYUBIRA SURTIDAS CHICAS" a $ 1.800 y "MATERA BOLSO" a $ 40.000.
+    // La app tiene el segundo. Quedarse con el primero --que es lo que
+    // hacia antes-- le metio el costo equivocado, 95% mas barato.
+    // Como no hay forma de saber cual de los dos es el de la app, no se
+    // elige ninguno.
     const csv = [
       'CODIGOS,PRODUCTOS,PROVEEDOR,FECHA,PRECIO COMPRA,RENTABILIDAD,PRECIO VENTA,FECHA',
-      '509-54,TAPON N2,MOHICANO,22/08/2026," $1.091,00",340%,"$5.000,00",',
-      '509-54,TAPA BOTELLA,MOHICANO,22/08/2026," $1.391,00",140%,"$3.400,00",',
+      'LST009,TABLAS GUAYUBIRA SURTIDAS CHICAS,LUIS SUAREZ,01/02/2025," $1.800,00",200%,"$20.000",',
+      'LST009,MATERA BOLSO,LUIS SUAREZ,24/04/2026," $40.000,00",130%,"$88.000",',
+      'LST012,TABLA GRUESA,LUIS SUAREZ,18/08/2026," $40.700,00",130%,"$93.700",',
     ].join('\n')
-    expect(leerFuenteCSV(csv, 'Excel', null).valores.get('509-54')?.precioCompra).toBe(1091)
+    const fuente = leerFuenteCSV(csv, 'Excel', null)
+    expect(fuente.valores.has('LST009')).toBe(false)
+    expect(fuente.repetidos).toEqual(['LST009'])
+    // el que no esta repetido sigue entrando normal
+    expect(fuente.valores.get('LST012')?.precioCompra).toBe(40700)
   })
+
+  it('tres veces el mismo codigo tampoco entra, y se avisa una sola vez', () => {
+    const csv = [
+      'CODIGOS,PRODUCTOS,PROVEEDOR,FECHA,PRECIO COMPRA,RENTABILIDAD,PRECIO VENTA,FECHA',
+      'X1,UNO,PROV,01/02/2025," $100,00",130%,"$230",',
+      'X1,DOS,PROV,01/02/2025," $200,00",130%,"$460",',
+      'X1,TRES,PROV,01/02/2025," $300,00",130%,"$690",',
+    ].join('\n')
+    const fuente = leerFuenteCSV(csv, 'Excel', null)
+    expect(fuente.valores.has('X1')).toBe(false)
+    expect(fuente.repetidos).toEqual(['X1'])
+  })
+
+  it('sin repetidos, la lista de repetidos queda vacia', () => {
+    expect(leerFuenteCSV(CSV, 'Excel', null).repetidos).toEqual([])
+  })
+
 })
 
 describe('leerFuenteJSON', () => {
@@ -142,5 +168,32 @@ describe('leerFuenteJSON', () => {
   it('tambien acepta { productos: [...] }', () => {
     const fuente = leerFuenteJSON(JSON.stringify({ productos: [{ codigo: 'A', precioCompra: 1 }] }), 'x', null)
     expect(fuente.valores.size).toBe(1)
+  })
+})
+
+describe('codigos repetidos en el JSON', () => {
+  it('la misma regla que el CSV: el repetido queda afuera', () => {
+    const fuente = leerFuenteJSON(
+      JSON.stringify([
+        { codigo: 'LST009', precioCompra: 1800 },
+        { codigo: 'LST009', precioCompra: 40000 },
+        { codigo: 'MR001', precioCompra: 9500 },
+      ]),
+      'foto',
+      null,
+    )
+    expect(fuente.valores.has('LST009')).toBe(false)
+    expect(fuente.repetidos).toEqual(['LST009'])
+    expect(fuente.valores.get('MR001')?.precioCompra).toBe(9500)
+  })
+
+  it('el mismo codigo escrito distinto tambien cuenta como repetido', () => {
+    const fuente = leerFuenteJSON(
+      JSON.stringify([{ codigo: 'lst009' }, { codigo: ' LST009 ', precioCompra: 40000 }]),
+      'foto',
+      null,
+    )
+    expect(fuente.valores.has('LST009')).toBe(false)
+    expect(fuente.repetidos).toEqual(['LST009'])
   })
 })
