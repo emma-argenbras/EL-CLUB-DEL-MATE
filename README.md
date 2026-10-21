@@ -1559,22 +1559,26 @@ Las reglas con `noPisaConVacio()` se pegan a mano en la consola de Firebase.
       códigos usados dos veces. Al importar ganó una de las dos filas y la otra se
       perdió, así que hoy faltan hasta diez productos en la app:
 
-      | Código | Una fila es | La otra es |
+      | Código | Quedó en la app | Falta, se perdió al importar |
       |---|---|---|
       | `509-54` | TAPON N2 LUMINOX | TAPA PARA BOTELLA CHICA |
-      | `151-327` | BILLETERA CUERO 2 VOLANTES | BILLETERA DOS VOLANTES |
-      | `221-264` | PORTA TERMO SIRE | PORTA TERMO SIRE |
-      | `LST006` | PALA PIZZERA GUAYUBIRA | TABLA SALIGNA CON AGARRES MADERA |
-      | `LST009` | TABLAS GUAYUBIRA SURTIDAS CHICAS | MATERA BOLSO |
-      | `LST010` | TABLAS GUAYUBIRA SURTIDAS GRANDES | MATERA RECTANGULAR |
-      | `LST011` | TABLA PIZZERA REDONDA GUAYUBIRA Y CEDRO | YERBERO CUERO |
-      | `LST 50 X 30` | TABLA GUAYUBIRA 2 MANIJAS | TABLA CON DIJE 2 MANIJAS |
+      | `LST006` | TABLA SALIGNA CON AGARRES MADERA | PALA PIZZERA GUAYUBIRA |
+      | `LST009` | MATERA BOLSO | TABLAS GUAYUBIRA SURTIDAS CHICAS |
+      | `LST010` | MATERA RECTANGULAR | TABLAS GUAYUBIRA SURTIDAS GRANDES |
+      | `LST011` | YERBERO CUERO | TABLA PIZZERA REDONDA GUAYUBIRA Y CEDRO |
+      | `LST 50 X 30` | TABLA CON DIJE 2 MANIJAS | TABLA GUAYUBIRA 2 MANIJAS |
       | `SF001` | CINTO NIÑO CUERO CRUDO | PERCHERO PARED |
       | `VE001` | PIEDRA NATURAL DE LA CORDILLERA DE LOS ANDES | CUCHILLO ACERO AL CARBONO 14CM |
+      | `151-327` | BILLETERA DOS VOLANTES | — (es el mismo producto, descrito dos veces) |
+      | `221-264` | PORTA TERMO SIRE | — (el mismo, difiere en espacios al final) |
 
-      Dos de los diez son la misma cosa cargada dos veces (`151-327` y `221-264`, que
-      solo se diferencia por espacios al final): ahí no falta nada. Los otros ocho son
-      productos distintos y hay que darle un código nuevo a uno de los dos.
+      O sea: **faltan ocho productos** en la app. Los otros dos (`151-327` y `221-264`)
+      son la misma cosa cargada dos veces y ahí no falta nada.
+
+      No se puede arreglar cambiando el código del que quedó: el código **es** la clave
+      del producto, y cambiarlo es crear uno nuevo y perder las ventas que ya tiene
+      asociadas. Lo que corresponde es dar de alta los ocho que faltan con un código
+      nuevo cada uno, desde Productos.
 
       Aparte hay dos pares que no chocan por poco, porque el código difiere en un
       espacio: `LST 49 X30` (TABLA SALIGNA) contra `LST 49 X 30` (TABLA CON 2 MANIJAS),
