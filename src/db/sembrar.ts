@@ -109,7 +109,27 @@ export async function sembrarCatalogo(): Promise<number> {
     stock: null,
     activo: true,
   }))
-  await db.productos.bulkPut(productos)
+  // comoRemoto, y es lo mas importante de esta funcion.
+  //
+  // El catalogo publico no lleva costos ni proveedores: los productos
+  // que se siembran tienen precioCompra, proveedor, proveedorId,
+  // rentabilidad y fechaCompra en null. Sin esto, cada uno de esos
+  // 1.280 productos pasa por los ganchos de escritura y el motor los
+  // SUBE a la nube, pisando con nulos los costos y los proveedores que
+  // el servidor ya tenia.
+  //
+  // Paso el 20/10/2026 a las 16:40: un celular al que le habian
+  // borrado los datos volvio a entrar, se rearmo desde el catalogo
+  // publico, y al restaurarse la sesion --a mitad del bulkPut-- empezo
+  // a subir. Quedaron ~280 productos sin proveedor y 120 sin costo, en
+  // el servidor, sin un solo renglon en el historial: el perfil todavia
+  // no habia cargado, asi que no habia autor a quien atribuirselo.
+  //
+  // Sembrar es traer una copia de algo que ya es de todos, igual que
+  // aplicar un cambio que baja del servidor. Nunca se sube.
+  await comoRemoto(async () => {
+    await db.productos.bulkPut(productos)
+  })
   await guardarAjuste(CLAVE_SEMILLA, 'si')
   await guardarAjuste('catalogo_origen', 'catalogo publico (sin costos)')
   return productos.length
