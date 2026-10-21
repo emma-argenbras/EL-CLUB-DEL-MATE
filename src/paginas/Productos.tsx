@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import {
+  gruposRepetidos,
+  productosParecidos,
+  type ProductoParecido,
+} from '../lib/descripcionesParecidas'
+import { existeEnLaNube } from '../sync/motor'
+import { nubeConfigurada } from '../sync/config'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   asegurarProveedor,
@@ -40,6 +47,7 @@ type Filtro =
   | 'sinStock'
   | 'bajoCosto'
   | 'costoSospechoso'
+  | 'repetidos'
   | 'sinPrecio'
   | 'stockNegativo'
   | 'sinNombre'
@@ -52,6 +60,7 @@ const DESCRIPCION_FILTRO: Record<Exclude<Filtro, null>, string> = {
   sinStock: 'mostrando solo los que están sin stock',
   bajoCosto: 'mostrando solo los que se venden bajo costo',
   costoSospechoso: 'mostrando solo aquellos cuyo costo no cierra con el precio',
+  repetidos: 'mostrando solo los que comparten descripción con otro',
   sinPrecio: 'mostrando solo los que no tienen precio de venta',
   stockNegativo: 'mostrando solo los que tienen el stock en negativo',
   sinNombre: 'mostrando solo los que figuran sin nombre',
@@ -69,6 +78,7 @@ const sinNombrePropio = (p: Producto) => {
 function filtroDeLaURL(parametros: URLSearchParams): Filtro {
   if (parametros.get('bajoCosto') === '1') return 'bajoCosto'
   if (parametros.get('costoSospechoso') === '1') return 'costoSospechoso'
+  if (parametros.get('repetidos') === '1') return 'repetidos'
   if (parametros.get('sinPrecio') === '1') return 'sinPrecio'
   if (parametros.get('stockNegativo') === '1') return 'stockNegativo'
   if (parametros.get('sinNombre') === '1') return 'sinNombre'
@@ -156,6 +166,12 @@ export default function Productos() {
       if (filtro === null) return encontrados.slice(0, 300)
     }
     if (filtro === 'bajoCosto') return encontrados.filter(precioBajoCosto).slice(0, 100)
+    if (filtro === 'repetidos') {
+      // Agrupados: los que comparten descripcion van juntos, que es
+      // como se los mira. Sueltos y ordenados por codigo no se ve nada.
+      const juntos = gruposRepetidos(encontrados).flatMap((g) => g.productos)
+      return juntos.slice(0, 100)
+    }
     if (filtro === 'costoSospechoso') {
       return encontrados
         .filter((p) => costoSospechoso(p))
@@ -187,6 +203,7 @@ export default function Productos() {
       agotados: todos.filter(sinStock).length,
       bajoCosto: todos.filter(precioBajoCosto).length,
       costoSospechoso: todos.filter((p) => costoSospechoso(p)).length,
+      repetidos: gruposRepetidos(todos).reduce((s, g) => s + g.productos.length, 0),
       precioAtrasado: todos.filter((p) => precioAtrasado(p)).length,
       precioViejo: todos.filter((p) => precioDesactualizado(p)).length,
       sinPrecio: todos.filter(sinPrecioDeVenta).length,
@@ -198,6 +215,7 @@ export default function Productos() {
   const agotados = conteoAlertas?.agotados
   const bajoCosto = conteoAlertas?.bajoCosto
   const costoRaro = conteoAlertas?.costoSospechoso
+  const repetidos = conteoAlertas?.repetidos
   const atrasados = conteoAlertas?.precioAtrasado
   const precioViejo = conteoAlertas?.precioViejo
   const sinPrecio = conteoAlertas?.sinPrecio
@@ -335,6 +353,18 @@ export default function Productos() {
             {costoRaro === 1 ? 'producto tiene' : 'productos tienen'} un costo que no cierra con
             su precio: se venden mucho más caro de lo que ese costo explica, como si al costo le
             faltara un cero. Ojo que el precio sugerido de esos productos sale por el piso.
+          </Alerta>
+
+          <Alerta
+            n={repetidos}
+            tono="ojo"
+            activo={filtro === 'repetidos'}
+            onToggle={() => setFiltro(filtro === 'repetidos' ? null : 'repetidos')}
+          >
+            <strong>{repetidos}</strong>{' '}
+            {repetidos === 1 ? 'producto comparte' : 'productos comparten'} la descripción con
+            otro. No todos están mal —tres proveedores pueden vender lo mismo— pero ahí están
+            los que se cargaron dos veces con códigos distintos.
           </Alerta>
 
           <Alerta
@@ -638,6 +668,17 @@ function FormularioProducto({
     producto?.precioVenta != null ? String(producto.precioVenta) : '',
   )
   const [fechaCompra, setFechaCompra] = useState(producto?.fechaCompra ?? '')
+  const [comprobando, setComprobando] = useState(false)
+  // Los que ya existen con esta descripcion. Se recalcula mientras
+  // escribe, asi el aviso aparece antes de guardar y no despues.
+  const parecidos = useLiveQuery(
+    async () =>
+      descripcion.trim().length < 3
+        ? []
+        : productosParecidos(descripcion, await db.productos.toArray(), producto?.codigo),
+    [descripcion, producto?.codigo],
+    [] as ProductoParecido[],
+  )
   const [stock, setStock] = useState(
     producto?.stock != null ? String(producto.stock) : '',
   )
@@ -672,6 +713,35 @@ function FormularioProducto({
     if (nuevo) {
       const existe = await db.productos.get(cod)
       if (existe) return setError(`Ya existe un producto con el código ${cod}.`)
+
+      // Y contra el servidor, que es lo que la base local no sabe. Un
+      // dispositivo que estuvo sin internet NO tiene los productos que
+      // se crearon mientras tanto: para el, el codigo esta libre. Al
+      // subirlo, setDoc pisa el del servidor y ese producto desaparece
+      // debajo del nuevo.
+      if (nubeConfigurada) {
+        setComprobando(true)
+        const enLaNube = await existeEnLaNube('productos', cod)
+        setComprobando(false)
+        if (enLaNube === true) {
+          return setError(
+            `Ya existe un producto con el código ${cod} en el servidor, aunque todavía no haya ` +
+              `llegado a este dispositivo. Elegí otro código.`,
+          )
+        }
+        if (enLaNube === null) {
+          // No se pudo averiguar. Eso NO es lo mismo que estar libre, y
+          // por eso se dice en voz alta en vez de seguir de largo. No se
+          // bloquea: la app funciona sin internet a proposito, y no
+          // poder cargar un producto en el mostrador seria peor.
+          const seguir = confirm(
+            `No se pudo comprobar contra el servidor si el código ${cod} ya existe, porque este ` +
+              `dispositivo no está conectado.\n\nSi ese código ya existe en otro dispositivo, al ` +
+              `sincronizar este producto va a reemplazarlo.\n\n¿Crearlo igual?`,
+          )
+          if (!seguir) return
+        }
+      }
     }
 
     let idProveedor = proveedorId || null
@@ -779,6 +849,29 @@ function FormularioProducto({
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Ej: MATE GALLETA"
           />
+          {/* Avisa, no frena. Tres proveedores distintos venden "LIMPIA
+              BOMBILLA" y son tres productos con su propio costo: quien
+              esta cargando es el unico que sabe si es otro o el mismo. */}
+          {parecidos.length > 0 && (
+            <div className="aviso aviso-ojo" style={{ marginTop: 8 }}>
+              Ya {parecidos.length === 1 ? 'existe' : 'existen'}{' '}
+              {parecidos.length === 1 ? 'un producto' : `${parecidos.length} productos`} con{' '}
+              {parecidos.length === 1 ? 'esa descripción' : 'esa descripción o una casi igual'}:
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {parecidos.slice(0, 5).map(({ producto: otro, por }) => (
+                  <li key={otro.codigo}>
+                    <strong>{otro.codigo}</strong> · {otro.descripcion}
+                    {otro.precioCompra != null && ` · costo ${plata(otro.precioCompra)}`}
+                    {por === 'casi-igual' && ' (casi igual)'}
+                  </li>
+                ))}
+              </ul>
+              <div className="silencio" style={{ marginTop: 6 }}>
+                ¿Es otro producto? Si es el mismo, conviene editar el que ya está en vez de
+                cargarlo de nuevo: si no, el stock y las ventas quedan repartidos entre los dos.
+              </div>
+            </div>
+          )}
         </div>
         <div className="campo">
           <label htmlFor="p-prov">Proveedor</label>
@@ -970,8 +1063,8 @@ function FormularioProducto({
 
       <div className="botonera">
         <button onClick={onSalir}>Cancelar</button>
-        <button className="boton-principal" onClick={guardar}>
-          Guardar
+        <button className="boton-principal" onClick={guardar} disabled={comprobando}>
+          {comprobando ? 'Comprobando…' : 'Guardar'}
         </button>
       </div>
       {!nuevo && !producto?.solicitudBorrado && (
