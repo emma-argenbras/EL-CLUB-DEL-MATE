@@ -1,0 +1,71 @@
+name: Publicar en Firebase Hosting
+
+# PASO 1 del pase de GitHub Pages a Firebase Hosting.
+#
+# Por que se muda: Pages en un repositorio privado necesita GitHub Pro.
+# Hosting es gratis en el plan Spark --10 GB de almacenamiento, 360 MB
+# por dia de transferencia, dominio propio y certificado incluidos-- asi
+# que mudando la publicacion el repositorio puede pasar a privado sin
+# pagar nada. Y los costos dejan de estar en un historial de git publico.
+#
+# POR AHORA SOLO A MANO (workflow_dispatch). Mientras el dominio
+# app.elclubdelmate.com siga apuntando a Pages, esto publica en la URL
+# gratis *.web.app y no toca el sitio que esta en el aire. Recien cuando
+# el DNS se mude se le pone el disparador por push y se apaga deploy.yml.
+#
+# Secret necesario: FIREBASE_HOSTING_SERVICE_ACCOUNT, una cuenta de
+# servicio PROPIA con el rol "Firebase Hosting Admin" y nada mas. Es
+# deliberadamente distinta de la del respaldo (que solo lee) y de la de
+# las reglas: una clave, un poder.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosting
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Las mismas puertas que el deploy de Pages: si algo de esto falla
+      # no se publica nada.
+      - run: npm run typecheck
+      - run: npm run test
+
+      - run: npm run build
+        env:
+          BASE_PATH: /
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+
+      # Ultima puerta: se revisa dist/, que es lo que queda publicado.
+      - run: python3 scripts/revisar-publicos.py --carpeta dist
+
+      - run: npm install --no-save firebase-tools@14.24.0
+
+      - name: Publicar
+        env:
+          CUENTA: ${{ secrets.FIREBASE_HOSTING_SERVICE_ACCOUNT }}
+          PROYECTO: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+        run: |
+          echo "$CUENTA" > "$RUNNER_TEMP/hosting.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/hosting.json" \
+            npx firebase deploy --only hosting --project "$PROYECTO" --non-interactive
+          rm -f "$RUNNER_TEMP/hosting.json"

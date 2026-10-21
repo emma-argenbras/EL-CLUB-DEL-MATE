@@ -9,9 +9,14 @@ name: Respaldo nocturno
 #
 # Hace falta cargar dos secrets (Settings > Secrets and variables >
 # Actions):
-#   FIREBASE_SERVICE_ACCOUNT  el JSON de una cuenta de servicio que solo
-#                             pueda LEER Firestore (rol Cloud Datastore
-#                             Viewer).
+#   FIREBASE_SERVICE_ACCOUNT  el JSON de una cuenta de servicio con UN
+#                             SOLO rol: "Visualizador de Cloud Datastore".
+#                             Nada mas. Esta clave corre sola todas las
+#                             noches y vive en los secrets de un
+#                             repositorio publico: si se filtra, lo peor
+#                             que puede hacer es leer. Que no pueda
+#                             escribir, ni borrar, ni --sobre todo--
+#                             tocar las reglas de seguridad.
 #   RESPALDO_TOKEN            un token con permiso de escritura unicamente
 #                             sobre el repositorio privado de respaldos.
 on:

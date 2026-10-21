@@ -5,8 +5,17 @@ name: Publicar las reglas de Firestore
 # firestore.rules en main, y nunca sin haber pasado antes por el
 # emulador.
 #
-# Usa el mismo secret FIREBASE_SERVICE_ACCOUNT del respaldo nocturno,
-# que ademas del rol de lectura necesita "Firebase Rules Admin".
+# SIN ACTIVAR. Queda escrito y probado, pero las reglas las sigue
+# pegando Emmanuel a mano en la consola. Para prenderlo hay que mover
+# este archivo a main y cargar su secret.
+#
+# Y ese secret es OTRO, a proposito: FIREBASE_REGLAS_SERVICE_ACCOUNT, una
+# cuenta de servicio distinta de la del respaldo, con el rol "Firebase
+# Rules Admin". Juntar los dos roles en una sola clave seria regalarle a
+# la clave del respaldo --que corre sola todas las noches-- el poder de
+# reescribir las reglas de seguridad y dejar la base abierta. Una clave
+# que solo lee y una que solo publica reglas: si se filtra una, no se
+# pierde la otra.
 on:
   push:
     branches: [main]
@@ -47,7 +56,7 @@ jobs:
 
       - name: Publicar
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_REGLAS_SERVICE_ACCOUNT }}
           PROYECTO: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/cuenta.json"

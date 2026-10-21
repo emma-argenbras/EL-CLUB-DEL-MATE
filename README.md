@@ -910,9 +910,15 @@ ese día no hubiera estado el Excel, no se recuperaba.
 ### Cómo funciona
 
 Todas las noches a las 03:17 de Argentina, una GitHub Action baja **todas las
-colecciones** de Firestore con una cuenta de servicio de solo lectura y las commitea en
-un repositorio **privado y aparte**, uno por archivo: `productos.json`, `ventas.json`,
-`historial.json` y el resto.
+colecciones** de Firestore y las commitea en un repositorio **privado y aparte**, uno
+por archivo: `productos.json`, `ventas.json`, `historial.json` y el resto.
+
+La cuenta de servicio que usa tiene **un solo rol: "Visualizador de Cloud Datastore"**.
+Nada más. Esa clave corre sola todas las noches y vive en los secrets de un repositorio
+público: si se filtra, lo peor que puede hacer es leer. Por eso tampoco se le agrega el
+rol para publicar reglas, aunque sea cómodo tener una sola clave — con ese rol, una
+clave filtrada reescribe `firestore.rules` y abre la base entera. **Una clave, un
+poder.**
 
 Cada commit es una foto completa. Eso da dos cosas que no teníamos:
 
@@ -943,6 +949,53 @@ sale mal es justamente el que más sirve.
 Una corrida lee cada documento una vez. Con la base de hoy son unos pocos miles de
 lecturas sobre las 50.000 diarias que da Spark, y el `resumen.json` de cada noche anota
 cuántas fueron, así se ve venir si alguna vez empieza a apretar.
+
+---
+
+## Mudar la publicación a Firebase Hosting
+
+GitHub Pages en un repositorio privado [necesita GitHub Pro][pages]. Firebase Hosting
+es gratis en el plan Spark —10 GB de almacenamiento, 360 MB por día de transferencia,
+dominio propio y certificado incluidos— así que mudando la publicación el repositorio
+puede pasar a privado sin pagar nada, y los costos dejan de estar en un historial de
+git público.
+
+[pages]: https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages
+
+### El orden, que es lo que importa
+
+1. **Publicar en la URL gratis `*.web.app`.** No toca el dominio: `app.elclubdelmate.com`
+   sigue servido por Pages, intacto. Es para probar.
+2. Probar ahí: la app, el catálogo, instalarla en un celular.
+3. En la consola de Firebase, agregar el dominio propio. Da un TXT de verificación que
+   se carga en el DNS. **Esto todavía no mueve nada.**
+4. Cuando Firebase diga "verificado" y el certificado esté listo, recién ahí se cambian
+   los registros A. Es el único paso con riesgo, y se vuelve atrás cambiándolos de nuevo.
+5. Confirmado que anda, se apaga Pages y se borra `public/CNAME`.
+6. Último: el repositorio a privado.
+
+### Lo que ya está hecho (paso 1)
+
+`firebase.json` tiene la sección `hosting` y hay un workflow (`hosting.yml`) que corre
+**solo a mano**, para que no pelee con el de Pages mientras los dos existan.
+
+El ruteo se probó con el emulador de Hosting, que para eso está:
+
+- `/` → la app.
+- `/catalogo/` → el catálogo público, **servido directo, sin redirect**. Importa:
+  `URL_CATALOGO` termina en barra y ese link ya se mandó por WhatsApp a clientes. Por eso
+  `trailingSlash` quedó en `true` y no en `false`, que metía un 301 en el medio.
+- Cualquier otra dirección cae en la app en vez de dar 404.
+
+Y de paso se arregla algo que en Pages estaba al azar: el cacheo. `sw.js` y los `.html`
+van con `no-cache` —si el service worker se cachea, los celulares se quedan clavados en
+una versión vieja— y los `assets/` con hash en el nombre van con cache de un año.
+
+### Lo que falta
+
+El dominio (pasos 3 a 6), y decidir cómo se publica: a mano desde la máquina de
+Emmanuel, o con una tercera cuenta de servicio (`FIREBASE_HOSTING_SERVICE_ACCOUNT`, rol
+"Firebase Hosting Admin" y nada más) para que lo haga el workflow.
 
 ---
 
@@ -1458,15 +1511,17 @@ lo que sigue.
       del proveedor pero no la ficha: así los dejó la recuperación, y es el estado que
       el botón **"Ver y asociar"** sabe resolver. Se hace de a un proveedor, desde
       Productos → filtro "Proveedor inexistente".
-- [ ] **Prender el respaldo nocturno y la publicación de reglas.** El código está
-      hecho y probado contra el emulador (`.github/workflows/respaldo.yml`,
-      `.github/workflows/reglas.yml`); falta que Emmanuel cree la cuenta de servicio, el
-      repositorio privado de respaldos y los dos secrets. Hasta entonces los workflows
-      quedan **en la rama y no en `main`**, porque sin los secrets fallarían todas las
-      noches.
-- [ ] **Pasar la publicación a Firebase Hosting** para poder tener el repositorio
-      privado sin pagar GitHub Pro. Pages en un repositorio privado necesita Pro;
-      Hosting es gratis en Spark, con dominio propio y certificado incluidos.
+- [ ] **Prender el respaldo nocturno.** El código está hecho y probado contra el
+      emulador (`.github/workflows/respaldo.yml`); falta que Emmanuel cree la cuenta de
+      servicio (rol "Visualizador de Cloud Datastore", **nada más**), el repositorio
+      privado de respaldos y los dos secrets. Hasta entonces queda **en la rama y no en
+      `main`**, porque sin los secrets fallaría todas las noches.
+- [ ] **Mudar el dominio a Firebase Hosting** (pasos 3 a 6 de "Mudar la publicación"), y
+      después pasar el repositorio a privado.
+- [ ] La **publicación automática de reglas** (`.github/workflows/reglas.yml`) queda
+      escrita y sin activar: por ahora las pega Emmanuel a mano. Para prenderla hace
+      falta su propia cuenta de servicio, `FIREBASE_REGLAS_SERVICE_ACCOUNT`, separada de
+      la del respaldo.
 
 > **Cancelado el 20/10/2026: la importación del Excel.** Estaba planificada como una
 > carga única desde `BASE DE DATOS ECDM 2026` (108 precios de venta, 724 costos, 53
