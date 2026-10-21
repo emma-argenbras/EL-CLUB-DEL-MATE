@@ -540,6 +540,35 @@ porque ningún aviso los nombraba. El caso real: MR001 a MR006.
 MATES RAFAEL…" en rojo, el filtro por proveedor los agrupa, y el Panel avisa cuántos son
 y de quiénes.
 
+### Enganchar los productos a su proveedor
+
+En la base real son **850 productos repartidos en 97 nombres** —MOHICANO 135, SALDOS 65,
+PAISA 61, THOR MATES BRIAN AGUIAR 50— contra **49 productos bien enganchados**. O sea
+que el estado roto es la regla y no la excepción: arreglarlo de a un producto no es
+trabajo de una tarde, es imposible.
+
+En Productos, filtrando por "Proveedor inexistente", cada uno de esos nombres aparece
+con un botón **Ver y asociar** ([`src/db/asociarFantasmas.ts`](./src/db/asociarFantasmas.ts)).
+Se hace de a un proveedor, mostrando antes la lista completa de productos que se van a
+tocar. Toca **dos campos y nada más**: `proveedorId` y el nombre escrito. Ni precios, ni
+costos, ni stock.
+
+**La ficha parecida.** `asegurarProveedor()` reusa una ficha cuando el nombre normaliza
+igual, pero "THOR MATES" y "THOR MATES BRIAN AGUIAR" **no** normalizan igual: son dos
+nombres distintos y dan dos ids distintos. Por eso hay un segundo paso: `fichaParecida()`
+busca una ficha cuyas palabras sean **el comienzo exacto** del nombre buscado, y la
+ofrece. Si se acepta, se usa esa ficha y el nombre largo queda cargado como **otro
+nombre** suyo, así la próxima vez cae solo.
+
+El criterio es conservador a propósito: "MATES RAFAEL" no se ofrece para "MATES DEL
+LITORAL", aunque empiecen igual. Y es una **sugerencia**, nunca una decisión: la toma
+quien está mirando, que sabe si son el mismo proveedor o dos que empiezan parecido.
+
+El aviso de "listo" vive en el contenedor y no en la tarjeta del proveedor: apenas se
+asocian los productos, ese proveedor deja de ser un fantasma y la tarjeta se va de la
+lista. Si el mensaje viviera adentro, se iría con ella y el trabajo terminaría sin
+confirmación.
+
 ### Pasar una venta de turno
 
 Solo entre turnos del **mismo día** y solo si los **dos están abiertos**
@@ -1433,8 +1462,16 @@ sube encima de los costos del servidor. Ver "Lo que pasó el 20/10". Las reglas 
 - [ ] Los **772 productos sin proveedor**: se les asigna proveedor a mano desde
       Productos, de a uno o filtrando por los que no tienen.
 - [ ] Los ~10 códigos duplicados que la planilla colapsó en uno.
-- [ ] Los 3 movimientos de Mercado Pago sin clasificar ($ 1.623.000). Desde el 21/10 se
-      les puede poner la cuenta desde la lista de Gastos, sin borrarlos: falta hacerlo.
+- [ ] **Las dos devoluciones de Mercado Pago** del 13 de mayo ($ 1.210.000) y el 21 de
+      marzo ($ 193.000), $ 1.403.000 en total. Están anotadas como **ventas** en la
+      planilla vieja, sin código de producto, así que inflan la venta del año en un 3 %
+      (ver "Todo 2026 ya está cargado"). No son gastos: el selector de cuenta de Gastos
+      no las alcanza. Hay que decidir qué se hace con ellas.
+
+      > Una versión anterior de esta lista decía "3 movimientos de Mercado Pago sin
+      > clasificar ($ 1.623.000)". Ese dato lo escribí mal el 15/10 al rehacer la lista:
+      > no coincide ni en cantidad ni en monto con lo único que está documentado, que es
+      > lo de arriba. No hay un tercer movimiento que yo pueda verificar.
 
 **Mejoras conocidas**
 
