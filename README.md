@@ -1261,9 +1261,10 @@ anota mientras tiene algo sin guardar (`src/lib/sinGuardar.ts`), y con algo anot
 cartel naranja pide guardar primero y el botón pasa a "Actualizar igual". Si se toca
 igual, pregunta antes de recargar diciendo qué se perdería.
 
-Cubre la compra y el pago a proveedores, la ficha del proveedor, el gasto, el producto,
-el usuario nuevo, la apertura y el cierre de caja, la venta a medio cargar, el egreso
-de caja y los costos escritos en la Revisión de costos.
+Cubre el pago a proveedores, la ficha del proveedor, el gasto, el producto, el usuario
+nuevo, la apertura y el cierre de caja, la venta a medio cargar, el egreso de caja y los
+costos escritos en la Revisión de costos. La compra no hace falta: tiene su propio
+borrador, que sobrevive a la recarga (ver abajo).
 
 ### "Sigue igual" en la Revisión de costos
 
@@ -1273,6 +1274,20 @@ vencido dice **"Sigue igual"**: renueva solo la fecha, sin escribir el costo. Si
 cambió el costo mientras tanto, no confirma nada, porque se estaría confirmando un número
 que nadie vio. En el historial queda con su propio motivo, "Costo confirmado: sigue
 valiendo lo mismo".
+
+---
+
+## El borrador de la compra
+
+Una compra se carga con la factura delante, línea por línea, y hasta "Guardar compra"
+vivía solo en la pantalla: si se cerraba la app, se apagaba el celular o alguien tocaba
+"Actualizar", había que empezar de nuevo con veinte productos.
+
+Ahora, mientras se carga, se guarda una copia en el dispositivo (`src/lib/borradorCompra.ts`,
+en `ajustes`, que no se sincroniza: es trabajo a medias de quien la carga, no un dato
+del negocio). Al volver a abrir "+ Registrar compra" de ese proveedor aparece como
+estaba, con un aviso y un botón para empezar de nuevo. Se borra al guardar la compra o
+al cancelarla, y cancelar con algo escrito pregunta antes.
 
 ---
 
