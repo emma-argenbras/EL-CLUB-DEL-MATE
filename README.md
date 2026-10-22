@@ -1397,6 +1397,21 @@ al cancelarla, y cancelar con algo escrito pregunta antes.
 
 ---
 
+## Deshacer una venta, y que lo borrado no vuelva
+
+Después de tocar "Agregar" en Caja aparece **"Cargada: … · Deshacer (30)"**. Un
+producto equivocado o un cero de más se ven justo ahí, y deshacer de un toque es más
+rápido que buscar el renglón y confirmar. A los 30 segundos el aviso se va y la venta
+queda.
+
+De paso se arregló el "Borrar" del renglón: no dejaba constancia en `borrados`, así que
+un celular que tenía la venta y estaba sin internet la volvía a subir al reconectarse.
+Las dos cosas usan ahora `src/db/borrarVenta.ts`, que deja la constancia antes de
+borrar, devuelve el stock si el producto lo lleva y queda en el historial con su motivo:
+"Venta deshecha al momento de cargarla" o "Venta borrada desde Caja".
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1909,9 +1924,6 @@ sigue.
       `aplicarRemotos.ts`). Cada uno es un documento del servidor que algún dispositivo
       no pudo guardar: es el que dejaba atrasados a los demás. Corregirlo en la consola
       (casi seguro le falta la clave: `codigo` en productos, `id` en el resto).
-- [ ] **Después de las 21, cuando estén cerradas las ventas:** el borrador de la compra
-      que no se pierde si se cierra la app, y "deshacer" durante unos segundos después de
-      registrar una venta. Tocan compras y ventas, por eso no salen a la siesta.
 - [ ] **Unir LST016 con LST014** (la MATERA RECTANGULAR repetida). Desde la versión del
       22/10: editar LST016 → "Cambiar el código" → LST014 → "Unir". Si Sandra todavía
       no puede archivar, lo hace Emmanuel.

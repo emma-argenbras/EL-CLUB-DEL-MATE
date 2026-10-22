@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCambiosSinGuardar, useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -21,6 +21,12 @@ import CierresPendientes from '../componentes/CierresPendientes'
 import CierresTardios from '../componentes/CierresTardios'
 import { useSesion } from '../sync/useSesion'
 import { moverVenta } from '../db/moverVenta'
+import {
+  borrarVenta,
+  MOTIVO_BORRAR_VENTA,
+  MOTIVO_DESHACER_VENTA,
+  quedaParaDeshacer,
+} from '../db/borrarVenta'
 import { ETIQUETA_ROL } from '../sync/permisos'
 
 export default function Caja() {
@@ -291,6 +297,26 @@ function PanelVentas({
   const [medioPago, setMedioPago] = useState<MedioPago>('EFECTIVO')
   // Una venta a medio cargar: el producto elegido y todavia sin registrar.
   useSinGuardar('una venta', elegido !== null)
+  const sesion = useSesion()
+
+  // La ultima venta registrada, mientras se puede deshacer. Un producto
+  // equivocado o un cero de mas se ven justo despues de tocar
+  // "Agregar": ahi es cuando conviene poder volver atras de un toque.
+  const [ultima, setUltima] = useState<{
+    id: string
+    texto: string
+    cuando: number
+  } | null>(null)
+  const [ahora, setAhora] = useState(Date.now())
+  useEffect(() => {
+    if (!ultima) return
+    const reloj = setInterval(() => {
+      const t = Date.now()
+      setAhora(t)
+      if (quedaParaDeshacer(ultima.cuando, t) === 0) setUltima(null)
+    }, 1000)
+    return () => clearInterval(reloj)
+  }, [ultima])
 
   // El otro turno del mismo dia. Es a donde se puede pasar una venta
   // que se cargo en el turno equivocado.
@@ -325,9 +351,10 @@ function PanelVentas({
 
   async function registrar() {
     if (!elegido || cant <= 0 || pre <= 0) return
+    const id = nuevoId()
     await db.transaction('rw', db.ventas, db.productos, async () => {
       await db.ventas.add({
-        id: nuevoId(),
+        id,
         jornadaId: jornada.id,
         fecha: jornada.fecha,
         hora: horaAhora(),
@@ -347,20 +374,24 @@ function PanelVentas({
         await db.productos.update(elegido.codigo, { stock: elegido.stock - cant })
       }
     })
+    const cuando = Date.now()
+    setUltima({ id, texto: `${elegido.descripcion} · ${cant} × ${plata(pre)}`, cuando })
+    setAhora(cuando)
     setElegido(null)
     setPrecio('')
     setCantidad('1')
   }
 
+  async function deshacer() {
+    if (!ultima) return
+    const id = ultima.id
+    setUltima(null)
+    await borrarVenta(id, MOTIVO_DESHACER_VENTA, sesion.email)
+  }
+
   async function borrar(venta: import('../db/db').Venta) {
     if (!confirm(`¿Borrar la venta de ${venta.descripcion}?`)) return
-    await db.transaction('rw', db.ventas, db.productos, async () => {
-      await db.ventas.delete(venta.id)
-      const producto = await db.productos.get(venta.codigo)
-      if (producto && producto.stock !== null && producto.stock !== undefined) {
-        await db.productos.update(venta.codigo, { stock: producto.stock + venta.cantidad })
-      }
-    })
+    await borrarVenta(venta.id, MOTIVO_BORRAR_VENTA, sesion.email)
   }
 
   return (
@@ -369,6 +400,20 @@ function PanelVentas({
       {!bloqueado && (
         <div className="tarjeta">
           <p className="tarjeta-titulo">Cargar venta</p>
+
+          {ultima && (
+            <div
+              className="aviso aviso-ojo"
+              style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <span style={{ minWidth: 0 }}>
+                Cargada: {ultima.texto}
+              </span>
+              <button className="boton-chico" style={{ flex: 'none' }} onClick={() => void deshacer()}>
+                Deshacer ({quedaParaDeshacer(ultima.cuando, ahora)})
+              </button>
+            </div>
+          )}
 
           {!elegido ? (
             <BuscadorProducto onElegir={seleccionar} autoFoco />
