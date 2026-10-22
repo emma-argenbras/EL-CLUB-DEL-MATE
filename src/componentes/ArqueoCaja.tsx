@@ -1,6 +1,6 @@
 import { type Arqueo } from '../db/db'
 import { DENOMINACIONES, totalArqueo } from '../lib/calculos'
-import { plata } from '../lib/formato'
+import { leerNumero, plata } from '../lib/formato'
 
 interface Props {
   arqueo: Arqueo
@@ -16,15 +16,17 @@ interface Props {
  */
 export default function ArqueoCaja({ arqueo, onCambiar, titulo }: Props) {
   function cambiarBillete(denominacion: number, cantidadTexto: string) {
-    const cantidad = Math.max(0, Math.floor(Number(cantidadTexto) || 0))
+    const cantidad = Math.max(0, Math.floor(leerNumero(cantidadTexto) ?? 0))
     onCambiar({
       ...arqueo,
       billetes: { ...arqueo.billetes, [String(denominacion)]: cantidad },
     })
   }
 
+  // Es plata, y se escribe como se escribe aca: "1.500" son mil
+  // quinientos. Con Number() entraba como un peso con cincuenta.
   function cambiarMonedas(texto: string) {
-    onCambiar({ ...arqueo, monedas: Math.max(0, Number(texto) || 0) })
+    onCambiar({ ...arqueo, monedas: Math.max(0, leerNumero(texto) ?? 0) })
   }
 
   const total = totalArqueo(arqueo)
