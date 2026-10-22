@@ -1634,20 +1634,26 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 20/10/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 22/10/2026. Lo de arriba de la lista es lo que
 sigue.
 
 **En curso**
 
-- [ ] **Recuperar los costos y proveedores del 20/10.** La pantalla está hecha
-      (Ajustes → "Recuperar costos y proveedores"); falta correrla sobre la base real,
-      con el historial y con la foto de los productos de agosto cargada como archivo.
-      Va **antes** que el botón de "Ver y asociar": recuperando primero vuelven los
-      nombres de proveedor, y recién ahí el botón los puede agrupar.
-- [ ] **Publicar el botón "Ver y asociar"** (PR #43), después de la recuperación.
-- [ ] Automatizar la publicación de `firestore.rules` con una cuenta de servicio en
-      GitHub Secrets (`FIREBASE_SERVICE_ACCOUNT`), para que las reglas no se peguen
-      más a mano.
+- [ ] **Unir las fichas de proveedor repetidas** (tarea 33 del tablero). Sandra ya
+      asoció todos los productos —cero con "proveedor inexistente"— y quedaron seis
+      pares de fichas que son el mismo proveedor. La herramienta está publicada
+      (Ajustes → "Unir proveedores"); lo hace ella, de a un par.
+- [ ] **Prender el respaldo nocturno.** El código está hecho y probado contra el
+      emulador; falta que Emmanuel cree la cuenta de servicio (rol "Visualizador de
+      Cloud Datastore", **nada más**), el repositorio privado de respaldos y los dos
+      secrets. Hasta entonces queda en la rama de trabajo y no en `main`, porque sin
+      los secrets fallaría todas las noches.
+- [ ] **Mudar la publicación a Firebase Hosting** y después pasar el repositorio a
+      privado. El paso 1 (deploy a la URL `*.web.app`) está listo y espera una cuenta
+      de servicio con rol "Firebase Hosting Admin".
+- [ ] La **publicación automática de reglas** queda escrita y sin activar: por ahora
+      las pega Emmanuel a mano. Para prenderla hace falta su propia cuenta de servicio,
+      separada de la del respaldo.
 
 > **Cancelado el 20/10/2026: la importación del Excel.** Estaba planificada como una
 > carga única desde `BASE DE DATOS ECDM 2026` (108 precios de venta, 724 costos, 53
@@ -1702,7 +1708,15 @@ dispositivo atrasado (y que sin conexión directamente no se puedan crear produc
 aviso de producto con la misma descripción, y el filtro de repetidos por nombre.
 
 **Hecho el 21/10, a la noche** — cambiar el código de un producto, que es lo que hacía
-que Sandra tuviera que pasar por el Excel.
+que Sandra tuviera que pasar por el Excel; y que sin conexión no se puedan crear
+productos. Publicados juntos a las 21:12.
+
+> **Ojo con el Excel `BASE DE DATOS ECDM 2026`.** El 21/10 a la tarde se renumeró ahí el
+> bloque `LST` (Luis Suárez Tablas) para que ningún código quedara repetido. El Excel ya
+> no es fuente de nada —desde el 20/10 todo se carga en la app— pero si alguien lo abre
+> para consultar, **diez códigos `LST` significan productos distintos que en la app**
+> (`LST009` es MATERA BOLSO en la app y una tabla pizzera en el Excel). La forma de
+> renumerar en la app es "Cambiar el código", desde editar el producto.
 
 **Datos a ordenar**
 
