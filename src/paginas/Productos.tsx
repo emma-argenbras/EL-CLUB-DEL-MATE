@@ -7,6 +7,11 @@ import {
 } from '../lib/descripcionesParecidas'
 import { existeEnLaNube } from '../sync/motor'
 import { decidirCodigoNuevo, mensajeDeCodigo } from '../lib/codigoNuevo'
+import {
+  armarCambioCodigo,
+  cambiarCodigo,
+  textoDeConfirmacionCambioCodigo,
+} from '../db/cambiarCodigo'
 import { nubeConfigurada } from '../sync/config'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -821,6 +826,9 @@ function FormularioProducto({
             disabled={!nuevo}
             placeholder="Ej: MR002"
           />
+          {!nuevo && esOwner && producto && (
+            <CambiarElCodigo producto={producto} onListo={onSalir} />
+          )}
         </div>
         <div className="campo">
           <label htmlFor="p-desc">Descripción</label>
@@ -1227,6 +1235,131 @@ function AsociarFantasma({
           </button>
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Cambiarle el código a un producto que ya existe.
+ *
+ * Vive adentro del formulario, debajo del campo que está deshabilitado:
+ * es ahí donde alguien se da cuenta de que quiere cambiarlo.
+ *
+ * El código es la clave del producto, así que esto no edita un campo:
+ * muda el producto con sus ventas y sus compras. Por eso pide
+ * confirmación y muestra antes cuántos registros toca.
+ */
+function CambiarElCodigo({
+  producto,
+  onListo,
+}: {
+  producto: Producto
+  onListo: () => void
+}) {
+  const [abierto, setAbierto] = useState(false)
+  const [nuevoCodigo, setNuevoCodigo] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [trabajando, setTrabajando] = useState(false)
+
+  const cuentas = useLiveQuery(async () => {
+    const [ventas, movimientos, historial] = await Promise.all([
+      db.ventas.where('codigo').equals(producto.codigo).toArray(),
+      db.movimientosProveedor.toArray(),
+      db.historial.where('[tabla+clave]').equals(['productos', producto.codigo]).count(),
+    ])
+    return armarCambioCodigo(producto, '', ventas, movimientos, historial)
+  }, [producto.codigo])
+
+  if (!abierto) {
+    return (
+      <button
+        className="boton-chico"
+        style={{ marginTop: 6 }}
+        onClick={() => setAbierto(true)}
+      >
+        Cambiar el código
+      </button>
+    )
+  }
+
+  async function cambiar() {
+    const cod = nuevoCodigo.trim().toUpperCase()
+    if (!cod) return setError('Escribí el código nuevo.')
+    setError(null)
+
+    // La misma puerta que al crear: no pisar un código que ya existe
+    // acá o en el servidor, y no hacerlo a ciegas sin conexión.
+    setTrabajando(true)
+    const existeAca = (await db.productos.get(cod)) !== undefined
+    let enLaNube: boolean | null = false
+    if (nubeConfigurada && !existeAca) enLaNube = await existeEnLaNube('productos', cod)
+    setTrabajando(false)
+    const problema = mensajeDeCodigo(decidirCodigoNuevo(existeAca, enLaNube), cod)
+    if (problema) return setError(problema)
+
+    if (!cuentas) return
+    if (!confirm(textoDeConfirmacionCambioCodigo({ ...cuentas, codigoNuevo: cod }))) return
+
+    setTrabajando(true)
+    try {
+      const r = await cambiarCodigo(producto.codigo, cod)
+      if (r === 'ocupado') setError(`Ya existe un producto con el código ${cod}.`)
+      else if (r === 'no-existe') setError('Ese producto ya no está. Actualizá la pantalla.')
+      else if (r === 'es-el-mismo') setError('Es el mismo código.')
+      else onListo()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="aviso aviso-ojo" style={{ marginTop: 8 }}>
+      <strong>Cambiar el código</strong>
+      <p className="silencio" style={{ marginTop: 4 }}>
+        El producto se lleva su{' '}
+        {cuentas ? `${cuentas.ventas} ventas y ${cuentas.compras} compras` : 'historial de ventas'}{' '}
+        al código nuevo, y <strong>{producto.codigo} queda libre</strong>.
+        {cuentas && cuentas.historialQueQueda > 0 && (
+          <>
+            {' '}
+            Los {cuentas.historialQueQueda} renglones de historial de {producto.codigo} quedan
+            donde están: el historial no se puede editar, a propósito.
+          </>
+        )}
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          value={nuevoCodigo}
+          onChange={(e) => setNuevoCodigo(e.target.value)}
+          placeholder="Código nuevo"
+          style={{ flexGrow: 1, minWidth: 0 }}
+        />
+        <button
+          className="boton-chico"
+          style={{ flex: 'none' }}
+          disabled={trabajando}
+          onClick={() => void cambiar()}
+        >
+          {trabajando ? 'Un momento…' : 'Cambiar'}
+        </button>
+      </div>
+      {error && (
+        <div className="item-sub negativo" style={{ marginTop: 6 }}>
+          {error}
+        </div>
+      )}
+      <button
+        className="boton-chico"
+        style={{ marginTop: 6 }}
+        onClick={() => {
+          setAbierto(false)
+          setError(null)
+        }}
+      >
+        Dejarlo como está
+      </button>
     </div>
   )
 }
