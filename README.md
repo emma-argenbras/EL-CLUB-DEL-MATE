@@ -1740,15 +1740,15 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 20/10/2026 a la noche. Lo de arriba de la lista es
-lo que sigue.
+Lo que está pendiente de verdad, al 22/10/2026. Lo de arriba de la lista es lo que
+sigue.
 
 **En curso**
 
-- [ ] **Agrupar los 1.233 productos con "proveedor inexistente".** Tienen el nombre
-      del proveedor pero no la ficha: así los dejó la recuperación, y es el estado que
-      el botón **"Ver y asociar"** sabe resolver. Se hace de a un proveedor, desde
-      Productos → filtro "Proveedor inexistente".
+- [ ] **Unir las fichas de proveedor repetidas** (tarea 33 del tablero). Sandra ya
+      asoció todos los productos —cero con "proveedor inexistente"— y quedaron seis
+      pares de fichas que son el mismo proveedor. La herramienta está publicada
+      (Ajustes → "Unir proveedores"); lo hace ella, de a un par.
 - [ ] **Prender el respaldo nocturno.** El código está hecho y probado contra el
       emulador (`.github/workflows/respaldo.yml`); falta que Emmanuel cree la cuenta de
       servicio (rol "Visualizador de Cloud Datastore", **nada más**), el repositorio
@@ -1819,7 +1819,15 @@ dispositivo atrasado (y que sin conexión directamente no se puedan crear produc
 aviso de producto con la misma descripción, y el filtro de repetidos por nombre.
 
 **Hecho el 21/10, a la noche** — cambiar el código de un producto, que es lo que hacía
-que Sandra tuviera que pasar por el Excel.
+que Sandra tuviera que pasar por el Excel; y que sin conexión no se puedan crear
+productos. Publicados juntos a las 21:12.
+
+> **Ojo con el Excel `BASE DE DATOS ECDM 2026`.** El 21/10 a la tarde se renumeró ahí el
+> bloque `LST` (Luis Suárez Tablas) para que ningún código quedara repetido. El Excel ya
+> no es fuente de nada —desde el 20/10 todo se carga en la app— pero si alguien lo abre
+> para consultar, **diez códigos `LST` significan productos distintos que en la app**
+> (`LST009` es MATERA BOLSO en la app y una tabla pizzera en el Excel). La forma de
+> renumerar en la app es "Cambiar el código", desde editar el producto.
 
 **Datos a ordenar**
 
