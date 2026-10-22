@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -17,7 +17,13 @@ import { costoDesactualizado } from '../lib/calculos'
 import { ETIQUETA_CUENTA, FORMAS_DE_COMPRA, tipoSegunCuenta, type CuentaDePago } from '../db/db'
 import { idDeProveedor } from '../lib/idProveedor'
 import { enlaceWhatsApp, soloDigitos } from '../lib/whatsapp'
-import { fechaLinda, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
+import { fechaLinda, haceCuanto, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
+import {
+  descartarBorradorCompra,
+  guardarBorradorCompra,
+  leerBorradorCompra,
+  tieneContenido,
+} from '../lib/borradorCompra'
 import { useSesion } from '../sync/useSesion'
 
 export default function Proveedores() {
@@ -854,7 +860,56 @@ function FormularioCompra({
   const [lineas, setLineas] = useState<LineaCompra[]>([lineaVacia()])
   const [notas, setNotas] = useState('')
   const [error, setError] = useState('')
-  useCambiosSinGuardar('la compra', [fecha, lineas, notas])
+  // El borrador (ver lib/borradorCompra.ts). `listo` evita que el
+  // formulario vacio pise el borrador antes de haberlo leido.
+  const [listo, setListo] = useState(false)
+  const [recuperadoDe, setRecuperadoDe] = useState<number | null>(null)
+
+  useEffect(() => {
+    let vigente = true
+    void leerBorradorCompra(proveedor.id).then((b) => {
+      if (!vigente) return
+      if (b) {
+        setFecha(b.fecha)
+        setLineas(b.lineas)
+        setNotas(b.notas)
+        setRecuperadoDe(b.guardadoEn)
+      }
+      setListo(true)
+    })
+    return () => {
+      vigente = false
+    }
+  }, [proveedor.id])
+
+  useEffect(() => {
+    if (!listo) return
+    // Un instante de espera: no hace falta escribir en la base con cada
+    // tecla, y si se cierra la app se pierde, como mucho, la ultima.
+    const espera = setTimeout(() => {
+      void guardarBorradorCompra(proveedor.id, { fecha, lineas, notas })
+    }, 300)
+    return () => clearTimeout(espera)
+  }, [listo, proveedor.id, fecha, lineas, notas])
+
+  async function empezarDeNuevo() {
+    await descartarBorradorCompra(proveedor.id)
+    setFecha(hoyISO())
+    setLineas([lineaVacia()])
+    setNotas('')
+    setRecuperadoDe(null)
+  }
+
+  async function cancelar() {
+    if (
+      tieneContenido({ lineas, notas }) &&
+      !confirm('¿Descartar la compra que estás cargando? Se borra lo que escribiste.')
+    ) {
+      return
+    }
+    await descartarBorradorCompra(proveedor.id)
+    onSalir()
+  }
 
   const disponibles = productos.filter((p) => p.archivado !== true)
 
@@ -995,6 +1050,7 @@ function FormularioCompra({
         })
       }
     })
+    await descartarBorradorCompra(proveedor.id)
     onSalir()
   }
 
@@ -1002,6 +1058,15 @@ function FormularioCompra({
     <div className="tarjeta" style={{ marginTop: 10, background: 'var(--crema)' }}>
       <p className="tarjeta-titulo">Registrar compra</p>
       {error && <div className="aviso aviso-error">{error}</div>}
+      {recuperadoDe !== null && (
+        <div className="aviso aviso-ojo">
+          Recuperé la compra que quedó a medio cargar ({haceCuanto(recuperadoDe)}). Revisala y
+          guardala cuando esté completa.{' '}
+          <button className="boton-chico" onClick={() => void empezarDeNuevo()}>
+            Empezar de nuevo
+          </button>
+        </div>
+      )}
 
       <div className="campo">
         <label htmlFor="c-fecha">Fecha</label>
@@ -1078,7 +1143,7 @@ function FormularioCompra({
       </p>
 
       <div className="botonera" style={{ marginTop: 10 }}>
-        <button onClick={onSalir}>Cancelar</button>
+        <button onClick={() => void cancelar()}>Cancelar</button>
         <button className="boton-principal" onClick={guardar}>
           Guardar compra
         </button>
