@@ -2,7 +2,9 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db, engancharAutor, historialAlDia, type Producto } from './db'
 import {
+  confirmarCosto,
   guardarCosto,
+  MOTIVO_COSTO_CONFIRMADO,
   MOTIVO_REVISION_COSTOS,
   productosParaRevisar,
 } from './revisarCostos'
@@ -118,5 +120,51 @@ describe('guardarCosto', () => {
     expect(costo!.motivo).toBe(MOTIVO_REVISION_COSTOS)
     expect(costo!.valorNuevo).toBe(31000)
     expect(costo!.quienNombre).toBe('Sandra')
+  })
+})
+
+describe('confirmarCosto: "sigue valiendo lo mismo"', () => {
+  it('renueva la fecha y el producto sale de la lista de vencidos', async () => {
+    await db.productos.put(prod('A', { precioCompra: 9500, fechaCompra: haceMeses(8) }))
+    expect(productosParaRevisar(await db.productos.toArray(), null)).toHaveLength(1)
+    expect(await confirmarCosto('A', 9500)).toEqual({ estado: 'guardado' })
+    const a = await db.productos.get('A')
+    expect(a!.fechaCompra).toBe(new Date().toISOString().slice(0, 10))
+    expect(productosParaRevisar(await db.productos.toArray(), null)).toHaveLength(0)
+  })
+
+  it('NO toca el costo ni nada mas', async () => {
+    await db.productos.put(
+      prod('A', { precioCompra: 9500, fechaCompra: haceMeses(8), precioVenta: 21000, rentabilidad: 1.3, stock: 2 }),
+    )
+    await confirmarCosto('A', 9500)
+    const a = await db.productos.get('A')
+    expect(a!.precioCompra).toBe(9500)
+    expect(a!.precioVenta).toBe(21000)
+    expect(a!.rentabilidad).toBe(1.3)
+    expect(a!.stock).toBe(2)
+  })
+
+  it('si el costo cambio mientras tanto, no confirma un numero que nadie vio', async () => {
+    await db.productos.put(prod('A', { precioCompra: 9500, fechaCompra: haceMeses(8) }))
+    await db.productos.update('A', { precioCompra: 12000 })
+    expect(await confirmarCosto('A', 9500)).toEqual({ estado: 'cambio-mientras-tanto', costoAhora: 12000 })
+    expect((await db.productos.get('A'))!.fechaCompra).toBe(haceMeses(8))
+  })
+
+  it('si el producto ya no esta, no lo crea', async () => {
+    expect(await confirmarCosto('FANTASMA', 100)).toEqual({ estado: 'no-existe' })
+    expect(await db.productos.get('FANTASMA')).toBeUndefined()
+  })
+
+  it('queda en el historial con su propio motivo, distinto de una correccion', async () => {
+    await db.productos.put(prod('A', { precioCompra: 9500, fechaCompra: haceMeses(8) }))
+    await confirmarCosto('A', 9500)
+    await historialAlDia()
+    const renglones = await db.historial.where('tabla').equals('productos').toArray()
+    const fecha = renglones.find((r) => r.campo === 'fechaCompra')
+    expect(fecha?.motivo).toBe(MOTIVO_COSTO_CONFIRMADO)
+    expect(fecha?.quienNombre).toBe('Sandra')
+    expect(renglones.some((r) => r.campo === 'precioCompra')).toBe(false)
   })
 })

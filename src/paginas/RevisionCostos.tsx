@@ -4,10 +4,12 @@ import { db } from '../db/db'
 import { fechaLinda, leerNumero, plata, porcentaje } from '../lib/formato'
 import { costoSospechoso, margenPorcentual, precioSugerido } from '../lib/calculos'
 import {
+  confirmarCosto,
   guardarCosto,
   productosParaRevisar,
   type ResultadoGuardar,
 } from '../db/revisarCostos'
+import { useSinGuardar } from '../lib/sinGuardar'
 
 /** Lo que paso con cada renglon despues de guardar. */
 type Estado = { tipo: 'guardado' } | { tipo: 'error'; texto: string }
@@ -27,6 +29,10 @@ export default function RevisionCostos() {
   const [borradores, setBorradores] = useState<Record<string, string>>({})
   const [estados, setEstados] = useState<Record<string, Estado>>({})
   const [guardando, setGuardando] = useState<string | null>(null)
+  useSinGuardar(
+    'costos escritos en la revisión',
+    Object.values(borradores).some((b) => b.trim() !== ''),
+  )
 
   const datos = useLiveQuery(async () => {
     const [productos, proveedores] = await Promise.all([
@@ -88,9 +94,29 @@ export default function RevisionCostos() {
       }
     }
 
+    await escribir(codigo, () => guardarCosto(codigo, escrito, costoQueSeVeia))
+  }
+
+  // "Lo confirmé, sigue valiendo lo mismo": renueva la fecha sin
+  // volver a tipear el número.
+  async function confirmar(codigo: string, costo: number) {
+    const producto = datos?.productos.find((p) => p.codigo === codigo)
+    const raro = producto ? costoSospechoso(producto) : null
+    if (
+      raro &&
+      !confirm(
+        `Ojo: con ${plata(costo)} el producto se vende ${raro.veces.toFixed(0)} veces más caro de lo que ese costo explica${raro.costoProbable ? `. ¿No serán ${plata(raro.costoProbable)}?` : '.'}\n\n¿Confirmar ${plata(costo)} igual?`,
+      )
+    ) {
+      return
+    }
+    await escribir(codigo, () => confirmarCosto(codigo, costo))
+  }
+
+  async function escribir(codigo: string, accion: () => Promise<ResultadoGuardar>) {
     setGuardando(codigo)
     try {
-      const r: ResultadoGuardar = await guardarCosto(codigo, escrito, costoQueSeVeia)
+      const r: ResultadoGuardar = await accion()
       if (r.estado === 'guardado') {
         setEstados((e) => ({ ...e, [codigo]: { tipo: 'guardado' } }))
         setBorradores((b) => ({ ...b, [codigo]: '' }))
@@ -125,7 +151,8 @@ export default function RevisionCostos() {
       <div className="aviso aviso-ojo">
         Los productos <strong>sin costo</strong> o con el <strong>costo vencido</strong>, para
         corregirlos acá mismo. Se guarda el costo y su fecha; el precio de venta, la rentabilidad
-        y el stock no se tocan. Solo cambia lo que cargás vos.
+        y el stock no se tocan. Solo cambia lo que cargás vos. Si un costo vencido sigue siendo
+        el mismo, tocá <strong>«Sigue igual»</strong>: se renueva la fecha sin volver a escribirlo.
       </div>
 
       <div className="tarjeta">
@@ -205,14 +232,29 @@ export default function RevisionCostos() {
                       setEstados((x) => ({ ...x, [p.codigo]: undefined as never }))
                     }}
                   />
-                  <button
-                    className="boton-chico"
-                    style={{ flex: 'none' }}
-                    disabled={guardando === p.codigo || escrito === null}
-                    onClick={() => void guardar(p.codigo, p.precioCompra ?? null)}
-                  >
-                    {guardando === p.codigo ? 'Guardando…' : 'Guardar'}
-                  </button>
+                  {/* Sin nada escrito, un costo vencido se puede
+                      confirmar tal cual: muchas veces el proveedor
+                      cobra lo mismo y solo falta decirlo. */}
+                  {motivo === 'vencido' && escrito === null && p.precioCompra != null ? (
+                    <button
+                      className="boton-chico"
+                      style={{ flex: 'none' }}
+                      disabled={guardando === p.codigo}
+                      title="El costo sigue siendo el mismo: se renueva la fecha"
+                      onClick={() => void confirmar(p.codigo, p.precioCompra!)}
+                    >
+                      {guardando === p.codigo ? 'Guardando…' : 'Sigue igual'}
+                    </button>
+                  ) : (
+                    <button
+                      className="boton-chico"
+                      style={{ flex: 'none' }}
+                      disabled={guardando === p.codigo || escrito === null}
+                      onClick={() => void guardar(p.codigo, p.precioCompra ?? null)}
+                    >
+                      {guardando === p.codigo ? 'Guardando…' : 'Guardar'}
+                    </button>
+                  )}
                 </div>
 
                 {margenNuevo !== null && (

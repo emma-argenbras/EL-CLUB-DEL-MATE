@@ -91,3 +91,37 @@ export async function guardarCosto(
     return { estado: 'guardado' } as const
   })
 }
+
+export const MOTIVO_COSTO_CONFIRMADO = 'Costo confirmado: sigue valiendo lo mismo'
+
+/**
+ * "Lo confirmé, sigue valiendo lo mismo".
+ *
+ * Un costo vencido no siempre cambió: muchas veces Sandra mira la
+ * factura y el proveedor cobra lo mismo que hace seis meses. Hasta ahora
+ * la única forma de sacarlo de la lista era volver a tipear el mismo
+ * número, que es trabajo de más y una oportunidad más de equivocarse un
+ * cero.
+ *
+ * Renueva SOLO la fecha. El costo no se escribe: si alguien lo cambió
+ * mientras tanto, no se confirma nada (se confirmaría un número que ella
+ * no vio). Queda en el historial con su propio motivo, para que se
+ * distinga de una corrección.
+ */
+export async function confirmarCosto(
+  codigo: string,
+  costoQueSeVeia: number,
+): Promise<ResultadoGuardar> {
+  return conMotivo(MOTIVO_COSTO_CONFIRMADO, async () => {
+    const producto = await db.productos.get(codigo)
+    if (!producto) return { estado: 'no-existe' } as const
+
+    const costoAhora = producto.precioCompra ?? null
+    if (costoAhora !== costoQueSeVeia) {
+      return { estado: 'cambio-mientras-tanto', costoAhora } as const
+    }
+
+    await db.productos.update(codigo, { fechaCompra: hoyISO() })
+    return { estado: 'guardado' } as const
+  })
+}

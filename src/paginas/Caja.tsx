@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useCambiosSinGuardar, useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   db,
@@ -90,6 +91,7 @@ function AbrirTurno({ fecha, turno }: { fecha: string; turno: Turno }) {
   const [arqueo, setArqueo] = useState<Arqueo>(arqueoVacio())
   const [vendedor, setVendedor] = useState('')
   const [guardando, setGuardando] = useState(false)
+  useCambiosSinGuardar('la apertura de caja', [arqueo, vendedor])
 
   const cajaInicial = totalArqueo(arqueo)
 
@@ -287,6 +289,8 @@ function PanelVentas({
   const [cantidad, setCantidad] = useState('1')
   const [precio, setPrecio] = useState('')
   const [medioPago, setMedioPago] = useState<MedioPago>('EFECTIVO')
+  // Una venta a medio cargar: el producto elegido y todavia sin registrar.
+  useSinGuardar('una venta', elegido !== null)
 
   // El otro turno del mismo dia. Es a donde se puede pasar una venta
   // que se cargo en el turno equivocado.
@@ -513,6 +517,7 @@ function PanelEgresos({
   const [monto, setMonto] = useState('')
   const [tipo, setTipo] = useState<'EGRESO_CAJA' | 'A_CAJA_GRANDE'>('EGRESO_CAJA')
   const [categoria, setCategoria] = useState<CategoriaGasto>('OTROS')
+  useSinGuardar('un egreso de caja', concepto.trim() !== '' || monto.trim() !== '')
 
   async function agregar() {
     const valor = leerNumero(monto)
@@ -652,6 +657,7 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
   const contado = totalArqueo(arqueo)
   const diferencia = contado - esperado
   const cerrado = jornada.estado === 'cerrado'
+  useCambiosSinGuardar('el conteo del cierre de caja', arqueo, !cerrado)
 
   // Los turnos que ya existen ese mismo dia: si la tarde ya arranco,
   // cerrar la mañana es una correccion sobre algo que ya paso.
