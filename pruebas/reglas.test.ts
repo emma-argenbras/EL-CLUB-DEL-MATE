@@ -21,6 +21,7 @@ import {
 } from '@firebase/rules-unit-testing'
 import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { camposParaConservar, motivosDelRechazo } from '../src/sync/motivoRechazo'
 
 const NEGOCIO = 'negocios/el-club-del-mate'
 let entorno: RulesTestEnvironment
@@ -800,4 +801,89 @@ describe('borrar un producto (lo que hace "Cambiar el codigo")', () => {
       deleteDoc(doc(entorno.unauthenticatedContext().firestore(), `${NEGOCIO}/productos/TM015`)),
     )
   })
+})
+
+describe('motivoRechazo dice lo mismo que la regla de productos', () => {
+  // motivoRechazo.ts repite del lado de la app las preguntas de la
+  // regla, para poder decirle a la persona POR QUE no entro su cambio.
+  // Si alguien toca la regla y no toca eso, esta prueba lo agarra:
+  // cada caso se manda de verdad al emulador y se compara.
+  const SERVIDOR = {
+    codigo: 'DLB001',
+    descripcion: 'MATE DE CALABAZA',
+    proveedor: 'MOHICANO',
+    proveedorId: 'mohicano',
+    fechaCompra: '2026-10-01',
+    precioCompra: 2000,
+    rentabilidad: 1,
+    precioVenta: 4000,
+    fechaPrecioVenta: '2026-10-01',
+    busqueda: 'dlb001 mate de calabaza',
+    stock: null,
+    activo: true,
+    archivado: true,
+  }
+
+  const PERFILES: Record<string, { rol: string; activo: boolean }> = {
+    'uid-emma': { rol: 'owner', activo: true },
+    'uid-sandra': { rol: 'encargado', activo: true },
+    'uid-gabi': { rol: 'empleado', activo: true },
+    'uid-mayuscula': { rol: 'Encargado', activo: true },
+  }
+
+  const CASOS: {
+    nombre: string
+    uid: string
+    enviado: Record<string, unknown>
+    sinArchivado?: boolean
+  }[] = [
+    { nombre: 'encargada cambia costo y precio', uid: 'uid-sandra', enviado: { ...SERVIDOR, precioCompra: 2500, precioVenta: 5000 } },
+    { nombre: 'encargada desarchiva', uid: 'uid-sandra', enviado: { ...SERVIDOR, archivado: false } },
+    { nombre: 'encargada desarchiva sin proveedor', uid: 'uid-sandra', enviado: { ...SERVIDOR, archivado: false, proveedor: null } },
+    { nombre: 'encargada sin rentabilidad', uid: 'uid-sandra', enviado: { ...SERVIDOR, rentabilidad: null, precioVenta: 5000 } },
+    { nombre: 'empleada cambia precio', uid: 'uid-gabi', enviado: { ...SERVIDOR, precioVenta: 5000 } },
+    { nombre: 'empleada cambia costo', uid: 'uid-gabi', enviado: { ...SERVIDOR, precioCompra: 2500 } },
+    { nombre: 'rol con mayuscula desarchiva', uid: 'uid-mayuscula', enviado: { ...SERVIDOR, archivado: false } },
+    { nombre: 'dueño deja vacia la ficha', uid: 'uid-emma', enviado: { ...SERVIDOR, proveedorId: null } },
+    // Un producto de la semilla no tiene «archivado» en el servidor, y
+    // el formulario lo mandaba en false: para la regla, Gabriela
+    // estaba archivando.
+    { nombre: 'empleada edita el costo de un producto sin «archivado»', uid: 'uid-gabi', enviado: { ...SERVIDOR, archivado: false, precioCompra: 2500 }, sinArchivado: true },
+    { nombre: 'empleada archiva un producto sin «archivado»', uid: 'uid-gabi', enviado: { ...SERVIDOR, archivado: true }, sinArchivado: true },
+  ]
+
+  for (const caso of CASOS) {
+    it(caso.nombre, async () => {
+      const { archivado: _archivado, ...sinArchivado } = SERVIDOR
+      const servidor: Record<string, unknown> = caso.sinArchivado ? sinArchivado : SERVIDOR
+      await entorno.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), `${NEGOCIO}/usuarios/uid-mayuscula`), {
+          nombre: 'Prueba',
+          ...PERFILES['uid-mayuscula'],
+        })
+        await setDoc(doc(ctx.firestore(), `${NEGOCIO}/productos/DLB001`), servidor)
+      })
+      const motivos = motivosDelRechazo('guardar', caso.enviado, servidor, PERFILES[caso.uid])
+      const diceQuePasa = motivos.length === 1 && motivos[0].tipo === 'no-se-sabe'
+
+      const db = entorno.authenticatedContext(caso.uid, { email: `${caso.uid}@prueba.com` }).firestore()
+      const intento = setDoc(doc(db, `${NEGOCIO}/productos/DLB001`), caso.enviado)
+      if (diceQuePasa) await assertSucceeds(intento)
+      else await assertFails(intento)
+
+      // Y si dice que se puede reintentar sin lo vacio, ese reintento
+      // tiene que entrar de verdad.
+      const conservar = camposParaConservar(motivos)
+      if (conservar) {
+        const sinVacios = Object.fromEntries(
+          Object.entries(caso.enviado).filter(([c]) => !conservar.includes(c)),
+        )
+        await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/productos/DLB001`), sinVacios, { merge: true }))
+        const quedo = await getDoc(doc(db, `${NEGOCIO}/productos/DLB001`))
+        for (const campo of conservar) {
+          expect(quedo.data()?.[campo]).toEqual(servidor[campo])
+        }
+      }
+    })
+  }
 })

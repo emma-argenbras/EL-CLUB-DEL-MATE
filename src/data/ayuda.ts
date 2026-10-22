@@ -836,6 +836,14 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['no conectado', 'cartel rojo', 'sin nube', 'no sube', 'solo en este dispositivo'],
   },
   {
+    id: 'cartel-servidor-no-acepto',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Me apareció un cartel rojo: "El servidor no aceptó un cambio". ¿Qué hago?',
+    respuesta:
+      'Quiere decir que lo que cargaste no quedó guardado en el servidor. Lo que ves ahora en pantalla es lo que el servidor tiene, así que puede que tu cambio se haya deshecho.\n\nEl cartel dice el motivo, por ejemplo con qué rol figura tu usuario en el servidor o qué dato quedaba vacío. Sacale una foto y mandásela a Emmanuel, y después tocá "Entendido".\n\nNo hace falta que vuelvas a cargar lo mismo enseguida: si el motivo es del servidor, va a volver a pasar. Esperá a que te avisen que está arreglado.\n\nCuando lo único que fallaba era un dato que el cambio dejaba vacío (por ejemplo el proveedor), la app lo vuelve a mandar sola sin tocar ese dato, y en ese caso no aparece ningún cartel: el cambio entra.',
+    palabrasClave: ['no acepto', 'rechazo', 'cartel rojo', 'no se guardo', 'se deshizo', 'volvio'],
+  },
+  {
     id: 'cartel-sin-subir',
     categoria: 'Sincronización y respaldo',
     pregunta: 'Dice "hay N cosas sin subir al servidor", ¿qué hago?',
@@ -931,11 +939,21 @@ export const AYUDA: EntradaAyuda[] = [
     ],
   },
   {
+    id: 'unir-productos-repetidos',
+    categoria: 'Productos',
+    pregunta: '¿Cómo junto dos productos que son el mismo?',
+    respuesta:
+      'Pasa cuando un producto se cargó dos veces con códigos distintos, como LST014 y LST016.\n\nEntrá a editar el que querés que desaparezca, tocá "Cambiar el código" y escribí el código del que se queda. Como ese código ya existe, la app te muestra qué producto es y te ofrece "Unir".\n\nAl unir: las ventas, las compras y el stock del que se va pasan al que se queda. El que se queda conserva su descripción, su costo y su precio: si alguno estaba mejor en el otro, corregilo después a mano. El que se va queda archivado, así que no se ve más en el catálogo ni en Caja, pero su historial sigue ahí.\n\nAntes de confirmar te dice cuántas ventas y compras se mueven, y queda en el historial como "Unión de productos repetidos".',
+    palabrasClave: ['unir', 'juntar', 'repetido', 'duplicado', 'mismo producto', 'dos codigos'],
+    requiereSeccion: 'productos',
+    soloOwner: true,
+  },
+  {
     id: 'cambiar-codigo-producto',
     categoria: 'Productos',
     pregunta: '¿Puedo cambiarle el código a un producto que ya está cargado?',
     respuesta:
-      'Sí. Entrá a editar el producto y abajo del código vas a ver el botón "Cambiar el código".\n\nNo es solo escribir otro número: el código es la identidad del producto, así que al cambiarlo la app se lleva con él todas sus ventas y las compras donde aparece. Si no hiciera eso, las ventas quedarían apuntando a un código que ya no existe y el reporte perdería el producto.\n\nAntes de confirmar te dice cuántas ventas y cuántas compras se mueven, y que el código viejo queda libre.\n\nDos cosas a tener en cuenta. Si el código nuevo ya existe, no te deja: hay que elegir otro. Y los renglones del historial viejo quedan guardados bajo el código anterior, porque el historial no se puede editar a propósito — el cambio en sí queda anotado, así que el rastro se puede seguir.\n\nEsto es también la forma de liberar un código: en vez de borrar el producto, cambiale el código y el viejo queda libre.\n\nSi después de cambiar un código te aparece el cartel rojo "El servidor rechazó un cambio en productos", no se perdió nada: el producto ya está en el código nuevo con sus ventas, y el viejo quedó archivado (invisible) en vez de libre. Pasa cuando el servidor todavía no tiene las reglas nuevas; avisale al dueño.',
+      'Sí. Entrá a editar el producto y abajo del código vas a ver el botón "Cambiar el código".\n\nNo es solo escribir otro número: el código es la identidad del producto, así que al cambiarlo la app se lleva con él todas sus ventas y las compras donde aparece. Si no hiciera eso, las ventas quedarían apuntando a un código que ya no existe y el reporte perdería el producto.\n\nAntes de confirmar te dice cuántas ventas y cuántas compras se mueven, y que el código viejo queda libre.\n\nDos cosas a tener en cuenta. Si el código nuevo ya es de otro producto, no lo pisa: te muestra cuál es y te ofrece unirlos (ver "¿Cómo junto dos productos que son el mismo?"). Y los renglones del historial viejo quedan guardados bajo el código anterior, porque el historial no se puede editar a propósito — el cambio en sí queda anotado, así que el rastro se puede seguir.\n\nEsto es también la forma de liberar un código: en vez de borrar el producto, cambiale el código y el viejo queda libre.\n\nEl código viejo queda anotado como borrado. Eso es lo que evita que un celular que estaba apagado, o con datos de antes, lo vuelva a subir al servidor y aparezca repetido.\n\nMientras el servidor no tenga las reglas que permiten borrar productos, el viejo queda archivado (invisible) en vez de libre: no se pierde nada, pero ese código todavía no se puede volver a usar.',
     palabrasClave: [
       'cambiar codigo',
       'modificar codigo',
