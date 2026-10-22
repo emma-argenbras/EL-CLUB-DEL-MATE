@@ -156,6 +156,21 @@ describe('cambiarCodigo', () => {
     expect(await db.productos.get('NUEVO')).toBeUndefined()
   })
 
+  it('EL VIEJO SE ARCHIVA ANTES DE BORRARSE: si el servidor rechaza el borrado, no queda un duplicado vivo', async () => {
+    await sembrar()
+    await cambiarCodigo('LST009', 'LST015')
+    await historialAlDia()
+    const delViejo = (await db.historial.where('[tabla+clave]').equals(['productos', 'LST009']).toArray())
+      .filter((r) => r.motivo === MOTIVO_CAMBIO_CODIGO)
+    // Archivar es su propia accion en el historial ('archivo'), no un 'edito'.
+    const archivado = delViejo.find((r) => r.accion === 'archivo' && r.campo === 'archivado')
+    const borrado = delViejo.find((r) => r.accion === 'borro')
+    expect(archivado?.valorNuevo).toBe(true)
+    expect(borrado).toBeDefined()
+    // y en ese orden: primero archivado, despues borrado
+    expect(archivado!.cuando).toBeLessThanOrEqual(borrado!.cuando)
+  })
+
   it('queda en el historial con su motivo y con quien lo hizo', async () => {
     await sembrar()
     await cambiarCodigo('LST009', 'LST015')
