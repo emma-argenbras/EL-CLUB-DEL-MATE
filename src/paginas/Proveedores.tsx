@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   conMotivo,
@@ -284,6 +285,7 @@ function FormularioProveedor({
 }) {
   const [ficha, setFicha] = useState<FichaProveedor>(fichaVacia)
   const [error, setError] = useState('')
+  useCambiosSinGuardar('la ficha del proveedor', ficha)
 
   async function guardar() {
     if (!ficha.nombre.trim()) return setError('Ponele un nombre al proveedor.')
@@ -852,6 +854,7 @@ function FormularioCompra({
   const [lineas, setLineas] = useState<LineaCompra[]>([lineaVacia()])
   const [notas, setNotas] = useState('')
   const [error, setError] = useState('')
+  useCambiosSinGuardar('la compra', [fecha, lineas, notas])
 
   const disponibles = productos.filter((p) => p.archivado !== true)
 
@@ -1094,6 +1097,7 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
   const [notas, setNotas] = useState('')
   const [error, setError] = useState('')
   const [cuenta, setCuenta] = useState<CuentaDePago>('cajaGrande')
+  useCambiosSinGuardar('el pago', [fecha, monto, medioPago, notas, cuenta])
 
   /**
    * El turno abierto, si hay. Sin esto, un pago hecho con la plata del

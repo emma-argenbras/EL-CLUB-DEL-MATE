@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CATEGORIAS_GASTO,
@@ -177,6 +178,7 @@ function FormularioGasto({ onSalir }: { onSalir: () => void }) {
   const [esVariable, setEsVariable] = useState(false)
   const [tipo, setTipo] = useState<TipoMovimiento>('GASTO_CAJA_GRANDE')
   const [cuenta, setCuenta] = useState<CuentaDePago | ''>('')
+  useCambiosSinGuardar('el gasto', [fecha, concepto, monto, categoria, esVariable, tipo, cuenta])
 
   function elegirCategoria(nueva: CategoriaGasto) {
     setCategoria(nueva)

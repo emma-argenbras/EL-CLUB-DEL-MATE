@@ -1,5 +1,6 @@
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
+import { loQueEstaSinGuardar, preguntaAntesDeActualizar, useLoQueEstaSinGuardar } from '../lib/sinGuardar'
 
 interface EstadoActualizacion {
   necesitaActualizar: boolean
@@ -42,7 +43,13 @@ export function ProveedorActualizacion({ children }: { children: ReactNode }) {
       value={{
         necesitaActualizar,
         buscarActualizacion,
-        aplicarActualizacion: () => updateServiceWorker(true),
+        // Recargar se lleva lo que esta a medio cargar. Si hay algo, se
+        // pregunta antes (ver lib/sinGuardar.ts).
+        aplicarActualizacion: () => {
+          const pregunta = preguntaAntesDeActualizar(loQueEstaSinGuardar())
+          if (pregunta && !confirm(pregunta)) return
+          void updateServiceWorker(true)
+        },
       }}
     >
       {children}
@@ -64,14 +71,19 @@ export function useActualizacionApp(): EstadoActualizacion {
  */
 export default function ActualizarApp() {
   const { necesitaActualizar, aplicarActualizacion } = useActualizacionApp()
+  const sinGuardar = useLoQueEstaSinGuardar()
 
   if (!necesitaActualizar) return null
 
   return (
     <div className="barra-actualizar">
-      <span>Hay una versión nueva de la app</span>
+      <span>
+        {sinGuardar.length === 0
+          ? 'Hay una versión nueva de la app'
+          : 'Hay una versión nueva. Guardá lo que estás cargando y después actualizá.'}
+      </span>
       <button className="boton-chico" onClick={aplicarActualizacion}>
-        Actualizar
+        {sinGuardar.length === 0 ? 'Actualizar' : 'Actualizar igual'}
       </button>
     </div>
   )
