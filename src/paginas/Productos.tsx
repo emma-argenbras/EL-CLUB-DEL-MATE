@@ -772,7 +772,7 @@ function FormularioProducto({
       fechaPrecioVenta:
         ventaFinal !== producto?.precioVenta ? hoyISO() : (producto?.fechaPrecioVenta ?? null),
       busqueda: normalizar(`${cod} ${descripcion}`),
-      stock: stock.trim() === '' ? null : Number(stock),
+      stock: stock.trim() === '' ? null : leerNumero(stock),
       activo: true,
       archivado: producto?.archivado ?? false,
       descontinuado,

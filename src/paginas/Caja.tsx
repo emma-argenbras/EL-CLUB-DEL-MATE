@@ -315,7 +315,7 @@ function PanelVentas({
     setCantidad('1')
   }
 
-  const cant = Number(cantidad) || 0
+  const cant = leerNumero(cantidad) ?? 0
   const pre = leerNumero(precio) ?? 0
   const total = Math.round(cant * pre * 100) / 100
 
