@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   db,
   engancharAutor,
+  engancharSync,
   historialAlDia,
   type MovimientoProveedor,
   type Producto,
@@ -11,6 +12,7 @@ import {
 import {
   armarCambioCodigo,
   cambiarCodigo,
+  claveDeBorrado,
   MOTIVO_CAMBIO_CODIGO,
   textoDeConfirmacionCambioCodigo,
 } from './cambiarCodigo'
@@ -41,7 +43,12 @@ function compra(id: string, codigos: string[]): MovimientoProveedor {
 }
 
 beforeEach(async () => {
-  await Promise.all([db.productos.clear(), db.ventas.clear(), db.movimientosProveedor.clear()])
+  await Promise.all([
+    db.productos.clear(),
+    db.ventas.clear(),
+    db.movimientosProveedor.clear(),
+    db.borrados.clear(),
+  ])
   await historialAlDia()
   await db.historial.clear()
   engancharAutor(() => ({ email: 'ventas@elclubdelmate.com', nombre: 'Sandra', rol: 'encargado' }))
@@ -171,6 +178,53 @@ describe('cambiarCodigo', () => {
     expect(archivado!.cuando).toBeLessThanOrEqual(borrado!.cuando)
   })
 
+  it('DEJA CONSTANCIA EN BORRADOS: un dispositivo atrasado no puede volver a subir el viejo', async () => {
+    await sembrar()
+    await cambiarCodigo('LST009', 'LST015', 'ventas@elclubdelmate.com')
+    const constancia = await db.borrados.get(claveDeBorrado('LST009'))
+    expect(constancia).toMatchObject({
+      id: 'productos/LST009',
+      tabla: 'productos',
+      clave: 'LST009',
+      quien: 'ventas@elclubdelmate.com',
+    })
+    expect(constancia?.motivo).toContain(MOTIVO_CAMBIO_CODIGO)
+    expect(constancia?.motivo).toContain('LST015')
+  })
+
+  it('la constancia viaja al servidor, antes que el borrado', async () => {
+    // Es la que lee empujarTodoLocal en los OTROS dispositivos: si se
+    // quedara en este, no protegeria a nadie.
+    const enviados: string[] = []
+    engancharSync((tabla, accion, clave) => enviados.push(`${accion} ${tabla}/${clave}`))
+    try {
+      await sembrar()
+      enviados.length = 0
+      await cambiarCodigo('LST009', 'LST015')
+    } finally {
+      engancharSync(() => {})
+    }
+    const constancia = enviados.indexOf('guardar borrados/productos/LST009')
+    const borrado = enviados.indexOf('borrar productos/LST009')
+    expect(constancia).toBeGreaterThanOrEqual(0)
+    expect(borrado).toBeGreaterThan(constancia)
+  })
+
+  it('un código que se vuelve a usar deja de figurar como borrado', async () => {
+    await sembrar()
+    await db.borrados.put({
+      id: claveDeBorrado('LST015'),
+      tabla: 'productos',
+      clave: 'LST015',
+      cuando: 1,
+      quien: null,
+      motivo: 'de antes',
+    })
+    await cambiarCodigo('LST009', 'LST015')
+    expect(await db.borrados.get(claveDeBorrado('LST015'))).toBeUndefined()
+    expect(await db.borrados.get(claveDeBorrado('LST009'))).toBeDefined()
+  })
+
   it('queda en el historial con su motivo y con quien lo hizo', async () => {
     await sembrar()
     await cambiarCodigo('LST009', 'LST015')
@@ -180,5 +234,8 @@ describe('cambiarCodigo', () => {
     expect(borrado?.motivo).toBe(MOTIVO_CAMBIO_CODIGO)
     expect(borrado?.quienNombre).toBe('Sandra')
     expect(renglones.some((r) => r.tabla === 'productos' && r.accion === 'creo')).toBe(true)
+    // La constancia de borrados no lleva renglon propio: ya lo dice el
+    // 'borro' del producto, con su motivo.
+    expect(renglones.some((r) => r.tabla === 'borrados')).toBe(false)
   })
 })

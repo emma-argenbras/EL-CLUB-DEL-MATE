@@ -24,7 +24,27 @@ export interface EstadoSync {
    * nube decia si estaba conectada, no si quedaba algo pendiente.
    */
   sinSubir: number | null
+  /**
+   * Cambios que el servidor no acepto, para mostrarlos hasta que la
+   * persona los lea.
+   *
+   * `error` no alcanza: el proximo snapshot lo borra, y en un rechazo el
+   * proximo snapshot es la reversion misma, milisegundos despues. Hasta
+   * el 22/10 las ediciones de Sandra se deshacian solas y la app no le
+   * llegaba a decir nada.
+   */
+  rechazos: RechazoVisible[]
 }
+
+export interface RechazoVisible {
+  id: number
+  cuando: number
+  texto: string
+}
+
+/** Mas que esto no se lee: se muestran los ultimos y el total. */
+const RECHAZOS_A_GUARDAR = 20
+let proximoIdRechazo = 1
 
 let estado: EstadoSync = {
   estado: nubeConfigurada ? 'desconectado' : 'sin-configurar',
@@ -32,6 +52,16 @@ let estado: EstadoSync = {
   error: null,
   ultimaRecepcion: null,
   sinSubir: null,
+  rechazos: [],
+}
+
+export function anotarRechazoVisible(texto: string): void {
+  const rechazo = { id: proximoIdRechazo++, cuando: Date.now(), texto }
+  fijarEstadoNube({ rechazos: [...estado.rechazos, rechazo].slice(-RECHAZOS_A_GUARDAR) })
+}
+
+export function descartarRechazos(): void {
+  fijarEstadoNube({ rechazos: [] })
 }
 
 const oyentes = new Set<() => void>()

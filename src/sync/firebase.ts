@@ -1,6 +1,13 @@
 import { deleteApp, initializeApp, type FirebaseApp } from 'firebase/app'
-import { browserLocalPersistence, getAuth, setPersistence, type Auth } from 'firebase/auth'
 import {
+  browserLocalPersistence,
+  connectAuthEmulator,
+  getAuth,
+  setPersistence,
+  type Auth,
+} from 'firebase/auth'
+import {
+  connectFirestoreEmulator,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
@@ -37,6 +44,13 @@ function iniciar() {
   firestore = initializeFirestore(app, {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
   })
+  // Solo para probar la app entera contra los emuladores de Firebase
+  // (con las reglas de verdad) antes de publicar. El build que se
+  // publica no lleva esta variable, y entonces esto no hace nada.
+  if (import.meta.env.VITE_FIREBASE_EMULADOR) {
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
+    connectFirestoreEmulator(firestore, '127.0.0.1', 8080)
+  }
 }
 
 export function obtenerAuth(): Auth {

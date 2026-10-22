@@ -11,6 +11,7 @@ import { estaAlMando } from './sync/permisos'
 import { leerModoConsulta } from './lib/modoConsulta'
 import { useSesion } from './sync/useSesion'
 import { useEstadoNube } from './sync/useEstadoNube'
+import { descartarRechazos } from './sync/estado'
 import Panel from './paginas/Panel'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
@@ -193,6 +194,25 @@ export default function App() {
           </strong>{' '}
           Están guardadas en este dispositivo pero no llegaron a los demás. Si tenés internet
           y no baja en unos minutos, avisá antes de seguir cargando.
+        </div>
+      )}
+      {nubeConfigurada && !enConsulta && estadoNube.rechazos.length > 0 && (
+        <div className="aviso aviso-error">
+          <strong>
+            {estadoNube.rechazos.length === 1
+              ? 'El servidor no aceptó un cambio.'
+              : `El servidor no aceptó ${estadoNube.rechazos.length} cambios.`}
+          </strong>{' '}
+          Lo que se ve ahora en pantalla es lo que quedó en el servidor. Sacale una foto a este
+          aviso y mandásela a Emmanuel.
+          <ul style={{ margin: '6px 0', paddingLeft: 18 }}>
+            {estadoNube.rechazos.slice(-3).map((r) => (
+              <li key={r.id}>{r.texto}</li>
+            ))}
+          </ul>
+          <button className="boton-chico" onClick={descartarRechazos}>
+            Entendido
+          </button>
         </div>
       )}
 

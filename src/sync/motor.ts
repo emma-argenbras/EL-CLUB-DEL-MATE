@@ -12,18 +12,22 @@ import {
   doc,
   getCountFromServer,
   getDoc,
+  getDocFromServer,
   getDocs,
   onSnapshot,
   setDoc,
   writeBatch,
+  type DocumentReference,
   type Unsubscribe,
 } from 'firebase/firestore'
+import Dexie from 'dexie'
 import {
   comoRemoto,
   db,
   engancharAutor,
   engancharSync,
   guardarAjuste,
+  nuevoId,
   type AccionCambio,
   type NombreTabla,
   type Rol,
@@ -31,7 +35,13 @@ import {
 } from '../db/db'
 import { aClaveDeNube, aClaveLocal } from './claves'
 import { ID_NEGOCIO } from './config'
-import { fijarEstadoNube } from './estado'
+import { anotarRechazoVisible, fijarEstadoNube } from './estado'
+import {
+  camposParaConservar,
+  motivosDelRechazo,
+  textoDelRechazo,
+  type MotivoRechazo,
+} from './motivoRechazo'
 import { crearAuthSecundario, obtenerAuth, obtenerFirestore } from './firebase'
 import { autorDeLaSesion, fijarSesion, obtenerSesion } from './sesion'
 
@@ -135,12 +145,26 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
     return
   }
   if (accion === 'borrar') {
-    deleteDoc(referencia).catch((e) => avisarRechazo(tabla, clave, e))
+    deleteDoc(referencia).catch((e) =>
+      avisarRechazo(tabla, clave, e, { accion, referencia, enviado: null }),
+    )
   } else {
-    setDoc(referencia, limpiar(doc_ as Record<string, unknown>)).catch((e) =>
-      avisarRechazo(tabla, clave, e),
+    const datos = limpiar(doc_ as Record<string, unknown>)
+    setDoc(referencia, datos).catch((e) =>
+      avisarRechazo(tabla, clave, e, { accion, referencia, enviado: datos }),
     )
   }
+}
+
+/** Lo que se intento mandar, para poder explicar despues por que no entro. */
+interface IntentoRechazado {
+  accion: AccionCambio
+  referencia: DocumentReference
+  enviado: Record<string, unknown> | null
+}
+
+function esPermisoDenegado(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 'permission-denied'
 }
 
 /**
@@ -157,16 +181,173 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
  * el Panel y la campana ya muestran. No arregla la causa, pero la hace
  * visible el primer dia en vez de a las tres semanas.
  */
-function avisarRechazo(tabla: NombreTabla, clave: string, error: unknown): void {
+function avisarRechazo(
+  tabla: NombreTabla,
+  clave: string,
+  error: unknown,
+  intento?: IntentoRechazado,
+): void {
   const mensaje = error instanceof Error ? error.message : String(error)
   // Se anota con el nombre que tiene el documento en la nube, que es el
   // que va a venir en el snapshot cuando llegue el eco del rechazo.
   rechazosRecientes.add(`${tabla}/${aClaveDeNube(clave)}`)
   console.warn(`El servidor rechazo un cambio en ${tabla}:`, error)
-  fijarEstadoNube({
-    estado: 'error',
-    error: `El servidor rechazó un cambio en ${tabla}. Lo que cargaste puede no haberse guardado. (${mensaje})`,
-  })
+  const texto = `El servidor rechazó un cambio en ${tabla} (${clave}). Lo que cargaste puede no haberse guardado. (${mensaje})`
+  fijarEstadoNube({ estado: 'error', error: texto })
+  // En el cartel va sin el mensaje tecnico de Firebase, que es largo y
+  // no le dice nada a quien esta en el mostrador. El completo queda en
+  // la constancia del servidor.
+  const textoCorto = `El servidor no aceptó un cambio en ${tabla} (${clave}). Lo que cargaste puede no haberse guardado.`
+
+  // En productos se averigua el motivo exacto: la regla tiene varias
+  // condiciones y Firestore no dice cual fallo. Ver motivoRechazo.ts.
+  if (tabla === 'productos' && intento && esPermisoDenegado(error)) {
+    // Fuera de la transaccion de Dexie: el envio salio de un gancho de
+    // la base local, y esa transaccion ya termino. Sin esto, lo que
+    // esta funcion escribe en la base local tira TransactionInactiveError
+    // (la prueba contra el emulador lo agarro: el servidor quedaba bien
+    // y este dispositivo seguia mostrando lo viejo).
+    Dexie.ignoreTransaction(() => explicarRechazoDeProducto(clave, intento, mensaje)).catch((e) => {
+      console.warn('No se pudo averiguar el motivo del rechazo:', e)
+      anotarRechazoVisible(textoCorto)
+      void dejarConstanciaDelRechazo(tabla, clave, intento.accion, texto, null, 'no')
+    })
+    return
+  }
+  // El aviso de arriba lo borra el proximo snapshot --que en un rechazo
+  // es justamente la reversion, milisegundos despues--, asi que hasta
+  // el 22/10 nadie llegaba a verlo. Este queda hasta que la persona lo
+  // lee.
+  anotarRechazoVisible(textoCorto)
+  void dejarConstanciaDelRechazo(tabla, clave, intento?.accion ?? 'guardar', texto, null, 'no')
+}
+
+/**
+ * Le pregunta al servidor --no a la copia local-- como esta el producto
+ * y como figura el perfil propio, y con eso dice que condicion de la
+ * regla fallo.
+ *
+ * Si lo unico que fallaba era un dato que el cambio dejaba vacio, lo
+ * vuelve a mandar sin esos campos: el servidor conserva lo que tenia y
+ * el resto de la edicion (el precio, el costo, el desarchivado) entra.
+ */
+async function explicarRechazoDeProducto(
+  clave: string,
+  intento: IntentoRechazado,
+  mensajeOriginal: string,
+): Promise<void> {
+  const firestore = obtenerFirestore()
+  const uid = obtenerAuth().currentUser?.uid
+  const [enElServidor, perfil] = await Promise.all([
+    getDocFromServer(intento.referencia),
+    uid
+      ? getDocFromServer(doc(firestore, 'negocios', ID_NEGOCIO, 'usuarios', uid))
+      : Promise.resolve(null),
+  ])
+  const servidor = enElServidor.exists() ? enElServidor.data() : null
+  const motivos = motivosDelRechazo(
+    intento.accion,
+    intento.enviado,
+    servidor,
+    perfil && perfil.exists() ? perfil.data() : null,
+  )
+
+  // Un borrado que no entra sobre un producto que en el servidor ya esta
+  // archivado es lo esperado mientras las reglas no permitan borrar
+  // productos: es el segundo paso de cambiar un codigo, y el primero
+  // (archivarlo) ya entro. No hay nada que la persona tenga que hacer.
+  const borradoEsperable =
+    intento.accion === 'borrar' &&
+    servidor?.archivado === true &&
+    motivos.length === 1 &&
+    motivos[0].tipo === 'borrar-no-permitido'
+
+  const conservar = intento.enviado ? camposParaConservar(motivos) : null
+  let reintento: 'entro' | 'no' | null = null
+  if (conservar && intento.enviado) {
+    const sinVacios = Object.fromEntries(
+      Object.entries(intento.enviado).filter(([campo]) => !conservar.includes(campo)),
+    )
+    try {
+      await setDoc(intento.referencia, sinVacios, { merge: true })
+      reintento = 'entro'
+      // El rechazo ya le devolvio a este dispositivo lo viejo del
+      // servidor. Lo que quedo alla ahora es lo nuevo con lo conservado:
+      // se trae, porque el eco de una escritura propia no llega por el
+      // listener.
+      const fresco = await getDocFromServer(intento.referencia)
+      if (fresco.exists()) {
+        await comoRemoto(async () => {
+          await db.table('productos').put({ ...fresco.data() })
+        })
+      }
+    } catch (e) {
+      console.warn('Tampoco entro sin los campos vacios:', e)
+      reintento = 'no'
+    }
+  }
+
+  let texto = textoDelRechazo(clave, motivos)
+  if (reintento === 'entro') {
+    texto += ' Se volvió a mandar sin esos campos --quedaron como estaban en el servidor-- y el resto del cambio entró.'
+  } else if (borradoEsperable) {
+    texto += ' El producto ya está archivado en el servidor: no se ve en ningún lado.'
+  } else if (reintento === 'no') {
+    // Si sin esos campos tampoco entro, la cuenta de esta app no cierra
+    // con lo que dice el servidor: lo mas probable es que las reglas
+    // publicadas no sean las que esta app conoce.
+    texto +=
+      ' Se volvió a mandar sin esos campos y tampoco entró: el servidor tiene otra condición que esta versión de la app no conoce. El cambio no se guardó.'
+  } else {
+    texto += ' El cambio no se guardó: en este dispositivo vuelve a verse lo que hay en el servidor.'
+  }
+
+  if (reintento !== 'entro' && !borradoEsperable) anotarRechazoVisible(texto)
+  else fijarEstadoNube({ error: null })
+  await dejarConstanciaDelRechazo(
+    'productos',
+    clave,
+    intento.accion,
+    texto,
+    motivos,
+    reintento ?? (borradoEsperable ? 'esperable' : 'no'),
+    mensajeOriginal,
+  )
+}
+
+/**
+ * Deja el rechazo anotado en el servidor (coleccion `rechazos`), para
+ * que el dueño lo vea desde la consola de Firebase sin tener que
+ * pedirle a nadie que le saque una foto a la pantalla. Si tampoco se
+ * puede escribir ahi (perfil desactivado, sin internet), se sigue: es
+ * una constancia, no parte del trabajo.
+ */
+async function dejarConstanciaDelRechazo(
+  tabla: NombreTabla,
+  clave: string,
+  accion: AccionCambio,
+  texto: string,
+  motivos: MotivoRechazo[] | null,
+  reintento: 'entro' | 'no' | 'esperable',
+  mensajeOriginal?: string,
+): Promise<void> {
+  try {
+    const usuario = obtenerAuth().currentUser
+    await setDoc(doc(obtenerFirestore(), 'negocios', ID_NEGOCIO, 'rechazos', nuevoId()), {
+      cuando: Date.now(),
+      quien: usuario?.email ?? null,
+      uid: usuario?.uid ?? null,
+      tabla,
+      clave,
+      accion,
+      texto,
+      motivos: motivos ? JSON.parse(JSON.stringify(motivos)) : null,
+      reintento,
+      mensajeOriginal: mensajeOriginal ?? null,
+    })
+  } catch (e) {
+    console.warn('No se pudo dejar constancia del rechazo:', e)
+  }
 }
 
 /**

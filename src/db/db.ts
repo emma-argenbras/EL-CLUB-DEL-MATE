@@ -938,6 +938,16 @@ class BaseECDM extends Dexie {
     // vez, sin tener que acordarse de llamar a nada especial desde cada
     // pantalla. Usamos this.onsuccess (no el cuerpo del hook) para que el
     // aviso de sync salga recien cuando la escritura local ya se confirmo.
+    //
+    // `borrados` va aca desde el 22/10. Antes no estaba: la constancia de
+    // un borrado quedaba en el dispositivo que borraba y recien subia la
+    // proxima vez que ese dispositivo iniciaba sesion (empujarTodoLocal).
+    // Mientras tanto, cualquier otro que arrancara no la veia, y la
+    // constancia existe justamente para esos otros.
+    //
+    // Las tablas que ya son una constancia no llevan historial propio:
+    // seria anotar que se anoto.
+    const sinHistorialPropio = new Set<string>(['historialProductos', 'historial', 'borrados'])
     for (const nombre of [
       'productos',
       'jornadas',
@@ -948,6 +958,7 @@ class BaseECDM extends Dexie {
       'historialProductos',
       'movimientosProveedor',
       'historial',
+      'borrados',
     ] as const) {
       const tabla: Table<Record<string, unknown>, string> = this.table(nombre)
 
@@ -970,7 +981,7 @@ class BaseECDM extends Dexie {
 
         if (autorCrea || avisarSyncCrea) {
           this.onsuccess = (claveFinal) => {
-            if (autorCrea && nombre !== 'historialProductos' && nombre !== 'historial') {
+            if (autorCrea && !sinHistorialPropio.has(nombre)) {
               anotarEnHistorial([
                 {
                   id: nuevoId(),
@@ -1009,7 +1020,7 @@ class BaseECDM extends Dexie {
         // campo que cambio, para poder responder "quien tocó esto y cuándo"
         // sin ambigüedad.
         const entradasHistorial: EntradaHistorial[] = []
-        if (!esCambioRemoto() && nombre !== 'historialProductos' && nombre !== 'historial') {
+        if (!esCambioRemoto() && !sinHistorialPropio.has(nombre)) {
           const autor = obtenerAutor?.()
           if (autor) {
             if (nombre === 'productos') combinados.actualizadoPor = autor.email
@@ -1067,7 +1078,7 @@ class BaseECDM extends Dexie {
 
         if (autorBorra || avisarSyncBorra) {
           this.onsuccess = () => {
-            if (autorBorra && nombre !== 'historialProductos' && nombre !== 'historial') {
+            if (autorBorra && !sinHistorialPropio.has(nombre)) {
               // Lo que se guarda es el documento ENTERO como estaba, no
               // solo su clave: una vez borrado no hay de donde sacarlo, y
               // "se borro la venta a3f9" sin mas no le sirve a nadie.

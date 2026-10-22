@@ -1153,6 +1153,81 @@ sigan teniendo sentido.
 
 ---
 
+## Lo que pasó el 22/10: las ediciones que no llegaban
+
+A la mañana, una auditoría con los datos reales encontró que **las ediciones de
+productos de Sandra no llegaban al servidor**, aunque sus renglones de historial sí:
+DLB001 (costo y precio), LST005, LST006 y LST010 (desarchivar) y el cambio de código
+LST016 → LST014, que dejó la MATERA RECTANGULAR dos veces. La última edición suya que
+había llegado era la de LST007, el 21/10 a las 17:42.
+
+### Lo que se encontró
+
+1. **El aviso del rechazo no se veía nunca.** El motor lo anotaba en el estado de la
+   nube, pero el siguiente snapshot lo borraba, y en un rechazo el siguiente snapshot
+   es la reversión misma, milisegundos después. Tampoco iba a la campanita. La edición
+   se deshacía sola en pantalla y nadie se enteraba. Ahora hay un **cartel rojo que
+   queda hasta que la persona toca "Entendido"**, con el motivo en palabras.
+2. **Firestore no dice qué condición falló.** Contesta "Missing or insufficient
+   permissions" y nada más. `src/sync/motivoRechazo.ts` repite las preguntas de la
+   regla de productos con lo que el servidor tiene de verdad: lee el producto y el
+   perfil propio **del servidor**, no de la copia local. Dice si fue el rol con el que
+   figura el usuario, o qué dato el cambio dejaba vacío. Cada rechazo queda además en
+   la colección **`rechazos`** del servidor, con el texto, los motivos y el mensaje
+   original de Firebase, para verlo desde la consola sin pedirle a nadie una foto.
+3. **Si lo único que fallaba era un dato vacío, el cambio se reintenta solo** sin ese
+   campo (`setDoc` con `merge`). El servidor conserva lo que tenía, por ejemplo el
+   proveedor, y el resto de la edición entra: el precio, el costo, el desarchivado. Es
+   lo que pide la regla ("un dato cargado no se pisa con vacío") sin tirar abajo lo
+   que alguien acaba de cargar. Después se trae a este dispositivo lo que quedó allá.
+4. **El formulario de productos le hacía rechazar las ediciones a Gabriela.** Mandaba
+   `archivado: false` siempre, y los productos que nacieron de la semilla no tienen ese
+   campo en el servidor. Para la regla, un campo que aparece es un campo que cambia, y
+   archivar es de dueño o encargado. Ahora el formulario lo manda solo si el producto
+   ya lo tenía. El reintento también cubre este caso, para los dispositivos que todavía
+   tengan la versión anterior.
+5. **La tabla `borrados` no viajaba al servidor.** No estaba entre las tablas con
+   gancho de sincronización: la constancia recién subía la próxima vez que ese
+   dispositivo iniciaba sesión. Ahora sube en el momento, sin renglón propio en el
+   historial (ya lo dice el "borró" de lo que se borró).
+6. **Cambiar el código anota el código viejo en `borrados`**, antes de borrarlo. Sin
+   eso, cualquier dispositivo que todavía tenga el código viejo lo vuelve a subir al
+   iniciar sesión. Si un código anotado se vuelve a usar, la constancia se saca.
+7. **Unir dos productos que son el mismo.** "Cambiar el código" a un código que ya
+   existe ya no se frena sin más: muestra cuál es y ofrece **unirlos**. Las ventas, las
+   compras y el stock del que se va pasan al que queda, que conserva su descripción,
+   su costo y su precio. El que se va queda archivado, no borrado. Pide confirmación
+   con los números y queda en el historial como "Unión de productos repetidos".
+
+El punto 2 de la auditoría tenía una hipótesis: que el archivado y el borrado iban en
+la misma transacción y solo subía el borrado. No era eso. Los dos salen; **el
+archivado se rechazaba por la misma causa que las demás ediciones**, y el borrado
+porque las reglas publicadas no lo permiten.
+
+### Cómo se probó
+
+- Las pruebas de siempre, y en el emulador de reglas un caso por cada situación: lo
+  que `motivoRechazo.ts` dice que pasa tiene que pasar, y lo que dice que se puede
+  reintentar tiene que entrar al reintentarlo.
+- **La app entera contra los emuladores de Firebase**, con las reglas que están
+  publicadas hoy (241 líneas), en el navegador. Un build con `VITE_FIREBASE_EMULADOR=1`
+  conecta la app a los emuladores. El build que se publica no lleva esa variable. Esa
+  prueba encontró un error que las pruebas sueltas no veían: al traer lo que quedó en
+  el servidor después del reintento, la escritura local caía dentro de una transacción
+  de Dexie ya terminada (`TransactionInactiveError`). El servidor quedaba bien y el
+  dispositivo seguía mostrando lo viejo.
+
+### Lo que todavía no se sabe
+
+Cuál de las dos causas tuvo Sandra. **El rol** (en el servidor no figura como
+`encargado` exacto) explica todos los casos: cada edición que no llegó toca el precio
+o el archivado, y lo que sí llegó no. **Un dato vacío** también explica algunos, si su
+copia local tenía huecos que el servidor no. La app dice cuál apenas Sandra actualice y
+vuelva a intentar: queda en el cartel y en `rechazos`. Si es el rol, el reintento no lo
+arregla y hay que corregir su perfil.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1661,6 +1736,13 @@ sigue.
 
 **En curso**
 
+- [ ] **Ver en `rechazos` por qué no entraban las ediciones de Sandra** (22/10). Después
+      de que actualice la app, cualquier cambio que el servidor no acepte queda ahí con
+      el motivo. Si es el rol, se corrige su perfil en la consola: el campo `rol` tiene
+      que decir exactamente `encargado`.
+- [ ] **Unir LST016 con LST014** (la MATERA RECTANGULAR repetida). Desde la versión del
+      22/10: editar LST016 → "Cambiar el código" → LST014 → "Unir". Si Sandra todavía
+      no puede archivar, lo hace Emmanuel.
 - [ ] **Unir las fichas de proveedor repetidas** (tarea 33 del tablero). Sandra ya
       asoció todos los productos —cero con "proveedor inexistente"— y quedaron seis
       pares de fichas que son el mismo proveedor. La herramienta está publicada
@@ -1697,11 +1779,12 @@ sigue.
       se cae. Está explicado en "Qué se publica y qué no".
 - [ ] Activar la protección de rama en `main` (pull request + check `verificar`
       obligatorios).
-- [ ] **Pegar en la consola de Firebase las reglas de la rama (247 líneas).** Traen dos
-      cosas que `main` todavía no tiene: `noPisaConVacio()` (un dato cargado no se pisa
-      con vacío) y `allow delete: if estoyAlMando()` en productos, sin la cual "Cambiar
-      el código" deja el código viejo archivado en vez de libre. Cuando esté el
-      workflow de reglas, esto deja de hacerse a mano.
+- [ ] **Pegar en la consola de Firebase las reglas de la rama (247 líneas).** Traen
+      `allow delete: if estoyAlMando()` en productos, sin la cual "Cambiar el código"
+      deja el código viejo archivado en vez de libre. **Recién después de que Sandra
+      actualice la app a la versión del 22/10**, que es la que anota el código viejo en
+      `borrados`: con la anterior, un dispositivo atrasado lo podría volver a subir.
+      Cuando esté el workflow de reglas, esto deja de hacerse a mano.
 
 **Hecho el 15/10** — `datos/` salió del repositorio y hay un chequeo
 (`npm run revisar-versionados`) que falla si vuelve a entrar algo privado al árbol.
