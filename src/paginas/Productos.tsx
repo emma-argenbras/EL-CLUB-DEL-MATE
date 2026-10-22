@@ -880,6 +880,22 @@ function FormularioProducto({
               ))}
             <option value="nuevo">+ Proveedor nuevo…</option>
           </select>
+          {/* Sandra pregunto "¿por que no se ven todos los proveedores?":
+              porque los inactivos no entran en esta lista, a proposito, y
+              nada lo decia. Ahora lo dice, y dice donde se arregla. */}
+          {(() => {
+            const escondidos = (proveedores ?? []).filter(
+              (prov) => prov.activo === false && prov.id !== producto?.proveedorId,
+            ).length
+            if (escondidos === 0) return null
+            return (
+              <p className="silencio" style={{ marginTop: 4, marginBottom: 0 }}>
+                Acá aparecen solo los proveedores activos. Hay {escondidos}{' '}
+                {escondidos === 1 ? 'inactivo que no se muestra' : 'inactivos que no se muestran'}
+                : se reactivan desde Proveedores, entrando a la ficha.
+              </p>
+            )
+          })()}
           {proveedorId === 'nuevo' && (
             <input
               style={{ marginTop: 8 }}
