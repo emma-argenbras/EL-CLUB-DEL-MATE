@@ -161,7 +161,13 @@ service cloud.firestore {
         noPisaConVacio('proveedorId') &&
         noPisaConVacio('proveedor') &&
         noPisaConVacio('rentabilidad');
-      allow delete: if false;
+      // Borrar un producto lo hace solo "Cambiar el codigo" (editar el
+      // producto -> cambiarle el codigo), que antes mueve sus ventas y
+      // sus compras al codigo nuevo y lo deja archivado. Con "if false"
+      // el servidor rechazaba ese borrado y el codigo viejo quedaba vivo
+      // en los otros celulares, con el producto repartido en dos. Lo
+      // puede hacer quien puede cambiar codigos: dueño y encargada.
+      allow delete: if estoyAlMando();
     }
 
     // El dia de hoy en hora de Argentina. request.time viene en UTC y

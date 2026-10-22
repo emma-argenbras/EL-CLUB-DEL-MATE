@@ -1218,6 +1218,28 @@ transacción:
 El código nuevo pasa por la misma puerta que al crear un producto (`codigoNuevo.ts`): no
 puede estar ocupado acá ni en el servidor, y sin conexión no se puede.
 
+### El viejo se archiva antes de borrarse, y las reglas tienen que permitir el borrado
+
+Esto se encontró **la misma noche en que se publicó**, auditando el cableado: la regla de
+`productos` en Firestore decía `allow delete: if false`. El servidor aceptaba el producto
+nuevo y **rechazaba el borrado del viejo** — la app mostraba el cartel rojo, pero el
+código viejo quedaba vivo en el servidor y en los otros celulares, con el producto
+repartido en dos.
+
+Dos arreglos, en capas:
+
+1. **En la app**: antes de borrar el viejo, lo deja archivado, inactivo y sin stock. El
+   archivado el servidor lo acepta siempre. Si el borrado llegara a rechazarse, lo que
+   queda allá es invisible —no sale en listas, catálogo ni selectores— y no duplica
+   nada. Lo único que no pasa es que el código quede libre.
+2. **En las reglas**: `allow delete: if estoyAlMando()` para productos. Lo puede hacer
+   quien puede cambiar códigos: dueño y encargada. Cuatro pruebas nuevas contra el
+   emulador, y verificado volviendo la regla a `if false`: las dos de "puede" se caen.
+
+**Hasta que las reglas nuevas estén pegadas en la consola** (247 líneas, desde el link
+Raw de la rama), cambiar un código funciona pero el código viejo queda archivado en vez
+de libre. Después, queda libre.
+
 ### Lo que NO se mueve, y por qué
 
 Los renglones de `historial` del código viejo **se quedan donde están**. No es un olvido:
@@ -1781,9 +1803,11 @@ sigue.
       se cae. Está explicado en "Qué se publica y qué no".
 - [ ] Activar la protección de rama en `main` (pull request + check `verificar`
       obligatorios).
-- [ ] Pegar en la consola de Firebase las reglas con `noPisaConVacio()` (241 líneas).
-      Es la capa que protege aunque un dispositivo tenga una versión vieja de la app.
-      Cuando esté el workflow de reglas, esto deja de hacerse a mano.
+- [ ] **Pegar en la consola de Firebase las reglas de la rama (247 líneas).** Traen dos
+      cosas que `main` todavía no tiene: `noPisaConVacio()` (un dato cargado no se pisa
+      con vacío) y `allow delete: if estoyAlMando()` en productos, sin la cual "Cambiar
+      el código" deja el código viejo archivado en vez de libre. Cuando esté el
+      workflow de reglas, esto deja de hacerse a mano.
 
 **Hecho el 15/10** — `datos/` salió del repositorio y hay un chequeo
 (`npm run revisar-versionados`) que falla si vuelve a entrar algo privado al árbol.

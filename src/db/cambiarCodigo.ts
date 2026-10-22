@@ -127,6 +127,22 @@ export async function cambiarCodigo(
         busqueda: normalizar(`${nuevo} ${producto.descripcion ?? ''}`),
         actualizadoEn: Date.now(),
       })
+
+      // El viejo primero se archiva y recien despues se borra. No es
+      // redundante: el servidor acepta el archivado siempre, pero el
+      // borrado solo si las reglas lo permiten para productos (hasta el
+      // 22/10 decian "allow delete: if false"). Si el borrado llegara a
+      // rechazarse, lo que queda alla es un producto archivado, sin
+      // stock e inactivo: invisible en las listas, el catalogo y los
+      // selectores, y sin duplicar nada. Un borrado rechazado en
+      // silencio, en cambio, dejaba el codigo viejo vivo en todos los
+      // otros celulares con el producto repartido entre dos codigos.
+      await db.productos.update(codigoViejo, {
+        archivado: true,
+        activo: false,
+        stock: null,
+        actualizadoEn: Date.now(),
+      })
       await db.productos.delete(codigoViejo)
 
       return { ventasTocadas: ventas.length, comprasTocadas: compras.length }
