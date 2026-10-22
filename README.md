@@ -1217,7 +1217,30 @@ porque las reglas publicadas no lo permiten.
   de Dexie ya terminada (`TransactionInactiveError`). El servidor quedaba bien y el
   dispositivo seguía mostrando lo viejo.
 
-### Lo que todavía no se sabe
+### Por qué la copia de Sandra tenía huecos
+
+Emmanuel descartó el rol: en los datos figura `encargado` exacto. Fue un dato que se
+mandaba vacío, y #55 lo resolvió: al actualizar, las ediciones pendientes de Sandra
+subieron. Quedaba la pregunta de fondo: cómo pudo su copia local tener vacíos datos que
+el servidor sí tenía.
+
+La causa más probable, encontrada esa misma tarde: **los cambios que llegan del
+servidor se guardaban en un solo recorrido, y el primero que fallaba cortaba todo lo
+que venía después.** Al abrir la app, el primer snapshot trae la colección entera —miles
+de productos, en orden de código—, así que un solo documento malo dejaba atrasados a
+todos los que venían detrás, en cada arranque, sin más señal que un `console.warn`.
+
+Una prueba lo reproduce. Con el recorrido viejo, el producto que viene después de un
+documento sin código se queda con el proveedor vacío, y la prueba se pone en rojo. Desde
+`src/sync/aplicarRemotos.ts` cada cambio va por su cuenta: el que falla se anota en
+`rechazos` (acción `recibir`, una vez por sesión y documento) y el resto se guarda. La
+prueba contra los emuladores lo confirma con un documento roto puesto primero en el
+orden: todo lo que viene detrás llega bien.
+
+Si esta era la causa, la copia de cada dispositivo se arregla sola al abrir la app con
+esta versión, y en `rechazos` aparece cuál es el documento malo.
+
+### Lo que todavía no se sabía (a la mañana)
 
 Cuál de las dos causas tuvo Sandra. **El rol** (en el servidor no figura como
 `encargado` exacto) explica todos los casos: cada edición que no llegó toca el precio
@@ -1761,10 +1784,10 @@ sigue.
 
 **En curso**
 
-- [ ] **Ver en `rechazos` por qué no entraban las ediciones de Sandra** (22/10). Después
-      de que actualice la app, cualquier cambio que el servidor no acepte queda ahí con
-      el motivo. Si es el rol, se corrige su perfil en la consola: el campo `rol` tiene
-      que decir exactamente `encargado`.
+- [ ] **Mirar en `rechazos` los renglones con acción `recibir`** (desde la versión con
+      `aplicarRemotos.ts`). Cada uno es un documento del servidor que algún dispositivo
+      no pudo guardar: es el que dejaba atrasados a los demás. Corregirlo en la consola
+      (casi seguro le falta la clave: `codigo` en productos, `id` en el resto).
 - [ ] **Después de las 21, cuando estén cerradas las ventas:** el borrador de la compra
       que no se pierde si se cierra la app, y "deshacer" durante unos segundos después de
       registrar una venta. Tocan compras y ventas, por eso no salen a la siesta.

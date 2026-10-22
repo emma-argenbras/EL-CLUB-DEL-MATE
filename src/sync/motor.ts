@@ -34,6 +34,7 @@ import {
   type SeccionId,
 } from '../db/db'
 import { aClaveDeNube, aClaveLocal } from './claves'
+import { aplicarCambiosRemotos, type FalloAlRecibir } from './aplicarRemotos'
 import { ID_NEGOCIO } from './config'
 import { anotarRechazoVisible, fijarEstadoNube } from './estado'
 import {
@@ -325,7 +326,7 @@ async function explicarRechazoDeProducto(
 async function dejarConstanciaDelRechazo(
   tabla: NombreTabla,
   clave: string,
-  accion: AccionCambio,
+  accion: AccionCambio | 'recibir',
   texto: string,
   motivos: MotivoRechazo[] | null,
   reintento: 'entro' | 'no' | 'esperable',
@@ -544,30 +545,20 @@ function escucharColecciones() {
       referencia,
       (instantanea) => {
         comoRemoto(async () => {
-          for (const cambio of instantanea.docChanges()) {
-            // Un cambio "pendiente" es el eco de una escritura que salio de
-            // este mismo dispositivo: el dato ya esta en la base local
-            // (de ahi salio), asi que reescribirlo de nuevo es trabajo de
-            // mas — y con miles de filas, es lo que saturaba la app en el
-            // primer login real.
-            if (cambio.doc.metadata.hasPendingWrites) continue
-            if (cambio.type === 'removed') {
-              // Un 'removed' puede ser dos cosas muy distintas: alguien
-              // borro el dato de verdad, o el servidor rechazo una
-              // escritura de ESTE dispositivo y Firestore esta
-              // revirtiendo su cache. En el segundo caso, borrar la fila
-              // local es destruir lo que la persona acaba de cargar por
-              // un problema de permisos. Ante la duda no se borra: el
-              // dato queda y el estado de la nube ya quedo en error.
-              if (rechazosRecientes.has(`${tabla}/${cambio.doc.id}`)) continue
-              // El id viene escapado si la clave tenia barra: se
-              // desescapa para borrar la fila local correcta.
-              await db.table(tabla).delete(aClaveLocal(cambio.doc.id))
-            } else {
-              rechazosRecientes.delete(`${tabla}/${cambio.doc.id}`)
-              await db.table(tabla).put({ ...cambio.doc.data() })
-            }
-          }
+          // Cada cambio por su cuenta: uno que falla ya no corta a los
+          // que vienen detras (ver aplicarRemotos.ts).
+          const fallos = await aplicarCambiosRemotos(
+            tabla,
+            instantanea.docChanges().map((cambio) => ({
+              tipo: cambio.type,
+              id: cambio.doc.id,
+              datos: cambio.type === 'removed' ? null : cambio.doc.data(),
+              pendiente: cambio.doc.metadata.hasPendingWrites,
+            })),
+            (id) => rechazosRecientes.has(`${tabla}/${id}`),
+            (id) => rechazosRecientes.delete(`${tabla}/${id}`),
+          )
+          if (fallos.length > 0) avisarFallosAlRecibir(tabla, fallos)
           if (tabla === 'usuarios') await actualizarPerfilPropio()
         }).catch((e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e))
         fijarEstadoNube({ estado: 'sincronizado', error: null, ultimaRecepcion: Date.now() })
@@ -581,6 +572,35 @@ function escucharColecciones() {
       },
     )
   })
+}
+
+/**
+ * Lo que llego del servidor y este dispositivo no pudo guardar.
+ *
+ * La persona no puede hacer nada con esto --es un dato malo en el
+ * servidor, o una base local rota--, asi que no va al cartel: queda en
+ * `rechazos` para que el dueño lo vea en la consola, una vez por sesion
+ * y por documento (el primer snapshot de cada arranque lo volveria a
+ * intentar, y anotarlo cada vez seria ruido).
+ */
+const fallosYaAnotados = new Set<string>()
+
+function avisarFallosAlRecibir(tabla: NombreTabla, fallos: FalloAlRecibir[]): void {
+  console.warn(`No se pudieron guardar ${fallos.length} cambios recibidos de ${tabla}:`, fallos)
+  for (const fallo of fallos) {
+    const clave = `${tabla}/${fallo.id}`
+    if (fallosYaAnotados.has(clave)) continue
+    fallosYaAnotados.add(clave)
+    void dejarConstanciaDelRechazo(
+      tabla,
+      aClaveLocal(fallo.id),
+      'recibir',
+      `Este dispositivo no pudo guardar ${tabla}/${fallo.id}, que llegó del servidor. El resto se guardó bien.`,
+      null,
+      'no',
+      fallo.error,
+    )
+  }
 }
 
 function dejarDeEscuchar() {
