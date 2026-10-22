@@ -10,8 +10,14 @@ import { decidirCodigoNuevo, mensajeDeCodigo } from '../lib/codigoNuevo'
 import {
   armarCambioCodigo,
   cambiarCodigo,
+  olvidarBorrado,
   textoDeConfirmacionCambioCodigo,
 } from '../db/cambiarCodigo'
+import {
+  armarUnionProductos,
+  textoDeConfirmacionUnionProductos,
+  unirProductos,
+} from '../db/unirProductos'
 import { nubeConfigurada } from '../sync/config'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -774,10 +780,19 @@ function FormularioProducto({
       busqueda: normalizar(`${cod} ${descripcion}`),
       stock: stock.trim() === '' ? null : leerNumero(stock),
       activo: true,
-      archivado: producto?.archivado ?? false,
+      // Un producto que nacio de la semilla no tiene «archivado» en el
+      // servidor. Mandarlo en false es, para la regla, tocarlo, y a un
+      // empleado se le rechazaba la edicion entera (ver motivoRechazo.ts).
+      // Se manda solo si ya estaba, o si el producto es nuevo.
+      ...(nuevo || producto?.archivado !== undefined
+        ? { archivado: producto?.archivado ?? false }
+        : {}),
       descontinuado,
     }
     await db.productos.put(registro)
+    // Si el codigo fue de un producto que se borro (le cambiaron el
+    // codigo), la constancia ya no habla de este: ver olvidarBorrado.
+    if (nuevo) await olvidarBorrado(cod)
     onSalir()
   }
 
@@ -1272,10 +1287,15 @@ function CambiarElCodigo({
   producto: Producto
   onListo: () => void
 }) {
+  const sesion = useSesion()
   const [abierto, setAbierto] = useState(false)
   const [nuevoCodigo, setNuevoCodigo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [trabajando, setTrabajando] = useState(false)
+  // Si el codigo nuevo ya es de otro producto: puede ser el mismo
+  // producto cargado dos veces (el caso de LST014 y LST016), y entonces
+  // lo que hace falta no es cambiar el codigo sino unirlos.
+  const [ocupadoPor, setOcupadoPor] = useState<Producto | null>(null)
 
   const cuentas = useLiveQuery(async () => {
     const [ventas, movimientos, historial] = await Promise.all([
@@ -1302,6 +1322,13 @@ function CambiarElCodigo({
     const cod = nuevoCodigo.trim().toUpperCase()
     if (!cod) return setError('Escribí el código nuevo.')
     setError(null)
+    setOcupadoPor(null)
+
+    const elOtro = cod === producto.codigo ? undefined : await db.productos.get(cod)
+    if (elOtro) {
+      setOcupadoPor(elOtro)
+      return
+    }
 
     // La misma puerta que al crear: no pisar un código que ya existe
     // acá o en el servidor, y no hacerlo a ciegas sin conexión.
@@ -1318,9 +1345,30 @@ function CambiarElCodigo({
 
     setTrabajando(true)
     try {
-      const r = await cambiarCodigo(producto.codigo, cod)
+      const r = await cambiarCodigo(producto.codigo, cod, sesion.email)
       if (r === 'ocupado') setError(`Ya existe un producto con el código ${cod}.`)
       else if (r === 'no-existe') setError('Ese producto ya no está. Actualizá la pantalla.')
+      else if (r === 'es-el-mismo') setError('Es el mismo código.')
+      else onListo()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  async function unir(queda: Producto) {
+    setError(null)
+    const [ventas, movimientos] = await Promise.all([
+      db.ventas.where('codigo').equals(producto.codigo).toArray(),
+      db.movimientosProveedor.toArray(),
+    ])
+    const vista = armarUnionProductos(queda, producto, ventas, movimientos)
+    if (!confirm(textoDeConfirmacionUnionProductos(vista))) return
+    setTrabajando(true)
+    try {
+      const r = await unirProductos(producto.codigo, queda.codigo)
+      if (r === 'no-existe') setError('Uno de los dos productos ya no está. Actualizá la pantalla.')
       else if (r === 'es-el-mismo') setError('Es el mismo código.')
       else onListo()
     } catch (e) {
@@ -1366,12 +1414,33 @@ function CambiarElCodigo({
           {error}
         </div>
       )}
+      {ocupadoPor && (
+        <div style={{ marginTop: 8 }}>
+          <p style={{ margin: 0 }}>
+            <strong>{ocupadoPor.codigo}</strong> ya es «{ocupadoPor.descripcion}»
+            {ocupadoPor.archivado ? ' (archivado)' : ''}.
+          </p>
+          <p className="silencio" style={{ marginTop: 4 }}>
+            Si es el mismo producto cargado dos veces, se pueden unir: las ventas, las compras y
+            el stock de {producto.codigo} pasan a {ocupadoPor.codigo}, que conserva su
+            descripción, su costo y su precio. {producto.codigo} queda archivado.
+          </p>
+          <button
+            className="boton-chico"
+            disabled={trabajando}
+            onClick={() => void unir(ocupadoPor)}
+          >
+            Unir {producto.codigo} con {ocupadoPor.codigo}
+          </button>
+        </div>
+      )}
       <button
         className="boton-chico"
         style={{ marginTop: 6 }}
         onClick={() => {
           setAbierto(false)
           setError(null)
+          setOcupadoPor(null)
         }}
       >
         Dejarlo como está

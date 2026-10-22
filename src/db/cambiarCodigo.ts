@@ -1,4 +1,11 @@
-import { conMotivo, db, type MovimientoProveedor, type Producto, type Venta } from './db'
+import {
+  conMotivo,
+  db,
+  type Borrado,
+  type MovimientoProveedor,
+  type Producto,
+  type Venta,
+} from './db'
 import { normalizar } from '../lib/formato'
 
 /**
@@ -81,6 +88,25 @@ export interface ResultadoCambioCodigo {
 
 export type FalloCambioCodigo = 'no-existe' | 'es-el-mismo' | 'ocupado'
 
+/** La clave de la constancia de un producto borrado (ver Borrado en db.ts). */
+export function claveDeBorrado(codigo: string): string {
+  return `productos/${codigo}`
+}
+
+/**
+ * Un código que vuelve a usarse deja de estar "borrado".
+ *
+ * La constancia existe para que un dispositivo atrasado no resucite el
+ * producto viejo. Si el código se le da a otro producto, esa constancia
+ * ya no habla de lo que hay: dejarla haría que, si el producto nuevo no
+ * llegara a subir en el momento, el control de inicio no lo subiera
+ * nunca, porque lo tomaría por el viejo.
+ */
+export async function olvidarBorrado(codigo: string): Promise<void> {
+  const clave = claveDeBorrado(codigo)
+  if (await db.borrados.get(clave)) await db.borrados.delete(clave)
+}
+
 /**
  * Cambia el código, de verdad.
  *
@@ -91,13 +117,14 @@ export type FalloCambioCodigo = 'no-existe' | 'es-el-mismo' | 'ocupado'
 export async function cambiarCodigo(
   codigoViejo: string,
   codigoNuevo: string,
+  quien: string | null = null,
 ): Promise<ResultadoCambioCodigo | FalloCambioCodigo> {
   const nuevo = codigoNuevo.trim().toUpperCase()
   if (!nuevo) return 'no-existe'
   if (nuevo === codigoViejo) return 'es-el-mismo'
 
   return conMotivo(MOTIVO_CAMBIO_CODIGO, async () =>
-    db.transaction('rw', db.productos, db.ventas, db.movimientosProveedor, async () => {
+    db.transaction('rw', [db.productos, db.ventas, db.movimientosProveedor, db.borrados], async () => {
       const producto = await db.productos.get(codigoViejo)
       if (!producto) return 'no-existe' as const
       if (await db.productos.get(nuevo)) return 'ocupado' as const
@@ -127,6 +154,7 @@ export async function cambiarCodigo(
         busqueda: normalizar(`${nuevo} ${producto.descripcion ?? ''}`),
         actualizadoEn: Date.now(),
       })
+      await olvidarBorrado(nuevo)
 
       // El viejo primero se archiva y recien despues se borra. No es
       // redundante: el servidor acepta el archivado siempre, pero el
@@ -143,6 +171,22 @@ export async function cambiarCodigo(
         stock: null,
         actualizadoEn: Date.now(),
       })
+
+      // La constancia, antes del borrado (igual que en borrarJornada: de
+      // mas no revive nada, de menos si). Sin ella, cualquier dispositivo
+      // que todavia tenga el codigo viejo --uno que estuvo apagado, uno
+      // con datos de antes-- lo vuelve a subir al iniciar sesion
+      // (empujarTodoLocal sube lo que el servidor no tiene), y el
+      // producto repetido vuelve solo.
+      const constancia: Borrado = {
+        id: claveDeBorrado(codigoViejo),
+        tabla: 'productos',
+        clave: codigoViejo,
+        cuando: Date.now(),
+        quien,
+        motivo: `${MOTIVO_CAMBIO_CODIGO}: pasó a ${nuevo}`,
+      }
+      await db.borrados.put(constancia)
       await db.productos.delete(codigoViejo)
 
       return { ventasTocadas: ventas.length, comprasTocadas: compras.length }
