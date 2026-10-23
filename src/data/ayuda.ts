@@ -273,6 +273,15 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'deshacer-venta',
+    categoria: 'Caja',
+    pregunta: 'Cargué mal una venta, ¿cómo la saco?',
+    respuesta:
+      'Si te diste cuenta enseguida: después de tocar "Agregar" aparece arriba "Cargada: …" con un botón "Deshacer" que cuenta 30 segundos. Tocándolo, la venta se borra y el stock vuelve, sin preguntar nada más. Después la cargás bien.\n\nSi ya pasó ese tiempo: en "Ventas del turno", tocá "Borrar" en el renglón de esa venta. Te pide confirmar.\n\nEn los dos casos queda anotado en el historial con tu nombre, y la venta borrada no vuelve a aparecer aunque otro celular la tuviera guardada.',
+    palabrasClave: ['deshacer', 'venta equivocada', 'borrar venta', 'me equivoque', 'sacar venta'],
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'vender-sin-catalogo',
     categoria: 'Caja',
     pregunta: 'El producto no aparece en el buscador, ¿puedo venderlo igual?',
