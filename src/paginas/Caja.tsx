@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCambiosSinGuardar, useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -28,12 +28,43 @@ import {
   quedaParaDeshacer,
 } from '../db/borrarVenta'
 import { ETIQUETA_ROL } from '../sync/permisos'
+import { horaDe, nombreTurno, preguntaAlAbrirTurno, turnoSegunHora } from '../lib/turnoSegunHora'
+import { cambiarTurno, otroTurno as elOtroTurno } from '../db/cambiarTurno'
 
 export default function Caja() {
   const [fecha, setFecha] = useState(hoyISO())
-  const [turno, setTurno] = useState<Turno>(
-    new Date().getHours() < 14 ? 'M' : 'T',
-  )
+  const [turno, setTurno] = useState<Turno>(() => turnoSegunHora(new Date()))
+  // Mientras nadie eligio otra fecha u otro turno a mano, la pantalla
+  // sigue al dia de hoy. La PC del local deja la app abierta de un dia
+  // para el otro: sin esto, a la mañana seguia en el turno de la tarde
+  // anterior, y el 23/10 a las 9:13 se abrio el TARDE.
+  //
+  // Solo cambia cuando cambia el dia, no a las 14: a esa hora alguien
+  // puede estar cerrando la mañana, y la pantalla no puede saltarle a
+  // la tarde en el medio.
+  const [automatico, setAutomatico] = useState(true)
+  const fechaVista = useRef(fecha)
+  fechaVista.current = fecha
+  useEffect(() => {
+    if (!automatico) return
+    function alDia() {
+      const hoy = hoyISO()
+      if (fechaVista.current === hoy) return
+      setFecha(hoy)
+      setTurno(turnoSegunHora(new Date()))
+    }
+    const reloj = setInterval(alDia, 60_000)
+    document.addEventListener('visibilitychange', alDia)
+    return () => {
+      clearInterval(reloj)
+      document.removeEventListener('visibilitychange', alDia)
+    }
+  }, [automatico])
+
+  function elegirTurno(t: Turno) {
+    setAutomatico(false)
+    setTurno(t)
+  }
 
   // useLiveQuery devuelve undefined mientras consulta, y .first() tambien
   // devuelve undefined cuando no hay turno. Convertimos "no hay" en null
@@ -58,7 +89,10 @@ export default function Caja() {
             id="fecha"
             type="date"
             value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
+            onChange={(e) => {
+              setAutomatico(false)
+              setFecha(e.target.value)
+            }}
           />
         </div>
         <div>
@@ -66,13 +100,13 @@ export default function Caja() {
           <div className="botonera">
             <button
               className={turno === 'M' ? 'pestana activa' : 'pestana'}
-              onClick={() => setTurno('M')}
+              onClick={() => elegirTurno('M')}
             >
               Mañana
             </button>
             <button
               className={turno === 'T' ? 'pestana activa' : 'pestana'}
-              onClick={() => setTurno('T')}
+              onClick={() => elegirTurno('T')}
             >
               Tarde
             </button>
@@ -83,9 +117,9 @@ export default function Caja() {
       {jornada === undefined ? (
         <p className="vacio">Cargando…</p>
       ) : jornada === null ? (
-        <AbrirTurno fecha={fecha} turno={turno} />
+        <AbrirTurno fecha={fecha} turno={turno} onIrATurno={elegirTurno} />
       ) : (
-        <TurnoAbierto jornada={jornada} />
+        <TurnoAbierto jornada={jornada} onTurnoCambiado={elegirTurno} />
       )}
     </>
   )
@@ -93,7 +127,15 @@ export default function Caja() {
 
 /* ------------------------------------------------------------------ */
 
-function AbrirTurno({ fecha, turno }: { fecha: string; turno: Turno }) {
+function AbrirTurno({
+  fecha,
+  turno,
+  onIrATurno,
+}: {
+  fecha: string
+  turno: Turno
+  onIrATurno: (t: Turno) => void
+}) {
   const [arqueo, setArqueo] = useState<Arqueo>(arqueoVacio())
   const [vendedor, setVendedor] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -101,7 +143,15 @@ function AbrirTurno({ fecha, turno }: { fecha: string; turno: Turno }) {
 
   const cajaInicial = totalArqueo(arqueo)
 
+  // Lo que corresponde por la hora, para decirlo antes de que se abra
+  // el otro (ver lib/turnoSegunHora.ts).
+  const ahora = new Date()
+  const sugerido = turnoSegunHora(ahora)
+  const esHoy = fecha === hoyISO()
+
   async function abrir() {
+    const pregunta = preguntaAlAbrirTurno(fecha, turno, new Date())
+    if (pregunta && !confirm(pregunta)) return
     setGuardando(true)
     try {
       await db.jornadas.add({
@@ -136,6 +186,16 @@ function AbrirTurno({ fecha, turno }: { fecha: string; turno: Turno }) {
         Contá la caja para arrancar.
       </div>
 
+      {esHoy && turno !== sugerido && (
+        <div className="aviso aviso-error">
+          Son las {horaDe(ahora)}: por la hora corresponde el turno{' '}
+          <strong>{nombreTurno(sugerido)}</strong>, y estás por abrir el {nombreTurno(turno)}.{' '}
+          <button className="boton-chico" onClick={() => onIrATurno(sugerido)}>
+            Ir al turno {sugerido === 'M' ? 'de la mañana' : 'de la tarde'}
+          </button>
+        </div>
+      )}
+
       <div className="tarjeta">
         <div className="campo">
           <label htmlFor="vendedor">Vendedor / a cargo</label>
@@ -159,7 +219,13 @@ function AbrirTurno({ fecha, turno }: { fecha: string; turno: Turno }) {
 
 /* ------------------------------------------------------------------ */
 
-function TurnoAbierto({ jornada }: { jornada: Jornada }) {
+function TurnoAbierto({
+  jornada,
+  onTurnoCambiado,
+}: {
+  jornada: Jornada
+  onTurnoCambiado: (t: Turno) => void
+}) {
   const [pestana, setPestana] = useState<'ventas' | 'egresos' | 'cierre'>('ventas')
 
   const ventas = useLiveQuery(
@@ -178,8 +244,46 @@ function TurnoAbierto({ jornada }: { jornada: Jornada }) {
 
   const cerrado = jornada.estado === 'cerrado'
 
+  // Corregir el turno se puede mientras esta abierto y sin ventas (ver
+  // db/cambiarTurno.ts). Si ademas la hora dice que es el otro, se avisa.
+  const sePuedeCorregir = !cerrado && ventas !== undefined && ventas.length === 0
+  const otro = elOtroTurno(jornada.turno)
+  const pareceEquivocado =
+    jornada.fecha === hoyISO() && turnoSegunHora(new Date()) !== jornada.turno
+
+  async function corregirTurno() {
+    if (
+      !confirm(
+        `¿Pasar este turno a la ${otro === 'M' ? 'MAÑANA' : 'TARDE'}?\n\n` +
+          'Se lleva la caja inicial y los egresos que tenga. Queda en el historial.',
+      )
+    ) {
+      return
+    }
+    const r = await cambiarTurno(jornada.id)
+    if (r.estado === 'cambiado') onTurnoCambiado(r.turno)
+    else if (r.estado === 'ocupado') {
+      alert(
+        `Ya hay un turno ${otro === 'M' ? 'de la mañana' : 'de la tarde'} abierto ese día. ` +
+          'Si este sobra, se borra desde Ajustes → "Turnos del día".',
+      )
+    } else if (r.estado === 'tiene-ventas') {
+      alert('Este turno ya tiene ventas. Para pasar una venta al otro turno, usá "Pasar a…" en esa venta.')
+    } else if (r.estado === 'cerrado') alert('El turno ya está cerrado.')
+    else alert('Ese turno ya no está. Actualizá la pantalla.')
+  }
+
   return (
     <>
+      {sePuedeCorregir && pareceEquivocado && (
+        <div className="aviso aviso-error">
+          Este turno es el de la <strong>{nombreTurno(jornada.turno)}</strong> y son las{' '}
+          {horaDe(new Date())}. ¿Lo abriste en el turno equivocado?{' '}
+          <button className="boton-chico" onClick={() => void corregirTurno()}>
+            Pasarlo a la {otro === 'M' ? 'mañana' : 'tarde'}
+          </button>
+        </div>
+      )}
       <div className="tarjeta">
         <div className="grilla grilla-3">
           <div className="cifra">
@@ -210,6 +314,15 @@ function TurnoAbierto({ jornada }: { jornada: Jornada }) {
           <div className="aviso aviso-ok" style={{ marginTop: 10, marginBottom: 0 }}>
             Turno cerrado{jornada.horaCierre ? ` a las ${jornada.horaCierre}` : ''}.
           </div>
+        )}
+        {sePuedeCorregir && !pareceEquivocado && (
+          <button
+            className="boton-chico"
+            style={{ marginTop: 8 }}
+            onClick={() => void corregirTurno()}
+          >
+            Lo abrí en el turno equivocado: pasarlo a la {otro === 'M' ? 'mañana' : 'tarde'}
+          </button>
         )}
       </div>
 
