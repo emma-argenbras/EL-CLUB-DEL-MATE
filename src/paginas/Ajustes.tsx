@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   db,
@@ -707,6 +708,7 @@ function FormularioUsuario({
   const [secciones, setSecciones] = useState<SeccionId[]>(SECCIONES_POR_DEFECTO_EMPLEADO)
   const [error, setError] = useState('')
   const [trabajando, setTrabajando] = useState(false)
+  useSinGuardar('el usuario nuevo', nombre.trim() !== '' || email.trim() !== '')
 
   async function guardar() {
     setError('')

@@ -1228,6 +1228,31 @@ arregla y hay que corregir su perfil.
 
 ---
 
+## Dos cosas chicas del 22/10 a la siesta
+
+### "Actualizar" no se lleva lo que está a medio cargar
+
+Actualizar recarga la app, y una recarga se lleva lo que está escrito y sin guardar: las
+líneas de una compra, el conteo de un cierre, un producto nuevo. Cada formulario se
+anota mientras tiene algo sin guardar (`src/lib/sinGuardar.ts`), y con algo anotado el
+cartel naranja pide guardar primero y el botón pasa a "Actualizar igual". Si se toca
+igual, pregunta antes de recargar diciendo qué se perdería.
+
+Cubre la compra y el pago a proveedores, la ficha del proveedor, el gasto, el producto,
+el usuario nuevo, la apertura y el cierre de caja, la venta a medio cargar, el egreso
+de caja y los costos escritos en la Revisión de costos.
+
+### "Sigue igual" en la Revisión de costos
+
+Un costo vencido no siempre cambió. Hasta ahora la única forma de sacarlo de la lista
+era volver a tipear el mismo número. Con el casillero vacío, el botón de un costo
+vencido dice **"Sigue igual"**: renueva solo la fecha, sin escribir el costo. Si alguien
+cambió el costo mientras tanto, no confirma nada, porque se estaría confirmando un número
+que nadie vio. En el historial queda con su propio motivo, "Costo confirmado: sigue
+valiendo lo mismo".
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -1740,6 +1765,9 @@ sigue.
       de que actualice la app, cualquier cambio que el servidor no acepte queda ahí con
       el motivo. Si es el rol, se corrige su perfil en la consola: el campo `rol` tiene
       que decir exactamente `encargado`.
+- [ ] **Después de las 21, cuando estén cerradas las ventas:** el borrador de la compra
+      que no se pierde si se cierra la app, y "deshacer" durante unos segundos después de
+      registrar una venta. Tocan compras y ventas, por eso no salen a la siesta.
 - [ ] **Unir LST016 con LST014** (la MATERA RECTANGULAR repetida). Desde la versión del
       22/10: editar LST016 → "Cambiar el código" → LST014 → "Unir". Si Sandra todavía
       no puede archivar, lo hace Emmanuel.

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   gruposRepetidos,
@@ -696,6 +697,10 @@ function FormularioProducto({
   )
   const [descontinuado, setDescontinuado] = useState(producto?.descontinuado ?? false)
   const [error, setError] = useState('')
+  useCambiosSinGuardar(nuevo ? 'un producto nuevo' : `los cambios de ${producto?.codigo}`, [
+    codigo, descripcion, proveedorId, nuevoProveedor, precioCompra, rentabilidad,
+    precioVenta, fechaCompra, stock, descontinuado,
+  ])
   const [mensaje, setMensaje] = useState('')
 
   const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
