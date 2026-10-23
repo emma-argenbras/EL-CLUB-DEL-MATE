@@ -259,8 +259,17 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Caja',
     pregunta: '¿Cómo abro un turno?',
     respuesta:
-      'Entrá a Caja, elegí la fecha (por defecto es hoy) y el turno (mañana o tarde). Si todavía no está abierto, la app te pide contar la caja: cargá cuántos billetes hay de cada denominación y listo, se calcula solo el total. Tocá "Abrir turno" y ya podés empezar a cargar ventas.',
+      'Entrá a Caja, elegí la fecha (por defecto es hoy) y el turno (mañana o tarde). Si todavía no está abierto, la app te pide contar la caja: cargá cuántos billetes hay de cada denominación y listo, se calcula solo el total. Tocá "Abrir turno" y ya podés empezar a cargar ventas.\n\nEl turno ya viene elegido según la hora: antes de las 14 la mañana, después la tarde. Si la app quedó abierta de un día para el otro, a la mañana pasa sola al día de hoy. Si elegís el otro turno, te avisa en rojo y te pregunta antes de abrirlo.',
     palabrasClave: ['arqueo', 'apertura', 'empezar'],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'turno-equivocado',
+    categoria: 'Caja',
+    pregunta: 'Abrí el turno de la tarde y era el de la mañana (o al revés), ¿cómo lo corrijo?',
+    respuesta:
+      'Si todavía no tiene ventas, no hace falta borrarlo: en Caja, con ese turno a la vista, tocá "Pasarlo a la mañana" (o "a la tarde"). Si la hora no coincide con el turno, la app ya te lo ofrece en un cartel rojo; si no, el botón está debajo de la caja inicial. Se lleva la caja inicial y los egresos que tenga, y queda en el historial.\n\nSi ya tiene ventas, ese botón no aparece: esas ventas son plata de un turno, y moverlas es otra decisión. Una venta suelta se pasa con "Pasar a…" en el renglón de la venta. Si hay que mover el turno entero con ventas, avisale a Emmanuel.\n\nSi en el otro horario ya hay un turno abierto ese día, tampoco se puede: serían dos turnos en el mismo lugar. Si uno sobra, se borra desde Ajustes → "Turnos del día".',
+    palabrasClave: ['turno equivocado', 'tarde en vez de mañana', 'mañana en vez de tarde', 'cambiar turno', 'corregir turno'],
     requiereSeccion: 'caja',
   },
   {
