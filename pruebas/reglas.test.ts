@@ -863,3 +863,18 @@ describe('motivoRechazo dice lo mismo que la regla de productos', () => {
     })
   }
 })
+
+describe('corregir el turno de un turno abierto (cambiarTurno)', () => {
+  // El 23/10 se abrio el TARDE a las 9:13. Corregirlo es cambiar
+  // `turno` en la jornada abierta: lo tiene que poder hacer quien abrio
+  // el turno, que casi siempre es la empleada del mostrador.
+  it('la empleada lo pasa de TARDE a MAÑANA', async () => {
+    await sembrarJornada(hoyArgentina(), { turno: 'T' })
+    await assertSucceeds(updateDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j1`), { turno: 'M' }))
+  })
+
+  it('la encargada tambien', async () => {
+    await sembrarJornada(hoyArgentina(), { turno: 'T' })
+    await assertSucceeds(updateDoc(doc(comoSandra(), `${NEGOCIO}/jornadas/j1`), { turno: 'M' }))
+  })
+})

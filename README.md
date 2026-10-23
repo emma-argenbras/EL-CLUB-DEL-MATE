@@ -1306,6 +1306,33 @@ borrar, devuelve el stock si el producto lo lleva y queda en el historial con su
 
 ---
 
+## El turno que corresponde a la hora
+
+El 23/10 a las 9:13 se abrió el turno TARDE. Caja ya elegía mañana o tarde según la hora,
+pero solo al abrirse la pantalla, y la PC del local deja la app abierta de un día para el
+otro: a la mañana seguía mostrando la tarde anterior, y la fecha de ayer.
+
+Tres cosas (`src/lib/turnoSegunHora.ts`, `src/db/cambiarTurno.ts`):
+
+- **Caja sigue al día.** Mientras nadie elija otra fecha u otro turno a mano, cuando
+  cambia el día la pantalla pasa sola al día de hoy y al turno que corresponde a esa hora.
+  No cambia a las 14: a esa hora alguien puede estar cerrando la mañana.
+- **Avisa y pregunta.** Si el turno elegido no es el de la hora (antes de las 14, la
+  mañana), hay un cartel rojo con un botón para ir al que corresponde, y al tocar "Abrir
+  turno" pregunta: "Son las 9:13 y estás abriendo el turno TARDE. ¿Seguro?". Un turno de
+  otro día también pregunta.
+- **Se corrige sin borrarlo.** Un turno abierto **sin ventas** se pasa de la mañana a la
+  tarde o al revés, con su caja inicial y sus egresos, y queda en el historial. Con ventas,
+  no: eso ya es mover plata de caja (para una venta suelta está "Pasar a…"). Tampoco si en
+  el otro horario ya hay un turno ese día. La regla de jornadas ya lo permitía para
+  cualquiera activo; dos pruebas nuevas contra el emulador lo fijan.
+
+Probado en el navegador con el reloj simulado: la app abierta desde las 17:00 del 22 pasó
+sola al 23, mañana; a las 9:13 el TARDE avisó y preguntó; y el TARDE abierto pasó a la
+mañana con su caja.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que

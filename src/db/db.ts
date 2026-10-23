@@ -861,7 +861,11 @@ class BaseECDM extends Dexie {
         'descontinuado',
         'solicitudBorrado',
       ],
+      // turno entra porque un turno abierto en el horario equivocado se
+      // puede corregir (cambiarTurno.ts), y eso cambia en que caja del
+      // dia cuenta: tiene que quedar escrito.
       jornadas: [
+        'turno',
         'estado',
         'cajaInicial',
         'arqueoApertura',
