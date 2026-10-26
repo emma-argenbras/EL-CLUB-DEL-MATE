@@ -381,6 +381,13 @@ export interface Venta {
   medioPago: MedioPago
   total: number
   vendedor: string | null
+  /**
+   * Si este renglon es parte de un cambio de producto (ver
+   * cambioProducto.ts): los dos renglones de un cambio comparten el id.
+   * El que vuelve va en negativo, el que se lleva en positivo.
+   */
+  cambioId?: string | null
+  cambio?: 'vuelve' | 'lleva' | null
   creadoEn?: number
   actualizadoEn?: number
 }

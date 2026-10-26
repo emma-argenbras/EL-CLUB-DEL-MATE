@@ -268,6 +268,14 @@ export default function Reportes() {
               <span className="fila-etiqueta">Operaciones</span>
               <span className="fila-valor">{numero(resumen.operaciones)}</span>
             </div>
+            {resumen.cambios > 0 && (
+              <div className="fila">
+                <span className="fila-etiqueta">
+                  Cambios de producto ({numero(resumen.cambios)}), diferencia neta
+                </span>
+                <span className="fila-valor">{plata(resumen.diferenciaCambios)}</span>
+              </div>
+            )}
             <div className="fila">
               <span className="fila-etiqueta">Unidades vendidas</span>
               <span className="fila-valor">{numero(resumen.unidades)}</span>
