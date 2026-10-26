@@ -282,6 +282,15 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'cambio-de-producto',
+    categoria: 'Caja',
+    pregunta: 'Un cliente quiere cambiar un producto por otro, ¿cómo lo cargo?',
+    respuesta:
+      'En Caja, pestaña "Ventas", tocá "↔ Cambio". Arriba elegí lo que trae el cliente (el precio viene completo con el de venta: si se lo vendieron a otro precio, corregilo) y abajo lo que se lleva. La app calcula la diferencia: "El cliente paga $…" o "Le devolvés $…". Elegí cómo paga o cómo se la devolvés y tocá "Registrar cambio".\n\nQué pasa al registrarlo:\n• El stock de lo que vuelve sube y el de lo que se lleva baja.\n• En la caja del turno solo se mueve la diferencia. Si le devolvés plata en efectivo, sale del cajón y el efectivo esperado al cierre baja solo: no hace falta cargar un egreso.\n• En la lista se ve como dos renglones marcados "CAMBIO", y en Reportes se cuenta como un cambio, no como una venta.\n\nDurante 30 segundos podés deshacerlo. Después, "Borrar" en cualquiera de los dos renglones borra el cambio entero.\n\nNo hace falta usar productos comodín como «DIF – Diferencia por cambio»: con esto se sabe qué salió, qué volvió y cuánto se ganó.',
+    palabrasClave: ['cambio', 'cambiar producto', 'devolucion', 'diferencia', 'devuelve', 'DIF'],
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'deshacer-venta',
     categoria: 'Caja',
     pregunta: 'Cargué mal una venta, ¿cómo la saco?',

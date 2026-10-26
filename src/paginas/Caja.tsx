@@ -18,6 +18,8 @@ import { fechaLinda, haceCuanto, hoyISO, horaAhora, leerNumero, plata } from '..
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
 import { egresoIgual, preguntaEgresoRepetido } from '../lib/egresoRepetido'
+import FormularioCambio from '../componentes/FormularioCambio'
+import { borrarCambio, MOTIVO_BORRAR_CAMBIO, MOTIVO_DESHACER_CAMBIO } from '../db/cambioProducto'
 import CierresPendientes from '../componentes/CierresPendientes'
 import CierresTardios from '../componentes/CierresTardios'
 import { useSesion } from '../sync/useSesion'
@@ -417,10 +419,13 @@ function PanelVentas({
   // equivocado o un cero de mas se ven justo despues de tocar
   // "Agregar": ahi es cuando conviene poder volver atras de un toque.
   const [ultima, setUltima] = useState<{
-    id: string
+    /** La venta, o el cambio (dos renglones que se deshacen juntos). */
+    ventaId?: string
+    cambioId?: string
     texto: string
     cuando: number
   } | null>(null)
+  const [modo, setModo] = useState<'venta' | 'cambio'>('venta')
   const [ahora, setAhora] = useState(Date.now())
   useEffect(() => {
     if (!ultima) return
@@ -489,7 +494,7 @@ function PanelVentas({
       }
     })
     const cuando = Date.now()
-    setUltima({ id, texto: `${elegido.descripcion} · ${cant} × ${plata(pre)}`, cuando })
+    setUltima({ ventaId: id, texto: `${elegido.descripcion} · ${cant} × ${plata(pre)}`, cuando })
     setAhora(cuando)
     setElegido(null)
     setPrecio('')
@@ -498,12 +503,33 @@ function PanelVentas({
 
   async function deshacer() {
     if (!ultima) return
-    const id = ultima.id
+    const { ventaId, cambioId } = ultima
     setUltima(null)
-    await borrarVenta(id, MOTIVO_DESHACER_VENTA, sesion.email)
+    if (cambioId) {
+      await borrarCambio({ jornadaId: jornada.id, cambioId }, MOTIVO_DESHACER_CAMBIO, sesion.email)
+    } else if (ventaId) {
+      await borrarVenta(ventaId, MOTIVO_DESHACER_VENTA, sesion.email)
+    }
   }
 
   async function borrar(venta: import('../db/db').Venta) {
+    // Un cambio se borra entero: la mitad seria una venta o una
+    // devolucion que nadie hizo.
+    if (venta.cambioId) {
+      if (
+        !confirm(
+          '¿Borrar el cambio entero?\n\nSe borran los dos renglones (lo que volvió y lo que se llevó) y el stock vuelve a como estaba.',
+        )
+      ) {
+        return
+      }
+      await borrarCambio(
+        { jornadaId: venta.jornadaId, cambioId: venta.cambioId },
+        MOTIVO_BORRAR_CAMBIO,
+        sesion.email,
+      )
+      return
+    }
     if (!confirm(`¿Borrar la venta de ${venta.descripcion}?`)) return
     await borrarVenta(venta.id, MOTIVO_BORRAR_VENTA, sesion.email)
   }
@@ -513,7 +539,16 @@ function PanelVentas({
       {bloqueado && <TurnoCerradoAviso onIrAlCierre={onIrAlCierre} />}
       {!bloqueado && (
         <div className="tarjeta">
-          <p className="tarjeta-titulo">Cargar venta</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <p className="tarjeta-titulo" style={{ margin: 0 }}>
+              {modo === 'venta' ? 'Cargar venta' : 'Cambio de producto'}
+            </p>
+            {modo === 'venta' && (
+              <button className="boton-chico" onClick={() => setModo('cambio')}>
+                ↔ Cambio
+              </button>
+            )}
+          </div>
 
           {ultima && (
             <div
@@ -521,7 +556,7 @@ function PanelVentas({
               style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}
             >
               <span style={{ minWidth: 0 }}>
-                Cargada: {ultima.texto}
+                {ultima.cambioId ? ultima.texto : `Cargada: ${ultima.texto}`}
               </span>
               <button className="boton-chico" style={{ flex: 'none' }} onClick={() => void deshacer()}>
                 Deshacer ({quedaParaDeshacer(ultima.cuando, ahora)})
@@ -529,7 +564,18 @@ function PanelVentas({
             </div>
           )}
 
-          {!elegido ? (
+          {modo === 'cambio' ? (
+            <FormularioCambio
+              jornada={jornada}
+              onCancelar={() => setModo('venta')}
+              onListo={({ cambioId, texto }) => {
+                const cuando = Date.now()
+                setUltima({ cambioId, texto, cuando })
+                setAhora(cuando)
+                setModo('venta')
+              }}
+            />
+          ) : !elegido ? (
             <BuscadorProducto onElegir={seleccionar} autoFoco />
           ) : (
             <>
@@ -615,9 +661,16 @@ function PanelVentas({
             {[...ventas].reverse().map((v) => (
               <li className="item" key={v.id}>
                 <div style={{ minWidth: 0 }}>
-                  <div className="item-titulo">{v.descripcion}</div>
+                  <div className="item-titulo">
+                    {v.cambioId && (
+                      <span className="chip chip-alerta" style={{ marginRight: 6 }}>
+                        CAMBIO · {v.cambio === 'vuelve' ? 'VUELVE' : 'SE LLEVA'}
+                      </span>
+                    )}
+                    {v.descripcion}
+                  </div>
                   <div className="item-sub">
-                    {v.hora} · {v.codigo} · {v.cantidad} × {plata(v.precioUnitario)}{' '}
+                    {v.hora} · {v.codigo || 'sin código'} · {Math.abs(v.cantidad)} × {plata(v.precioUnitario)}{' '}
                     <span
                       className={v.medioPago === 'EFECTIVO' ? 'chip' : 'chip chip-banco'}
                     >
@@ -629,7 +682,7 @@ function PanelVentas({
                   <div className="item-monto">{plata(v.total)}</div>
                   {!bloqueado && (
                     <div className="botonera" style={{ marginTop: 4, justifyContent: 'flex-end' }}>
-                      {otroTurno && (
+                      {otroTurno && !v.cambioId && (
                         <button className="boton-chico" onClick={() => mover(v)}>
                           Pasar a {otroTurno.turno === 'M' ? 'mañana' : 'tarde'}
                         </button>

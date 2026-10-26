@@ -1333,6 +1333,35 @@ mañana con su caja.
 
 ---
 
+## Cambio de producto
+
+La app no tenía cómo registrar un cambio (el cliente devuelve uno, se lleva otro y paga o
+recibe la diferencia), y Sandra lo resolvía con productos comodín sin proveedor, costo ni
+precio: «DIF – Diferencia por cambio» y «SALDOS – DE TODO». Al 26/10 eran $100.700
+vendidos sin saber qué salió, sin margen y sin mover stock. Esas ventas no se tocaron:
+cambiar datos ya cargados necesita el OK de Emmanuel.
+
+En Caja, **"↔ Cambio"** (`src/db/cambioProducto.ts`, `src/componentes/FormularioCambio.tsx`).
+Se elige lo que trae el cliente y lo que se lleva, y la app calcula la diferencia.
+
+### Cómo se guarda
+
+Como **dos renglones de venta del turno unidos por `cambioId`**: el que vuelve en negativo
+(cantidad y total con signo menos) y el que se lleva en positivo. Así, todo lo que ya
+sumaba ventas da bien sin tocarlo:
+
+- en la caja del turno se mueve solo la diferencia, porque los dos renglones llevan el
+  medio de pago de la diferencia. Si se le devuelve plata en efectivo, el efectivo esperado
+  baja solo. No se carga un egreso aparte, que la contaría dos veces;
+- el costo de mercadería resta el que vuelve (al costo de hoy: el original no se conoce) y
+  suma el que sale. El margen queda con la diferencia real;
+- el stock del que vuelve sube y el del que se lleva baja (si el producto lleva stock);
+- el ranking de productos le descuenta las unidades al devuelto.
+
+Lo que sí se tocó: en el resumen del mes un cambio cuenta como **una** operación, no dos,
+y Reportes muestra aparte "Cambios de producto (N), diferencia neta $…". En la lista del
+turno los renglones van marcados "CAMBIO · VUELVE / SE LLEVA". Un cambio se borra o se
+deshace entero, nunca la mitad, y no se puede pasar al otro turno de a un renglón.
 ## El mismo egreso del cajón, dos veces
 
 El 23/10 el pago a Dosanto por $37.500 se registró desde Proveedores con la plata del
