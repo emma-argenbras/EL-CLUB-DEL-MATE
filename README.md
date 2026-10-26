@@ -1333,6 +1333,21 @@ mañana con su caja.
 
 ---
 
+## El mismo egreso del cajón, dos veces
+
+El 23/10 el pago a Dosanto por $37.500 se registró desde Proveedores con la plata del
+cajón —eso ya lo descuenta del turno— y después se cargó a mano como egreso en Caja. El
+cierre lo descontó dos veces.
+
+Ahora, al cargar un egreso del cajón en Caja, si ese día ya hay uno del mismo monto la
+app pregunta antes, diciendo cuál es. Si el que ya está salió de un pago a proveedor,
+explica que el cierre ya lo descuenta. Al revés también: registrar un pago a proveedor
+con plata del cajón pregunta si ese día ya hay un egreso igual cargado a mano
+(`src/lib/egresoRepetido.ts`). No se frena, porque dos egresos iguales el mismo día pueden
+ser de verdad.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
