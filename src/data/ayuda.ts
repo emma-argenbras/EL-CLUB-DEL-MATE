@@ -300,11 +300,21 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'ventas-sin-codigo-resolver',
+    categoria: 'Productos',
+    pregunta: 'Se vendió algo sin código, ¿cómo lo arreglo después?',
+    respuesta:
+      'En Productos, cuando hay ventas sin código aparece arriba un aviso con «Ver y resolver». También está en Ajustes → «Ventas sin código».\n\nAhí está cada venta que se cargó con «Vender igual, sin código» desde septiembre. Tocá «Asignar a un producto», buscá cuál era y confirmá. La venta pasa a tener el código, el nombre y el costo de ese producto, y si el producto lleva stock, se descuenta. Lo cobrado no cambia, y queda en el historial lo que decía antes.\n\nSi el producto no existe, dalo de alta primero en Productos y después asignalo.\n\nAbajo se ven los productos comodín que tienen ventas (sin proveedor, costo ni precio, como «SALDOS – DE TODO»). Esas ventas no se tocan desde ahí: qué hacer con ellas lo decide Emmanuel.',
+    palabrasClave: ['sin codigo', 'asignar venta', 'venta suelta', 'comodin', 'saldos', 'resolver'],
+    requiereSeccion: 'productos',
+    soloOwner: true,
+  },
+  {
     id: 'vender-sin-catalogo',
     categoria: 'Caja',
     pregunta: 'El producto no aparece en el buscador, ¿puedo venderlo igual?',
     respuesta:
-      'Sí. Escribí el nombre en el buscador y, cuando diga "Sin resultados", tocá "Vender igual, sin código": queda registrado con ese nombre y el precio que le pongas a mano, y la venta suma normal a la caja del turno.\n\nSirve para no frenar la atención al cliente. Como no tiene código, esa venta no descuenta stock ni tiene costo cargado, así que va a figurar entre las "ventas sin costo" del mes. Cuando puedas, cargá el producto en Productos para que la próxima vez aparezca completo.',
+      'Sí. Escribí el nombre en el buscador y, cuando diga "Sin resultados", tocá "Vender igual, sin código": queda registrado con ese nombre y el precio que le pongas a mano, y la venta suma normal a la caja del turno.\n\nSirve para no frenar la atención al cliente. Como no tiene código, esa venta no descuenta stock ni tiene costo cargado, así que va a figurar entre las "ventas sin costo" del mes. Cuando puedas, cargá el producto en Productos para que la próxima vez aparezca completo.\n\nEl nombre tiene que decir qué es: «bombilla de madera», «termo 1 litro». Con «saldos», «varios», «de todo» o «dif» la app no deja, porque después nadie puede saber qué salió. Tampoco uses productos comodín como «SALDOS – DE TODO»: en el buscador aparecen marcados en rojo.\n\nPara un cambio de producto no uses esto: está «↔ Cambio».',
     palabrasClave: ['no aparece', 'sin codigo', 'no esta en el catalogo', 'venta suelta', 'vender igual'],
     requiereSeccion: 'caja',
   },

@@ -47,10 +47,12 @@ export function problemaDescripcionSuelta(texto: string): string | null {
   if (limpio.replace(/[^a-z0-9]/g, '').length < LARGO_MINIMO_DESCRIPCION) {
     return 'Escribí qué es lo que se vende, por ejemplo «bombilla de alpaca».'
   }
-  const palabras = limpio
+  // Hace falta al menos una palabra que diga algo: que no sea generica
+  // ni de relleno, y de tres letras o mas («saldos zz» no dice que es).
+  const queDicenAlgo = limpio
     .split(/[^a-z0-9]+/)
-    .filter((p) => p && !DE_RELLENO.has(p))
-  if (palabras.length === 0 || palabras.every((p) => GENERICAS.has(p))) {
+    .filter((p) => p.length >= 3 && !DE_RELLENO.has(p) && !GENERICAS.has(p))
+  if (queDicenAlgo.length === 0) {
     return `«${texto.trim()}» no dice qué salió. Escribí qué es, por ejemplo «bombilla de alpaca».`
   }
   return null

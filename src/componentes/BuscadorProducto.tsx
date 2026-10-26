@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db, productoVisible, type Producto } from '../db/db'
 import { normalizar, plata } from '../lib/formato'
+import { esComodin, problemaDescripcionSuelta } from '../lib/ventaSinCodigo'
 
 interface Props {
   onElegir: (producto: Producto) => void
@@ -148,6 +149,12 @@ export default function BuscadorProducto({ onElegir, autoFoco }: Props) {
                 {p.codigo} · {plata(p.precioVenta)}
                 {p.stock !== null && p.stock !== undefined ? ` · stock ${p.stock}` : ''}
               </div>
+              {esComodin(p) && (
+                <div className="item-sub negativo">
+                  Producto comodín: la venta no va a decir qué salió. Mejor «Vender igual, sin
+                  código» con el nombre de lo que es.
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -155,13 +162,24 @@ export default function BuscadorProducto({ onElegir, autoFoco }: Props) {
       {abierto && texto.length >= 2 && resultados.length === 0 && (
         <div className="sugerencias">
           <div className="sugerencia silencio">Sin resultados para “{texto}”</div>
-          <div className="sugerencia" onClick={() => elegir(productoSuelto(texto))}>
-            <div className="item-titulo">Vender igual, sin código</div>
-            <div className="item-sub">
-              Se registra como “{texto.trim()}” y le ponés el precio a mano. Sirve para algo que
-              todavía no está en el catálogo, sin frenar la venta.
+          {/* La descripcion tiene que decir que es: «saldos» o «varios»
+              dejan una venta que nadie puede saber que fue (ver
+              lib/ventaSinCodigo.ts). No se frena la venta: se pide un
+              nombre que sirva. */}
+          {problemaDescripcionSuelta(texto) === null ? (
+            <div className="sugerencia" onClick={() => elegir(productoSuelto(texto))}>
+              <div className="item-titulo">Vender igual, sin código</div>
+              <div className="item-sub">
+                Se registra como “{texto.trim()}” y le ponés el precio a mano. Sirve para algo que
+                todavía no está en el catálogo, sin frenar la venta.
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="sugerencia silencio">
+              <div className="item-titulo">Para vender sin código, escribí qué es</div>
+              <div className="item-sub">{problemaDescripcionSuelta(texto)}</div>
+            </div>
+          )}
         </div>
       )}
     </div>

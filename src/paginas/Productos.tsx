@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
+import { esComodin, VENTAS_SIN_CODIGO_DESDE } from '../lib/ventaSinCodigo'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   gruposRepetidos,
@@ -224,6 +225,18 @@ export default function Productos() {
       sinNombre: todos.filter(sinNombrePropio).length,
     }
   }, [])
+  // Las ventas sin codigo y las de productos comodin, para resolverlas
+  // desde su pagina (ver lib/ventaSinCodigo.ts).
+  const porResolver = useLiveQuery(async () => {
+    const ventas = await db.ventas.where('fecha').aboveOrEqual(VENTAS_SIN_CODIGO_DESDE).toArray()
+    const comodines = new Set(
+      (await db.productos.filter(esComodin).toArray()).map((p) => p.codigo),
+    )
+    return {
+      sinCodigo: ventas.filter((v) => !v.codigo).length,
+      deComodines: ventas.filter((v) => v.codigo && comodines.has(v.codigo)).length,
+    }
+  }, [])
   const desactualizados = conteoAlertas?.desactualizados
   const agotados = conteoAlertas?.agotados
   const bajoCosto = conteoAlertas?.bajoCosto
@@ -280,6 +293,25 @@ export default function Productos() {
         <CompartirCatalogo chico />
       </div>
 
+      {esOwner && porResolver && (porResolver.sinCodigo > 0 || porResolver.deComodines > 0) && (
+        <div className="aviso aviso-ojo">
+          {porResolver.sinCodigo > 0 && (
+            <>
+              <strong>{porResolver.sinCodigo}</strong>{' '}
+              {porResolver.sinCodigo === 1 ? 'venta se cargó' : 'ventas se cargaron'} sin código.{' '}
+            </>
+          )}
+          {porResolver.deComodines > 0 && (
+            <>
+              <strong>{porResolver.deComodines}</strong>{' '}
+              {porResolver.deComodines === 1 ? 'venta es' : 'ventas son'} de productos comodín
+              (sin proveedor, costo ni precio).{' '}
+            </>
+          )}
+          No dicen qué salió: no tienen margen ni mueven stock.{' '}
+          <Link to="/ventas-sin-codigo">Ver y resolver →</Link>
+        </div>
+      )}
       {esOwner && solicitudes && solicitudes.length > 0 && (
         <div className="tarjeta">
           <p className="tarjeta-titulo">

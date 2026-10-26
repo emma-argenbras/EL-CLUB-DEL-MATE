@@ -589,3 +589,44 @@ describe('sistema: un dispositivo que se quedo atras', () => {
     expect(aviso?.soloOwner).toBeFalsy()
   })
 })
+
+describe('ventas que no dicen que salio', () => {
+  it('ventas sin codigo del mes: aviso con cuantas y por cuanto, que lleva a resolverlas', () => {
+    const h = buscar(
+      auditar(datos({ ventas: [venta({ codigo: '', fecha: '2026-10-24', total: 9000 }), venta({ fecha: '2026-10-24' })] })),
+      'ventas-sin-codigo',
+    )
+    expect(h?.cantidad).toBe(1)
+    expect(h?.monto).toBe(9000)
+    expect(h?.ruta).toBe('/ventas-sin-codigo')
+  })
+
+  it('el caso del 26/10: SALDOS y DIF con ventas son comodines, y se nombran', () => {
+    const SALDOS = producto({ codigo: 'SALDOS', descripcion: 'SALDOS – DE TODO', proveedor: null, proveedorId: null, precioCompra: null, precioVenta: null })
+    const DIF = producto({ codigo: 'DIF', descripcion: 'DIF – Diferencia por cambio', proveedor: null, proveedorId: null, precioCompra: null, precioVenta: null })
+    const h = buscar(
+      auditar(
+        datos({
+          productos: [SALDOS, DIF],
+          ventas: [
+            venta({ codigo: 'DIF', total: 39700 }),
+            venta({ codigo: 'SALDOS', total: 15000 }),
+            venta({ codigo: 'SALDOS', total: 46000 }),
+          ],
+        }),
+      ),
+      'productos-comodin',
+    )
+    expect(h?.nivel).toBe('importante')
+    expect(h?.cantidad).toBe(3)
+    expect(h?.monto).toBe(100700)
+    expect(h?.detalle).toContain('«SALDOS – DE TODO»: 2 ventas')
+    expect(h?.detalle).toContain('«DIF – Diferencia por cambio»: 1 venta')
+  })
+
+  it('ni unas ni otras: no avisa', () => {
+    const hallazgos = auditar(datos({ ventas: [venta({})] }))
+    expect(hallazgos.map((h) => h.id)).not.toContain('ventas-sin-codigo')
+    expect(hallazgos.map((h) => h.id)).not.toContain('productos-comodin')
+  })
+})
