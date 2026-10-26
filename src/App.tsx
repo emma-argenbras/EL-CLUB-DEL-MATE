@@ -25,6 +25,7 @@ import Ayuda from './paginas/Ayuda'
 import ConsultaPrecios from './paginas/ConsultaPrecios'
 import RecuperarProductos from './paginas/RecuperarProductos'
 import RevisionCostos from './paginas/RevisionCostos'
+import VentasSinCodigo from './paginas/VentasSinCodigo'
 import UnirProveedores from './paginas/UnirProveedores'
 import RevisionProveedores from './paginas/RevisionProveedores'
 import TurnosDelDia from './paginas/TurnosDelDia'
@@ -270,6 +271,10 @@ export default function App() {
           <Route
             path="/revision-costos"
             element={alMando ? <RevisionCostos /> : <Navigate to="/caja" replace />}
+          />
+          <Route
+            path="/ventas-sin-codigo"
+            element={alMando ? <VentasSinCodigo /> : <Navigate to="/caja" replace />}
           />
           <Route
             path="/unir-proveedores"
