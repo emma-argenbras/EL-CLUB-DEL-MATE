@@ -157,6 +157,10 @@ export interface ResumenMes {
   ventasSinCosto: number
   montoSinCosto: number
   diasConVentas: number
+  /** Cambios de producto: cada uno son dos renglones, pero es una operacion. */
+  cambios: number
+  /** Lo que dejaron los cambios: lo cobrado de diferencia menos lo devuelto. */
+  diferenciaCambios: number
 }
 
 export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenMes {
@@ -167,8 +171,20 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
   let ventasSinCosto = 0
   let montoSinCosto = 0
   const dias = new Set<string>()
+  let ventasSueltas = 0
+  const cambios = new Set<string>()
+  let diferenciaCambios = 0
 
   for (const v of ventas) {
+    // Un cambio son dos renglones (el que vuelve, en negativo, y el que
+    // se lleva) y entra en las sumas como cualquier venta. Lo unico que
+    // no se cuenta doble es la operacion: un cambio es uno.
+    if (v.cambioId) {
+      cambios.add(v.cambioId)
+      diferenciaCambios += v.total
+    } else {
+      ventasSueltas += 1
+    }
     if (v.medioPago === 'EFECTIVO') ventasEfectivo += v.total
     else ventasBanco += v.total
     unidades += v.cantidad
@@ -199,7 +215,7 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
     ventasBanco,
     ventasTotales,
     unidades,
-    operaciones: ventas.length,
+    operaciones: ventasSueltas + cambios.size,
     costoMercaderia,
     margenContribucion,
     margenContribucionPorcentual:
@@ -210,6 +226,8 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
     ventasSinCosto,
     montoSinCosto,
     diasConVentas: dias.size,
+    cambios: cambios.size,
+    diferenciaCambios: Math.round(diferenciaCambios * 100) / 100,
   }
 }
 
