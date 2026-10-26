@@ -19,6 +19,7 @@ import {
 } from './calculos'
 import { plata } from './formato'
 import { fantasmasDeLosProductos } from './proveedorDeProducto'
+import { comodinesConVentas, ventasSinCodigo } from './ventaSinCodigo'
 
 /**
  * Auditoria automatica del negocio.
@@ -575,6 +576,55 @@ function auditarVentas(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   })
 }
 
+/**
+ * Las ventas que no dicen qué salió: las sin código y las de productos
+ * comodín (ver lib/ventaSinCodigo.ts). Se miran las del mes.
+ */
+function auditarVentasSinCodigo(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
+  const sinCodigo = ventasSinCodigo(datos.ventas)
+  if (sinCodigo.length > 0) {
+    const monto = sinCodigo.reduce((s, v) => s + v.total, 0)
+    hallazgos.push({
+      id: 'ventas-sin-codigo',
+      modulo: 'productos',
+      nivel: 'aviso',
+      titulo: `${sinCodigo.length} ${plural(sinCodigo.length, 'venta del mes se cargó', 'ventas del mes se cargaron')} sin código`,
+      detalle: `Son ${plata(monto)} que no dicen de qué producto son: no tienen costo ni mueven stock.`,
+      comoSeResuelve:
+        'En Ventas sin código, asignale a cada una su producto. Si no existe, dalo de alta en Productos primero.',
+      ruta: '/ventas-sin-codigo',
+      cantidad: sinCodigo.length,
+      monto,
+      soloOwner: true,
+      requiereSeccion: 'productos',
+    })
+  }
+
+  const comodines = comodinesConVentas(datos.productos, datos.ventas)
+  if (comodines.length > 0) {
+    const monto = comodines.reduce((s, c) => s + c.monto, 0)
+    const ventas = comodines.reduce((s, c) => s + c.ventas, 0)
+    hallazgos.push({
+      id: 'productos-comodin',
+      modulo: 'productos',
+      nivel: 'importante',
+      titulo: `${ventas} ${plural(ventas, 'venta del mes es', 'ventas del mes son')} de productos comodín`,
+      detalle:
+        comodines
+          .map((c) => `«${c.producto.descripcion}»: ${c.ventas} ${plural(c.ventas, 'venta', 'ventas')}, ${plata(c.monto)}`)
+          .join('. ') +
+        `. En total ${plata(monto)} sin saber qué salió: sin proveedor, costo ni precio, no tienen margen y no mueven stock.`,
+      comoSeResuelve:
+        'De acá en adelante: «Vender igual, sin código» con el nombre de lo que salió, o «↔ Cambio» en Caja para un cambio. Qué hacer con las ventas que ya están lo decide Emmanuel.',
+      ruta: '/ventas-sin-codigo',
+      cantidad: ventas,
+      monto,
+      soloOwner: true,
+      requiereSeccion: 'productos',
+    })
+  }
+}
+
 function auditarProveedores(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   const saldos = new Map<string, number>()
   for (const movimiento of datos.cuentaCorriente) {
@@ -700,6 +750,7 @@ export function auditar(datos: DatosAuditoria): Hallazgo[] {
   auditarCaja(datos, hallazgos)
   auditarProductos(datos, hallazgos)
   auditarVentas(datos, hallazgos)
+  auditarVentasSinCodigo(datos, hallazgos)
   auditarProveedores(datos, hallazgos)
   auditarGastos(datos, hallazgos)
   auditarSistema(datos, hallazgos)
@@ -888,6 +939,22 @@ export const CONTROLES: {
     modulo: 'productos',
     que: 'Que las ventas del mes tengan el costo cargado',
     bien: 'Todas las ventas del mes tienen costo, así que el margen es real',
+    soloOwner: true,
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'ventas-sin-codigo',
+    modulo: 'productos',
+    que: 'Que las ventas sin código del mes estén resueltas',
+    bien: 'Todas las ventas del mes dicen de qué producto son',
+    soloOwner: true,
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'productos-comodin',
+    modulo: 'productos',
+    que: 'Que no se venda con productos comodín (sin proveedor, costo ni precio)',
+    bien: 'Ninguna venta del mes es de un producto comodín',
     soloOwner: true,
     requiereSeccion: 'productos',
   },

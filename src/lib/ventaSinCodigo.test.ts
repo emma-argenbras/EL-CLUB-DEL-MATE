@@ -34,6 +34,12 @@ describe('problemaDescripcionSuelta: que diga que es', () => {
     expect(problemaDescripcionSuelta('   ')).not.toBeNull()
   })
 
+  it('una generica con algo de relleno corto no alcanza', () => {
+    expect(problemaDescripcionSuelta('saldos zz')).not.toBeNull()
+    expect(problemaDescripcionSuelta('varios x2')).not.toBeNull()
+    expect(problemaDescripcionSuelta('mate x2')).toBeNull()
+  })
+
   it('algo que dice que es, si', () => {
     for (const t of ['Bombilla de alpaca', 'mate torpedo', 'termo stanley', 'yerba suelta 1kg', 'saldo de bombillas']) {
       expect(problemaDescripcionSuelta(t), t).toBeNull()

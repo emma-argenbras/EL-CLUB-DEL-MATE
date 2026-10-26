@@ -355,6 +355,22 @@ export default function Ajustes() {
       </div>
 
       <div className="tarjeta">
+        <p className="tarjeta-titulo">Ventas sin código</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          Lo que se vendió con «Vender igual, sin código», para decir de a una qué producto
+          era. Así esas ventas pasan a tener costo y a mover stock. Muestra también los
+          productos comodín que tienen ventas, sin tocarlos.
+        </p>
+        <Link
+          className="boton-chico"
+          style={{ width: '100%', textAlign: 'center' }}
+          to="/ventas-sin-codigo"
+        >
+          Ver ventas sin código
+        </Link>
+      </div>
+
+      <div className="tarjeta">
         <p className="tarjeta-titulo">Revisión de proveedores</p>
         <p className="silencio" style={{ marginTop: 0 }}>
           Cuántos proveedores hay, cuáles están repetidos, cuáles están inactivos y cuáles usan

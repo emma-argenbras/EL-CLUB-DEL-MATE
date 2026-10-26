@@ -1377,6 +1377,33 @@ ser de verdad.
 
 ---
 
+## Ventas sin código
+
+La app ya dejaba «Vender igual, sin código», y está bien que sea así: frenar la venta con
+el cliente esperando para dar de alta un producto termina en productos hechos a las
+apuradas. Pero se aceptaba cualquier texto, y se usaban productos comodín para lo mismo.
+Al 26/10, «SALDOS – DE TODO» y «DIF – Diferencia por cambio» sumaban $100.700 que no
+dicen qué salió.
+
+Lo que aprobó Emmanuel (`src/lib/ventaSinCodigo.ts`):
+
+- **La descripción tiene que decir qué es.** Si no, el buscador no ofrece vender sin
+  código: necesita al menos una palabra de tres letras o más que no sea genérica ni de
+  relleno («saldos», «varios», «de todo», «dif» no alcanzan). Los productos comodín
+  aparecen en el buscador marcados en rojo, sin bloquearlos: sacarlos de circulación lo
+  decide Emmanuel.
+- **Una lista para resolverlas después** (Productos → «Ver y resolver», o Ajustes →
+  «Ventas sin código»). Cada venta sin código cargada en la app desde el 1/9 (lo de antes
+  es la planilla importada) se asigna **de a una** a su producto. Pasa a tener su código,
+  su nombre y el costo de hoy, y descuenta el stock si el producto lo lleva. Lo cobrado no
+  cambia y el historial guarda lo que decía antes (`src/db/asignarVentaSinCodigo.ts`).
+- **Aviso en el Panel.** «N ventas del mes se cargaron sin código» y, como importante, las
+  ventas de productos comodín (sin proveedor, costo ni precio), nombrando cada uno.
+
+Las ventas ya cargadas con DIF y SALDOS **no se tocan**: la lista las muestra y nada más.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
