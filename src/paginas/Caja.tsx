@@ -18,6 +18,7 @@ import { fechaLinda, haceCuanto, hoyISO, horaAhora, leerNumero, plata } from '..
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
 import FormularioCambio from '../componentes/FormularioCambio'
+import { egresoIgual, preguntaEgresoRepetido } from '../lib/egresoRepetido'
 import { borrarCambio, MOTIVO_BORRAR_CAMBIO, MOTIVO_DESHACER_CAMBIO } from '../db/cambioProducto'
 import CierresPendientes from '../componentes/CierresPendientes'
 import CierresTardios from '../componentes/CierresTardios'
@@ -733,6 +734,14 @@ function PanelEgresos({
   async function agregar() {
     const valor = leerNumero(monto)
     if (!valor || valor <= 0) return
+    // El mismo egreso dos veces: pasa cuando un pago a proveedor ya salio
+    // del cajon desde Proveedores y despues se carga tambien aca (ver
+    // lib/egresoRepetido.ts). Se pregunta, no se frena.
+    if (tipo === 'EGRESO_CAJA') {
+      const delDia = await db.movimientos.where('fecha').equals(jornada.fecha).toArray()
+      const igual = egresoIgual(valor, jornada.fecha, delDia)
+      if (igual && !confirm(preguntaEgresoRepetido(igual))) return
+    }
     await db.movimientos.add({
       id: nuevoId(),
       fecha: jornada.fecha,

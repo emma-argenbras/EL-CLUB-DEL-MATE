@@ -18,6 +18,7 @@ import { ETIQUETA_CUENTA, FORMAS_DE_COMPRA, tipoSegunCuenta, type CuentaDePago }
 import { idDeProveedor } from '../lib/idProveedor'
 import { enlaceWhatsApp, soloDigitos } from '../lib/whatsapp'
 import { fechaLinda, haceCuanto, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
+import { egresoIgual, preguntaPagoRepetido } from '../lib/egresoRepetido'
 import {
   descartarBorradorCompra,
   guardarBorradorCompra,
@@ -1186,6 +1187,13 @@ function FormularioPago({ proveedor, onSalir }: { proveedor: Proveedor; onSalir:
     if (cuenta === 'cajon' && !turnoAbierto) {
       setError('No hay ningún turno abierto, así que la plata no puede salir del cajón.')
       return
+    }
+    // Al reves que en Caja: el egreso ya se cargo a mano y ahora se
+    // registra el pago con plata del cajon (ver lib/egresoRepetido.ts).
+    if (delCajon) {
+      const delDia = await db.movimientos.where('fecha').equals(fecha).toArray()
+      const igual = egresoIgual(numero, fecha, delDia)
+      if (igual && !confirm(preguntaPagoRepetido(igual))) return
     }
 
     const idGasto = nuevoId()
