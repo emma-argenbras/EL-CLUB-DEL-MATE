@@ -2016,8 +2016,28 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 22/10/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 27/10/2026. Lo de arriba de la lista es lo que
 sigue.
+
+**Encontrado en la auditoría del 27/10** (sin cambios de código todavía)
+
+- [ ] **Cada apertura de la app lee la base entera del servidor.** `empujarTodoLocal`
+      hace `getDocs` de las diez colecciones en cada inicio de sesión —también al tocar
+      "Actualizar"— para comparar con la copia local: del orden de 8.000 a 15.000
+      lecturas por apertura y por dispositivo, contra las 50.000 diarias del plan Spark.
+      Y `controlarSinSubir` hace diez conteos cada cinco minutos, unas 5.000 lecturas
+      por día en la PC que queda prendida. Corrección: comparar los conteos primero y
+      leer una colección entera solo cuando el conteo local supera al del servidor;
+      controlar cada 15 minutos. Antes, mirar el uso real en la consola de Firebase.
+- [ ] **El historial crece sin límite** y cada dispositivo lo escucha y lo carga entero
+      (`Historial.tsx` trae todos los renglones a memoria). Escuchar solo los últimos
+      90 días y traer lo viejo a pedido; en la pantalla, de a 300 con "ver más".
+- [ ] **Las pruebas de reglas no corren en el CI.** GitHub Actions tiene Java: agregar
+      `npm run test:reglas` a `verificar.yml`. Y pasar tres o cuatro guiones de
+      Playwright al repositorio para correrlos contra los emuladores.
+- [ ] Detalles: un cambio de producto cuenta como dos en "Ventas (N)" de Caja y en
+      Turnos del día; el aviso "ventas sin costo" cuenta dos veces un cambio cuyo
+      producto no tiene costo; `rechazos` no se limpia nunca.
 
 **En curso**
 
