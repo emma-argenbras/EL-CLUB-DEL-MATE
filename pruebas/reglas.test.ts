@@ -878,3 +878,48 @@ describe('corregir el turno de un turno abierto (cambiarTurno)', () => {
     await assertSucceeds(updateDoc(doc(comoSandra(), `${NEGOCIO}/jornadas/j1`), { turno: 'M' }))
   })
 })
+
+describe('la venta de Gabriela con la copia atrasada (31/10)', () => {
+  // Sandra sube el precio en su Mac. El celular de Gabriela todavia tiene
+  // el precio viejo y vende: la app descuenta stock. Hasta el 31/10
+  // mandaba el producto entero --con el precio viejo adentro-- y como
+  // un empleado no puede tocar el precio, el servidor rechazaba el
+  // descuento. Ahora viaja solo lo que cambio.
+  const EN_EL_CELULAR = {
+    codigo: 'TM015', descripcion: 'MATE IMPERIAL', proveedor: 'MOHICANO', proveedorId: 'mohicano',
+    fechaCompra: null, precioCompra: 20000, rentabilidad: 1.3, precioVenta: 45000,
+    fechaPrecioVenta: null, busqueda: 'tm015 mate imperial', stock: 3, activo: true,
+  }
+
+  beforeEach(async () => {
+    await entorno.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${NEGOCIO}/productos/TM015`), { ...EN_EL_CELULAR, precioVenta: 50000 })
+    })
+  })
+
+  it('el documento entero con el precio viejo se rechaza (lo que pasaba)', async () => {
+    await assertFails(
+      setDoc(doc(comoGabi(), `${NEGOCIO}/productos/TM015`), { ...EN_EL_CELULAR, stock: 2, actualizadoEn: 1 }),
+    )
+  })
+
+  it('solo el stock, con mergeFields, entra y el precio nuevo queda', async () => {
+    const parcial = { stock: 2, actualizadoEn: 1, actualizadoPor: 'sucursalconcordia@elclubdelmate.com' }
+    await assertSucceeds(
+      setDoc(doc(comoGabi(), `${NEGOCIO}/productos/TM015`), parcial, { mergeFields: Object.keys(parcial) }),
+    )
+    const quedo = (await getDoc(doc(comoGabi(), `${NEGOCIO}/productos/TM015`))).data()
+    expect(quedo?.stock).toBe(2)
+    expect(quedo?.precioVenta).toBe(50000)
+  })
+
+  it('mergeFields reemplaza un objeto entero: los billetes de un arqueo no se mezclan con los viejos', async () => {
+    await sembrarJornada(hoyArgentina(), { arqueoApertura: { billetes: { '1000': 10, '500': 4 }, monedas: 0 } })
+    const parcial = { arqueoApertura: { billetes: { '2000': 1 }, monedas: 5 } }
+    await assertSucceeds(
+      setDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j1`), parcial, { mergeFields: Object.keys(parcial) }),
+    )
+    const quedo = (await getDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j1`))).data()
+    expect(quedo?.arqueoApertura).toEqual({ billetes: { '2000': 1 }, monedas: 5 })
+  })
+})
