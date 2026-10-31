@@ -882,12 +882,38 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'turno-cargado-dos-veces',
+    categoria: 'Caja',
+    pregunta: 'El Panel dice que un turno está cargado más de una vez. ¿Qué pasó y qué hago?',
+    respuesta:
+      'Hay dos turnos para la misma fecha y el mismo horario (dos «29/10 mañana», por ejemplo). Pasa cuando dos aparatos cargan el mismo turno sin verse: uno estaba sin señal o con la app atrasada, desde el otro se volvió a cargar, y cuando el primero se conectó subió el suyo al lado.\n\nEs un problema porque Caja muestra uno solo de los dos, pero los reportes suman las ventas de los dos, así que ese día figura vendido de más.\n\nEntrá a Turnos del día (desde el aviso, o desde Ajustes) y elegí la fecha: aparecen los dos turnos, con cuántas ventas tiene cada uno y por cuánto. Si uno es copia del otro, borralo: te pide el motivo y queda en el historial. Si cada uno tiene ventas distintas, primero pasá las ventas de uno al otro desde Caja, y recién después borrá el que quedó vacío.\n\nDesde la versión del 31/10 la app frena esto antes de que pase: ver «Hay cargas de este aparato que no se subieron».',
+    palabrasClave: ['turno repetido', 'duplicado', 'dos turnos', 'dos veces', 'turnos del dia', 'sumado doble'],
+    soloOwner: true,
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'cartel-servidor-no-acepto',
     categoria: 'Sincronización y respaldo',
     pregunta: 'Me apareció un cartel rojo: "El servidor no aceptó un cambio". ¿Qué hago?',
     respuesta:
       'Quiere decir que lo que cargaste no quedó guardado en el servidor. Lo que ves ahora en pantalla es lo que el servidor tiene, así que puede que tu cambio se haya deshecho.\n\nEl cartel dice el motivo, por ejemplo con qué rol figura tu usuario en el servidor o qué dato quedaba vacío. Sacale una foto y mandásela a Emmanuel, y después tocá "Entendido".\n\nNo hace falta que vuelvas a cargar lo mismo enseguida: si el motivo es del servidor, va a volver a pasar. Esperá a que te avisen que está arreglado.\n\nCuando lo único que fallaba era un dato que el cambio dejaba vacío (por ejemplo el proveedor), la app lo vuelve a mandar sola sin tocar ese dato, y en ese caso no aparece ningún cartel: el cambio entra.',
     palabrasClave: ['no acepto', 'rechazo', 'cartel rojo', 'no se guardo', 'se deshizo', 'volvio'],
+  },
+  {
+    id: 'cargas-retenidas',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Apareció un cartel: «Hay cargas de este aparato que no se subieron, a propósito». ¿Qué pasó?',
+    respuesta:
+      'Este aparato tenía guardado un turno con sus ventas que nunca había llegado al servidor (estuvo sin señal, o con la app fallando), y mientras tanto ese mismo turno —misma fecha y mismo horario— se cargó desde otro aparato. Al conectarse, la app lo notó y frenó la subida: si subía el suyo al lado del otro, el día quedaba vendido dos veces.\n\nNo se perdió nada y no se duplicó nada: el turno sigue guardado en este aparato, y el servidor tiene el que se cargó desde el otro.\n\nQué hacer: avisale a Emmanuel o a Sandra. Lo resuelven desde Ajustes de este mismo aparato, en «Cargas retenidas», donde cada turno retenido tiene dos botones: «Ya está cargado: descartar» (se borra de este aparato nada más, el servidor no cambia) y «Falta de verdad: subirlo» (se sube igual, y quedan dos turnos para esa fecha, que después se ven en Turnos del día). Mientras tanto podés seguir trabajando normal.\n\nEste freno actúa sobre la subida que hace la app al iniciar sesión. Lo que se carga con la sesión ya abierta y sin señal se sube solo al volver la señal, como siempre.',
+    palabrasClave: ['retenido', 'no se subieron', 'a proposito', 'cargas retenidas', 'duplicar', 'turno repetido'],
+  },
+  {
+    id: 'borrar-app-del-celular',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Voy a borrar la app del celular, ¿se pierde algo? ¿Alcanza con borrar el ícono?',
+    respuesta:
+      'Antes de borrar nada, fijate en Ajustes si dice que hay cosas sin subir o cargas retenidas. Si hay, avisá primero: ese celular puede ser la única copia de esas ventas.\n\nBorrar el ícono no alcanza. En Android la app guarda sus datos adentro de Chrome, y siguen ahí aunque se desinstale. Para que no quede nada: sin abrir la app, en Chrome → ⋮ → Configuración → Configuración de sitios → Todos los sitios → app.elclubdelmate.com → «Borrar y restablecer». Recién después, mantené apretado el ícono y desinstalala (si pregunta si también borrar los datos de Chrome, decí que sí). En iPhone, borrar la app de la pantalla alcanza; por las dudas, Ajustes → Safari → Avanzado → Datos de sitios web → app.elclubdelmate.com → Eliminar.\n\nLo que ya estaba en el servidor no se pierde: al volver a instalarla y entrar con tu usuario, baja todo de nuevo. Lo único que se pierde es lo que estaba solo en ese celular y nunca llegó a subir.',
+    palabrasClave: ['desinstalar', 'borrar la app', 'eliminar', 'reinstalar', 'datos del sitio', 'chrome', 'icono'],
   },
   {
     id: 'cartel-sin-subir',

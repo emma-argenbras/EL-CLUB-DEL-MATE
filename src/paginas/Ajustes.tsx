@@ -24,6 +24,9 @@ import {
 import { URL_CATALOGO } from '../lib/whatsapp'
 import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
+import { estaAlMando } from '../sync/permisos'
+import { fechaLinda, plata } from '../lib/formato'
+import type { TurnoRetenido } from '../sync/retener'
 import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
 import { apagarModoConsulta, leerModoConsulta, prenderModoConsulta } from '../lib/modoConsulta'
@@ -225,6 +228,7 @@ export default function Ajustes() {
       )}
 
       <TarjetaRespaldo />
+      <TarjetaRetenidos />
       <TarjetaUsuarios />
 
       <div className="tarjeta">
@@ -466,6 +470,105 @@ const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
   conectando: { texto: 'Conectando…', clase: 'chip chip-alerta' },
   sincronizado: { texto: 'Sincronizado', clase: 'chip chip-banco' },
   error: { texto: 'Hay un problema de conexión', clase: 'chip chip-alerta' },
+}
+
+/**
+ * Los turnos que la subida inicial retuvo para no duplicar (ver
+ * sync/retener.ts). Quien esta al mando decide, turno por turno.
+ */
+function TarjetaRetenidos() {
+  const estado = useEstadoNube()
+  const sesion = useSesion()
+  const [mensaje, setMensaje] = useState('')
+  const [trabajando, setTrabajando] = useState<string | null>(null)
+  if (!nubeConfigurada || estado.retenidos.length === 0) return null
+  const alMando = estaAlMando(sesion.perfil)
+  const nombreTurno = (t: TurnoRetenido) =>
+    `${fechaLinda(t.fecha)} ${t.turno === 'M' ? 'mañana' : 'tarde'}`
+
+  async function descartar(t: TurnoRetenido) {
+    if (
+      !confirm(
+        `¿Descartar el turno ${nombreTurno(t)} de este aparato?\n\nSe borran de ACÁ sus ${t.ventas} ventas (${plata(t.totalVentas)}) y ${t.movimientos} egresos. El servidor no cambia: ahí queda el turno cargado desde el otro aparato.`,
+      )
+    ) {
+      return
+    }
+    setTrabajando(t.id)
+    try {
+      const { descartarTurnoRetenido } = await import('../sync/motor')
+      await descartarTurnoRetenido(t.id)
+      setMensaje(`Descartado el turno ${nombreTurno(t)} de este aparato.`)
+    } finally {
+      setTrabajando(null)
+    }
+  }
+
+  async function subir(t: TurnoRetenido) {
+    if (
+      !confirm(
+        `¿Subir igual el turno ${nombreTurno(t)}?\n\nVa a quedar un segundo turno para esa fecha y horario, con sus ${t.ventas} ventas (${plata(t.totalVentas)}). Solo si de verdad no está cargado. Después se ve en Turnos del día.`,
+      )
+    ) {
+      return
+    }
+    setTrabajando(t.id)
+    try {
+      const { subirTurnoRetenido } = await import('../sync/motor')
+      const n = await subirTurnoRetenido(t.id)
+      setMensaje(`Subido el turno ${nombreTurno(t)}: ${n} registros.`)
+    } catch (e) {
+      setMensaje(`No se pudo subir: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTrabajando(null)
+    }
+  }
+
+  return (
+    <div className="tarjeta">
+      <p className="tarjeta-titulo">Cargas retenidas</p>
+      <div className="aviso aviso-error">
+        Estos turnos están en este aparato pero <strong>no se subieron</strong>: el servidor ya
+        tiene un turno para esa misma fecha y horario, cargado desde otro aparato. Subirlos a
+        ciegas los duplicaría. Si ya están cargados allá, descartalos de acá. Si de verdad
+        faltan, subilos.
+      </div>
+      {mensaje && <div className="aviso aviso-ok">{mensaje}</div>}
+      <ul className="lista">
+        {estado.retenidos.map((t) => (
+          <li className="item" key={t.id} style={{ display: 'block' }}>
+            <div className="item-titulo">{nombreTurno(t)}</div>
+            <div className="item-sub">
+              {t.ventas} {t.ventas === 1 ? 'venta' : 'ventas'} por {plata(t.totalVentas)} ·{' '}
+              {t.movimientos} {t.movimientos === 1 ? 'egreso' : 'egresos'}
+            </div>
+            {alMando ? (
+              <div className="botonera" style={{ marginTop: 6 }}>
+                <button
+                  className="boton-chico"
+                  disabled={trabajando === t.id}
+                  onClick={() => void descartar(t)}
+                >
+                  Ya está cargado: descartar
+                </button>
+                <button
+                  className="boton-chico"
+                  disabled={trabajando === t.id}
+                  onClick={() => void subir(t)}
+                >
+                  Falta de verdad: subirlo
+                </button>
+              </div>
+            ) : (
+              <p className="silencio" style={{ marginTop: 4, marginBottom: 0 }}>
+                Lo decide un dueño o la encargada desde este mismo aparato.
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 function TarjetaRespaldo() {
