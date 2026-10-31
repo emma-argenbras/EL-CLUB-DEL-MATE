@@ -1466,6 +1466,55 @@ del build (y el commit) en Ajustes y en la pantalla de entrada.
   intacto y ya en el celular, sin rechazos, sin cartel. Los cinco escenarios del 22/10
   siguen pasando.
 
+## Lo que no se sube: un turno que el servidor ya tiene
+
+Cuando una persona inicia sesión, la app sube lo que ese aparato tiene y el servidor
+no (`empujarTodoLocal`). Compara por id: si el id no está allá, se sube. Eso duplica un
+turno entero en un caso que el 31/10 estuvo a punto de pasar: el celular de Gabriela
+tenía turnos con ventas que no habían llegado, Sandra los volvió a cargar desde su Mac
+—otro id de turno, otros ids de ventas— y al reconectarse el celular habría subido los
+suyos al lado de los de Sandra. Caja muestra uno solo de los dos turnos; los reportes
+suman los dos.
+
+### El freno
+
+Un turno se identifica, para una persona, por su fecha y su horario (mañana o tarde).
+Antes de subir, la app lee los turnos del servidor; si para esa fecha y horario ya hay
+uno con otro id, el de este aparato **se retiene**, con sus ventas y sus egresos. No se
+sube ni se borra (`src/sync/retener.ts`). Queda anotado en el aparato
+(`ajustes['subidaRetenida']`), sale un cartel arriba de todo —«Hay cargas de este
+aparato que no se subieron, a propósito»— y en Ajustes aparece la tarjeta «Cargas
+retenidas», con cada turno, sus ventas y su total, y dos botones para quien está al
+mando: **«Ya está cargado: descartar»** borra el turno de este aparato nada más (en
+`comoRemoto`, sin viajar y sin anotarse como borrado), y **«Falta de verdad: subirlo»**
+lo sube igual, a sabiendas de que quedan dos turnos para esa fecha, que después se ven
+en Turnos del día.
+
+Lo que el freno no cubre, y por qué:
+
+- Las escrituras hechas con la sesión abierta y sin señal no pasan por la subida
+  inicial: las encola Firestore y las manda solo al volver la señal. Eso no se puede
+  interceptar desde la app.
+- Un aparato con la versión anterior sube lo suyo antes de actualizarse, porque la
+  subida inicial corre con el código que ya tiene instalado. Para el celular de
+  Gabriela el freno llegaba tarde; la salida fue borrar los datos del sitio en Chrome
+  sin abrir la app (está en la Ayuda: «Voy a borrar la app del celular»).
+
+Y para lo que ya quedó duplicado hay un aviso nuevo en el Panel y en la revisión
+completa, **«N turnos están cargados más de una vez»** (`caja-turnos-repetidos`), de
+cualquier mes, que lleva a Turnos del día. Lo ve quien está al mando.
+
+### Cómo se probó
+
+- 6 pruebas de `retener.ts` (qué se retiene, qué no, qué cuelga de un turno retenido,
+  el texto del cartel) y 3 del aviso del Panel. Mutadas: `decidirRetenidos` devolviendo
+  vacío caen 2; `cuelgaDeRetenido` siempre falso cae 1; sin el aviso caen 2.
+- La app entera contra los emuladores: el celular tiene el turno 29/10 mañana con 2
+  ventas y 1 egreso que nunca subieron, y el servidor tiene ese turno cargado por Sandra
+  con otro id. Al iniciar sesión el servidor queda igual (su turno, sus 2 ventas), sale
+  el cartel, sobrevive a recargar la app, y «descartar» borra las copias de este aparato
+  sin tocar el servidor.
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño
@@ -1971,13 +2020,18 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 22/10/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 31/10/2026. Lo de arriba de la lista es lo que
 sigue.
 
 **Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
 ya no choca con un precio que su celular no había recibido), los ecos de una edición se
 aplican, `creadoPor` se conserva al editar, y la app muestra su versión en Ajustes y en
 el login. Ver "Lo que pasó el 31/10".
+
+**Hecho el 31/10, a la mañana** — el freno a la subida inicial cuando el servidor ya
+tiene ese turno desde otro aparato (la tarjeta «Cargas retenidas» en Ajustes), el aviso
+del Panel «turnos cargados más de una vez», y en la Ayuda cómo borrar la app de un
+celular sin dejar datos. Ver "Lo que no se sube".
 
 **Encontrado en la auditoría del 27/10** (sin cambios de código todavía)
 
@@ -2001,6 +2055,10 @@ el login. Ver "Lo que pasó el 31/10".
 
 **En curso**
 
+- [ ] **Revisar el 29 y el 30/10 en Turnos del día** (o el aviso nuevo del Panel): si
+      alguna venta del celular de Gabriela llegó igual al servidor y después se volvió a
+      cargar desde la Mac, hay dos turnos para ese horario. El que sobra se borra con su
+      motivo; si cada uno tiene ventas distintas, primero se pasan a uno.
 - [ ] **Mirar en `rechazos` los renglones con acción `recibir`** (desde la versión con
       `aplicarRemotos.ts`). Cada uno es un documento del servidor que algún dispositivo
       no pudo guardar: es el que dejaba atrasados a los demás. Corregirlo en la consola

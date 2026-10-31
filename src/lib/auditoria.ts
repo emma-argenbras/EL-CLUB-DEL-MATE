@@ -17,7 +17,7 @@ import {
   sinStock,
   totalArqueo,
 } from './calculos'
-import { plata } from './formato'
+import { fechaLinda, plata } from './formato'
 import { fantasmasDeLosProductos } from './proveedorDeProducto'
 import { comodinesConVentas, ventasSinCodigo } from './ventaSinCodigo'
 
@@ -254,6 +254,46 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       comoSeResuelve: 'Si el local abrió esos días, cargá el turno desde Caja eligiendo la fecha.',
       ruta: '/caja',
       cantidad: faltantes.length,
+      requiereSeccion: 'caja',
+    })
+  }
+
+  // --- El mismo turno cargado dos veces ---
+  // Dos aparatos que trabajaron el mismo dia sin verse (uno sin señal,
+  // o con la app atrasada) terminan con dos turnos para la misma fecha
+  // y horario. Caja muestra uno solo y los reportes suman los dos. La
+  // subida retenida (sync/retener.ts) evita que pase desde el 31/10;
+  // esto encuentra los que ya quedaron, de cualquier mes.
+  const porMomento = new Map<string, Jornada[]>()
+  for (const j of datos.jornadas) {
+    const clave = `${j.fecha}|${j.turno}`
+    const lista = porMomento.get(clave)
+    if (lista) lista.push(j)
+    else porMomento.set(clave, [j])
+  }
+  const repetidos = [...porMomento.values()]
+    .filter((lista) => lista.length > 1)
+    .sort((a, b) => (a[0].fecha + a[0].turno).localeCompare(b[0].fecha + b[0].turno))
+
+  if (repetidos.length > 0) {
+    const nombre = (j: Jornada) => `${fechaLinda(j.fecha)} ${j.turno === 'M' ? 'mañana' : 'tarde'}`
+    const ultimos = repetidos.slice(-3).map((lista) => nombre(lista[0]))
+    const deMas = repetidos.reduce((suma, lista) => suma + lista.length - 1, 0)
+    hallazgos.push({
+      id: 'caja-turnos-repetidos',
+      modulo: 'caja',
+      nivel: 'importante',
+      titulo: `${repetidos.length} ${plural(repetidos.length, 'turno está cargado', 'turnos están cargados')} más de una vez`,
+      detalle:
+        `${repetidos.length <= 3 ? 'Son' : 'Los últimos son'} ${ultimos.join(', ')}. ` +
+        `Caja muestra uno solo de cada par, pero los reportes suman las ventas de ${
+          deMas === 1 ? 'la copia de más' : `las ${deMas} copias de más`
+        }. Suele pasar cuando dos aparatos cargaron el mismo turno sin verse: uno sin señal, o con la app atrasada.`,
+      comoSeResuelve:
+        'En Turnos del día elegí la fecha: aparecen los dos con sus ventas. Si uno es copia del otro, borralo con su motivo. Si cada uno tiene ventas distintas, pasá las ventas a uno desde Caja antes de borrar el otro.',
+      ruta: '/turnos',
+      cantidad: repetidos.length,
+      soloOwner: true,
       requiereSeccion: 'caja',
     })
   }
@@ -862,6 +902,14 @@ export const CONTROLES: {
     modulo: 'caja',
     que: 'Que no falte cargar ningún día del mes',
     bien: 'Todos los días del mes tienen caja cargada',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'caja-turnos-repetidos',
+    modulo: 'caja',
+    que: 'Que ningún turno esté cargado dos veces (misma fecha y horario, desde dos aparatos)',
+    bien: 'Cada fecha y horario tiene un solo turno',
+    soloOwner: true,
     requiereSeccion: 'caja',
   },
   {
