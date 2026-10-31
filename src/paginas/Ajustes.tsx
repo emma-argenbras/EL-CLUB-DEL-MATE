@@ -499,9 +499,15 @@ function TarjetaRespaldo() {
           llega?", que es la duda concreta cuando dos personas trabajan
           a la vez. Si dice "todavía nada" con el estado en verde, es
           que nadie cargó nada desde que se abrió la app. */}
-      <div className="fila" style={{ marginBottom: 10 }}>
+      <div className="fila">
         <span className="fila-etiqueta">Último cambio recibido</span>
         <span className="fila-valor">{haceCuanto(estado.ultimaRecepcion)}</span>
+      </div>
+      {/* Para saber, cuando algo falla en un aparato, si tiene la ultima
+          version o una vieja sin "Actualizar". */}
+      <div className="fila" style={{ marginBottom: 10 }}>
+        <span className="fila-etiqueta">Versión de la app</span>
+        <span className="fila-valor">{__VERSION_APP__}</span>
       </div>
       <p className="silencio" style={{ marginBottom: 0 }}>
         Todo lo que se carga en cualquier dispositivo se guarda en el servidor (no solo en el

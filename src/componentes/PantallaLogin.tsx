@@ -101,6 +101,7 @@ export default function PantallaLogin() {
       <p className="silencio" style={{ maxWidth: 320, textAlign: 'center' }}>
         Usá el mail y la contraseña que te dio quien administra el negocio.
       </p>
+      <p className="silencio" style={{ fontSize: 12 }}>Versión {__VERSION_APP__}</p>
     </div>
   )
 }

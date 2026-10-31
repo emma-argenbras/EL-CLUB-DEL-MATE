@@ -149,6 +149,15 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
     deleteDoc(referencia).catch((e) =>
       avisarRechazo(tabla, clave, e, { accion, referencia, enviado: null }),
     )
+  } else if (accion === 'actualizar') {
+    // Solo los campos que cambiaron. mergeFields y no merge: con merge,
+    // un objeto adentro (los billetes de un arqueo) se mezclaria con el
+    // viejo en vez de reemplazarlo; con mergeFields cada campo nombrado
+    // se reemplaza entero.
+    const datos = limpiar(doc_ as Record<string, unknown>)
+    setDoc(referencia, datos, { mergeFields: Object.keys(datos) }).catch((e) =>
+      avisarRechazo(tabla, clave, e, { accion, referencia, enviado: datos }),
+    )
   } else {
     const datos = limpiar(doc_ as Record<string, unknown>)
     setDoc(referencia, datos).catch((e) =>
@@ -161,6 +170,7 @@ function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc
 interface IntentoRechazado {
   accion: AccionCambio
   referencia: DocumentReference
+  /** Con 'actualizar', solo los campos que se mandaron. */
   enviado: Record<string, unknown> | null
 }
 
@@ -246,9 +256,15 @@ async function explicarRechazoDeProducto(
       : Promise.resolve(null),
   ])
   const servidor = enElServidor.exists() ? enElServidor.data() : null
+  // La regla ve el documento como quedaria: con una actualizacion
+  // parcial, eso es lo del servidor con los campos mandados encima.
+  const comoQuedaria =
+    intento.accion === 'actualizar' && intento.enviado
+      ? { ...(servidor ?? {}), ...intento.enviado }
+      : intento.enviado
   const motivos = motivosDelRechazo(
-    intento.accion,
-    intento.enviado,
+    intento.accion === 'borrar' ? 'borrar' : 'guardar',
+    comoQuedaria,
     servidor,
     perfil && perfil.exists() ? perfil.data() : null,
   )
@@ -270,7 +286,7 @@ async function explicarRechazoDeProducto(
       Object.entries(intento.enviado).filter(([campo]) => !conservar.includes(campo)),
     )
     try {
-      await setDoc(intento.referencia, sinVacios, { merge: true })
+      await setDoc(intento.referencia, sinVacios, { mergeFields: Object.keys(sinVacios) })
       reintento = 'entro'
       // El rechazo ya le devolvio a este dispositivo lo viejo del
       // servidor. Lo que quedo alla ahora es lo nuevo con lo conservado:

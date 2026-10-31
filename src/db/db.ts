@@ -554,7 +554,17 @@ export type NombreTabla =
   | 'historial'
   | 'borrados'
 
-export type AccionCambio = 'guardar' | 'borrar'
+/**
+ * 'guardar' manda el documento entero (altas y la subida inicial).
+ * 'actualizar' manda solo los campos que cambiaron, y el servidor los
+ * mezcla con lo que ya tiene. Hasta el 31/10 toda edicion mandaba el
+ * documento entero, y eso hacia que la copia atrasada de un dispositivo
+ * pisara --o intentara pisar-- lo que otro habia cambiado: la venta de
+ * Gabriela descontaba stock mandando tambien el precio viejo que su
+ * celular todavia tenia, y como un empleado no puede tocar el precio, el
+ * servidor rechazaba el descuento entero.
+ */
+export type AccionCambio = 'guardar' | 'actualizar' | 'borrar'
 
 /**
  * El motor de sincronizacion (src/sync/motor.ts) se engancha aca en vez
@@ -1026,6 +1036,16 @@ class BaseECDM extends Dexie {
           ...(mods as Record<string, unknown>),
           actualizadoEn: Date.now(),
         }
+        // Guardar un formulario entero (put) reemplaza el objeto, y el
+        // formulario no lleva creadoEn ni creadoPor: Dexie los informa
+        // como "borrados" y hasta el 31/10 se borraban de verdad, aca y
+        // en el servidor. Quien creo el producto no tiene por que
+        // perderse con la primera edicion: se conservan.
+        for (const campo of ['creadoEn', 'creadoPor'] as const) {
+          if (campo in combinados && combinados[campo] === undefined) {
+            combinados[campo] = (obj as Record<string, unknown>)[campo]
+          }
+        }
 
         // Anotamos quien edito y guardamos un renglon de historial por cada
         // campo que cambio, para poder responder "quien tocó esto y cuándo"
@@ -1070,10 +1090,15 @@ class BaseECDM extends Dexie {
 
         const avisarSync = !esCambioRemoto() && Boolean(alCambiar)
         if (avisarSync || entradasHistorial.length > 0) {
-          const final = { ...obj, ...combinados }
+          // Solo lo que cambio (ver AccionCambio). Una clave con punto es
+          // una ruta adentro de un objeto (Dexie lo permite); el servidor
+          // la mezclaria distinto, asi que en ese caso raro va el
+          // documento entero como antes.
+          const parcial = Object.keys(combinados).every((k) => !k.includes('.'))
+          const enviar = parcial ? combinados : { ...obj, ...combinados }
           this.onsuccess = () => {
             anotarEnHistorial(entradasHistorial)
-            if (avisarSync) alCambiar!(nombre, 'guardar', String(clave), final)
+            if (avisarSync) alCambiar!(nombre, parcial ? 'actualizar' : 'guardar', String(clave), enviar)
           }
         }
         return combinados

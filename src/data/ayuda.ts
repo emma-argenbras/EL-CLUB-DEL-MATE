@@ -81,7 +81,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Primeros pasos',
     pregunta: '¿Cómo busco si hay una versión nueva, sin esperar a que avise sola?',
     respuesta:
-      'Arriba de todo, al lado del signo de pregunta, hay un botón 🔄. Tocalo en cualquier momento: si hay una versión nueva esperando, se aplica directo; si no hay ninguna, el botón se pone ✅ un instante y listo, ya estás al día. Es el mismo mecanismo que el cartel naranja automático, solo que lo podés disparar vos cuando quieras en vez de esperarlo.',
+      'Arriba de todo, al lado del signo de pregunta, hay un botón 🔄. Tocalo en cualquier momento: si hay una versión nueva esperando, se aplica directo; si no hay ninguna, el botón se pone ✅ un instante y listo, ya estás al día. Es el mismo mecanismo que el cartel naranja automático, solo que lo podés disparar vos cuando quieras en vez de esperarlo.\n\nPara saber qué versión tenés: en Ajustes, en la tarjeta de sincronización, dice «Versión de la app» con la fecha y la hora en que se publicó. También aparece abajo en la pantalla de entrada. Si te preguntan qué versión tenés, es ese dato.',
     palabrasClave: ['boton actualizar', 'chequear version', 'buscar version', 'refrescar'],
   },
   {
@@ -871,6 +871,15 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Quiere decir que ese aparato no tiene activada la sincronización: lo que cargues ahí se guarda solo en ese aparato, no lo ve nadie más del equipo, y se pierde si el aparato se pierde o se rompe.\n\nNo sigas cargando: avisá para que lo conecten. Se arregla actualizando la app e iniciando sesión; si ya cargaste cosas ahí, avisá antes de borrar nada, porque ese aparato puede ser la única copia.\n\nEl cartel está arriba de todo y en todas las pantallas a propósito. Este aviso existía antes pero estaba escondido en Ajustes, donde un empleado ni siquiera entra, y por eso un celular estuvo tres días cargando datos que nadie veía.',
     palabrasClave: ['no conectado', 'cartel rojo', 'sin nube', 'no sube', 'solo en este dispositivo'],
+  },
+  {
+    id: 'venta-rechazo-stock',
+    categoria: 'Caja',
+    pregunta: 'Cargué una venta y salió el cartel rojo «no aceptó un cambio en productos». ¿Se guardó la venta?',
+    respuesta:
+      'Sí: la venta se guarda aparte y siempre entra. Lo que el servidor rechazaba era el descuento de stock de ese producto.\n\nPasaba así: Sandra cambiaba el precio de un producto en su computadora, tu celular todavía no lo había recibido (sin señal, o la app cerrada), y al vender, la app mandaba el producto entero con el precio viejo. Como un empleado no puede tocar el precio, el servidor rechazaba todo el cambio, y el stock quedaba sin descontar.\n\nDesde la versión del 31/10 cada cambio manda solo lo que tocaste —en una venta, el stock— y esto no vuelve a pasar. Si te sigue saliendo ese cartel, tocá Actualizar 🔄 y fijate en Ajustes que la versión sea del 31/10 o posterior.',
+    palabrasClave: ['cartel rojo', 'no acepto', 'rechazo', 'venta no se guardo', 'stock', 'empleado'],
+    requiereSeccion: 'caja',
   },
   {
     id: 'cartel-servidor-no-acepto',
