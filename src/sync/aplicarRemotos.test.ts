@@ -62,12 +62,35 @@ describe('aplicarCambiosRemotos', () => {
     expect(await db.productos.get('A')).toBeDefined()
   })
 
-  it('el eco pendiente de una escritura propia no se reescribe', async () => {
+  it('el eco pendiente de un alta propia no se reescribe', async () => {
     await db.productos.put(prod('A', { precioVenta: 5000 }) as unknown as Producto)
     await comoRemoto(() =>
-      aplicarCambiosRemotos('productos', [{ ...llega(prod('A', { precioVenta: 4000 })), pendiente: true }], nunca, nada),
+      aplicarCambiosRemotos(
+        'productos',
+        [{ ...llega(prod('A', { precioVenta: 4000 })), tipo: 'added', pendiente: true }],
+        nunca,
+        nada,
+      ),
     )
     expect((await db.productos.get('A'))?.precioVenta).toBe(5000)
+  })
+
+  it('EL ECO PENDIENTE DE UNA EDICION SI: trae lo que otro cambio mientras este celular no tenia señal', async () => {
+    // El celular de Gabriela: precio 45000 y la venta ya descontada.
+    await db.productos.put(prod('A', { precioVenta: 45000, stock: 2 }) as unknown as Producto)
+    // Firestore muestra el servidor (precio 50000) con lo nuestro encima
+    // (stock 2), todavia sin confirmar.
+    await comoRemoto(() =>
+      aplicarCambiosRemotos(
+        'productos',
+        [{ ...llega(prod('A', { precioVenta: 50000, stock: 2 })), tipo: 'modified', pendiente: true }],
+        nunca,
+        nada,
+      ),
+    )
+    const a = await db.productos.get('A')
+    expect(a?.precioVenta).toBe(50000)
+    expect(a?.stock).toBe(2)
   })
 
   it('avisa que llego el dato bueno, para olvidar el rechazo', async () => {

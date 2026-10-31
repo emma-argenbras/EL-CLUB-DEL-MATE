@@ -1513,6 +1513,70 @@ Las ventas ya cargadas con DIF y SALDOS **no se tocan**: la lista las muestra y 
 
 ---
 
+## Lo que pasó el 31/10: la venta de Gabriela y la copia atrasada
+
+Gabriela cargaba ventas y le salía el cartel rojo «El servidor no aceptó un cambio en
+productos». La venta entraba; lo que se perdía era el descuento de stock.
+
+### La causa
+
+Hasta hoy, cada edición mandaba al servidor **el documento entero** del registro, armado
+con la copia local (`final = { ...obj, ...combinados }` en el gancho de `db.ts`). Una venta
+descuenta stock con `db.productos.update(codigo, { stock })`, así que viajaba el producto
+completo, con el precio de venta que tuviera el celular en ese momento.
+
+Si Sandra había subido el precio en su Mac y el celular de Gabriela todavía no lo había
+recibido —sin señal, o con la app cerrada en el bolsillo—, el documento que viajaba llevaba
+el precio viejo. Para la regla de Firestore eso es cambiar `precioVenta`, y un empleado no
+puede: rechazaba el cambio entero, incluido el stock. La reversión del rechazo le volvía a
+poner al celular lo del servidor, y el stock quedaba sin descontar. Reproducido contra los
+emuladores con el código publicado: venta en el servidor, stock 3 en vez de 2, cartel rojo.
+
+El mismo mecanismo estaba detrás de los problemas de Sandra del 22/10: una copia atrasada
+que intenta pisar campos que no tocó.
+
+### El arreglo
+
+Cada edición manda **solo los campos que cambiaron** (`AccionCambio` nuevo: `'actualizar'`),
+con `setDoc(..., { mergeFields })`. El servidor los mezcla con lo que ya tiene, y la regla
+ve como cambiados solo esos. Con `mergeFields` y no con `merge: true` a propósito: `merge`
+mezcla los objetos anidados (los billetes de un arqueo se sumarían a los viejos en vez de
+reemplazarlos); `mergeFields` reemplaza cada campo nombrado entero. Las altas y la subida
+inicial siguen mandando el documento completo.
+
+Y un segundo ajuste que la prueba de punta a punta destapó: el motor salteaba todo eco
+"pendiente" de una escritura propia. Con ediciones parciales, lo que Firestore muestra
+mientras espera la confirmación es lo del servidor con lo nuestro encima, y puede traer
+campos que otro dispositivo cambió mientras este estaba sin señal. Si se saltea, y la
+confirmación no cambia el contenido, no llega ningún otro aviso: el celular de Gabriela se
+quedaba con el precio viejo (150 segundos sin converger; recién al recargar). Ahora los
+ecos de una modificación se aplican; los de un alta se siguen salteando, que es lo que
+saturaba el primer login.
+
+De paso: guardar el formulario de un producto borraba `creadoEn` y `creadoPor`, porque el
+formulario arma el objeto de cero y Dexie informaba esos campos como quitados. Ahora se
+conservan.
+
+Para poder preguntar «¿qué versión tenés?» sin adivinar, la app muestra la fecha y la hora
+del build (y el commit) en Ajustes y en la pantalla de entrada.
+
+### Cómo se probó
+
+- 7 pruebas del gancho: qué viaja en una venta (solo stock, `actualizadoEn` y
+  `actualizadoPor`), en un formulario entero, en un alta, al vaciar un campo, y que
+  `creadoPor` se conserva. Mutadas: volviendo al documento entero caen 3; sin conservar
+  `creadoPor`, cae 1. Y una del motor: el eco pendiente de una edición trae el precio
+  nuevo; el de un alta no se reescribe.
+- 3 pruebas de reglas: el documento entero con el precio viejo se rechaza; solo el stock
+  con `mergeFields` entra y el precio nuevo queda; `mergeFields` reemplaza el arqueo entero.
+- La app entera contra los emuladores, como Gabriela: entra, abre el turno, se queda sin
+  señal; Sandra sube el precio; Gabriela vende sin señal; vuelve la señal. Con el código
+  publicado: stock 3, rechazo, cartel. Con el arreglo: stock 2 en el servidor, precio nuevo
+  intacto y ya en el celular, sin rechazos, sin cartel. Los cinco escenarios del 22/10
+  siguen pasando.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -2018,6 +2082,11 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 Lo que está pendiente de verdad, al 27/10/2026. Lo de arriba de la lista es lo que
 sigue.
+
+**Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
+ya no choca con un precio que su celular no había recibido), los ecos de una edición se
+aplican, `creadoPor` se conserva al editar, y la app muestra su versión en Ajustes y en
+el login. Ver "Lo que pasó el 31/10".
 
 **Encontrado en la auditoría del 27/10** (sin cambios de código todavía)
 

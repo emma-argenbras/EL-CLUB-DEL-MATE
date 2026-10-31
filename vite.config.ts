@@ -6,8 +6,23 @@ import { VitePWA } from 'vite-plugin-pwa'
 // y .github/workflows/deploy.yml). En desarrollo la base tambien es "/".
 const base = process.env.BASE_PATH ?? '/'
 
+// La version que se ve en Ajustes y en el login: la fecha del build y el
+// commit (GITHUB_SHA en el deploy). Para saber, cuando algo falla en un
+// celular, si esta corriendo la ultima version o una vieja.
+const sha = (process.env.GITHUB_SHA ?? '').slice(0, 7) || 'local'
+const fechaBuild = new Date().toLocaleString('es-AR', {
+  timeZone: 'America/Argentina/Cordoba',
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
 export default defineConfig({
   base,
+  define: {
+    __VERSION_APP__: JSON.stringify(`${fechaBuild} · ${sha}`),
+  },
   build: {
     rollupOptions: {
       input: {

@@ -46,10 +46,19 @@ export async function aplicarCambiosRemotos(
   const fallos: FalloAlRecibir[] = []
   for (const cambio of cambios) {
     // Un cambio "pendiente" es el eco de una escritura que salio de
-    // este mismo dispositivo: el dato ya esta en la base local (de ahi
-    // salio), asi que reescribirlo es trabajo de mas — y con miles de
-    // filas, es lo que saturaba la app en el primer login real.
-    if (cambio.pendiente) continue
+    // este mismo dispositivo. Un alta pendiente ya esta en la base local
+    // tal cual (de ahi salio): reescribirla es trabajo de mas, y con
+    // miles de filas es lo que saturaba la app en el primer login real.
+    //
+    // Una modificacion pendiente es distinta desde el 31/10: las
+    // ediciones mandan solo los campos que cambiaron, asi que lo que
+    // Firestore muestra mientras espera la confirmacion es lo del
+    // servidor con lo nuestro encima, y puede traer campos que otro
+    // dispositivo cambio mientras este estaba sin señal. Si se saltea,
+    // y despues la confirmacion no cambia el contenido, no llega ningun
+    // otro aviso: el celular se quedaria con el precio viejo hasta
+    // recargar la app (paso en la prueba contra los emuladores).
+    if (cambio.pendiente && cambio.tipo !== 'modified') continue
     try {
       if (cambio.tipo === 'removed') {
         // Un 'removed' puede ser dos cosas muy distintas: alguien borro
