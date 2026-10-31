@@ -12,6 +12,7 @@ import { leerModoConsulta } from './lib/modoConsulta'
 import { useSesion } from './sync/useSesion'
 import { useEstadoNube } from './sync/useEstadoNube'
 import { descartarRechazos } from './sync/estado'
+import { textoDeRetenidos } from './sync/retener'
 import Panel from './paginas/Panel'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
@@ -195,6 +196,13 @@ export default function App() {
           </strong>{' '}
           Están guardadas en este dispositivo pero no llegaron a los demás. Si tenés internet
           y no baja en unos minutos, avisá antes de seguir cargando.
+        </div>
+      )}
+      {nubeConfigurada && !enConsulta && estadoNube.retenidos.length > 0 && (
+        <div className="aviso aviso-error">
+          <strong>Hay cargas de este aparato que no se subieron, a propósito.</strong>{' '}
+          {textoDeRetenidos(estadoNube.retenidos)} Avisale a Emmanuel: se resuelve desde Ajustes
+          → «Cargas retenidas».
         </div>
       )}
       {nubeConfigurada && !enConsulta && estadoNube.rechazos.length > 0 && (

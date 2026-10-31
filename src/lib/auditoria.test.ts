@@ -429,6 +429,51 @@ describe('la plata se engancha entre turnos', () => {
   })
 })
 
+describe('el mismo turno cargado dos veces', () => {
+  it('dos turnos para la misma fecha y horario, con distinto id: avisa', () => {
+    // El caso del 31/10: el celular de Gabriela y la Mac de Sandra con
+    // el mismo turno, cada uno con su id.
+    const h = buscar(
+      auditar(
+        datos({ jornadas: [...datos().jornadas, jornada({ id: 'gabi-3m', fecha: '2026-08-03', turno: 'M' })] }),
+      ),
+      'caja-turnos-repetidos',
+    )
+    expect(h).toBeDefined()
+    expect(h?.cantidad).toBe(1)
+    expect(h?.detalle).toContain('03/08/2026 mañana')
+    expect(h?.ruta).toBe('/turnos')
+    expect(h?.soloOwner).toBe(true)
+  })
+
+  it('mañana y tarde del mismo dia no son un turno repetido', () => {
+    const h = buscar(
+      auditar(datos({ jornadas: [...datos().jornadas, jornada({ id: 'j3t', fecha: '2026-08-03', turno: 'T' })] })),
+      'caja-turnos-repetidos',
+    )
+    expect(h).toBeUndefined()
+  })
+
+  it('cuenta los de cualquier mes, no solo el actual, y dice cuantas copias de mas hay', () => {
+    const h = buscar(
+      auditar(
+        datos({
+          jornadas: [
+            ...datos().jornadas,
+            jornada({ id: 'a', fecha: '2026-07-10', turno: 'T' }),
+            jornada({ id: 'b', fecha: '2026-07-10', turno: 'T' }),
+            jornada({ id: 'c', fecha: '2026-07-10', turno: 'T' }),
+          ],
+        }),
+      ),
+      'caja-turnos-repetidos',
+    )
+    expect(h?.cantidad).toBe(1)
+    expect(h?.detalle).toContain('10/07/2026 tarde')
+    expect(h?.detalle).toContain('las 2 copias de más')
+  })
+})
+
 describe('revisionCompleta', () => {
   it('lista todos los controles, tambien los que pasaron', () => {
     const hallazgos = auditar(datos())
@@ -462,6 +507,7 @@ describe('revisionCompleta', () => {
     const todos = auditar(
       datos({
         productos: [producto({ precioVenta: null, stock: -1, descripcion: 'COD1', proveedorId: null })],
+        jornadas: [...datos().jornadas, jornada({ id: 'otro', fecha: '2026-08-01' })],
       }),
     )
     const declarados = new Set(CONTROLES.map((c) => c.id))

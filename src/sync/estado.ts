@@ -1,4 +1,5 @@
 import { nubeConfigurada } from './config'
+import type { TurnoRetenido } from './retener'
 
 /**
  * Estado reactivo de la sincronizacion, sin depender del SDK de
@@ -34,6 +35,12 @@ export interface EstadoSync {
    * llegaba a decir nada.
    */
   rechazos: RechazoVisible[]
+  /**
+   * Turnos de este dispositivo que la subida inicial no mando porque el
+   * servidor ya los tiene cargados desde otro aparato (ver retener.ts).
+   * Quedan hasta que alguien al mando los descarta o los sube igual.
+   */
+  retenidos: TurnoRetenido[]
 }
 
 export interface RechazoVisible {
@@ -53,6 +60,7 @@ let estado: EstadoSync = {
   ultimaRecepcion: null,
   sinSubir: null,
   rechazos: [],
+  retenidos: [],
 }
 
 export function anotarRechazoVisible(texto: string): void {

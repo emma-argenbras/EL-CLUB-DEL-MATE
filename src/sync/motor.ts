@@ -24,9 +24,13 @@ import Dexie from 'dexie'
 import {
   comoRemoto,
   db,
+  type Jornada,
+  type Movimiento,
+  type Venta,
   engancharAutor,
   engancharSync,
   guardarAjuste,
+  leerAjuste,
   nuevoId,
   type AccionCambio,
   type NombreTabla,
@@ -35,6 +39,12 @@ import {
 } from '../db/db'
 import { aClaveDeNube, aClaveLocal } from './claves'
 import { aplicarCambiosRemotos, type FalloAlRecibir } from './aplicarRemotos'
+import {
+  cuelgaDeRetenido,
+  decidirRetenidos,
+  type SubidaRetenida,
+  type TurnoRetenido,
+} from './retener'
 import { ID_NEGOCIO } from './config'
 import { anotarRechazoVisible, fijarEstadoNube } from './estado'
 import {
@@ -407,6 +417,32 @@ async function empujarTodoLocal() {
     console.warn('No se pudo leer la lista de borrados:', e)
   }
 
+  // Los turnos primero, y con sus datos: un turno local que el servidor
+  // ya tiene para esa fecha y horario con otro id no se sube, ni sus
+  // ventas ni sus egresos (ver retener.ts). Las tablas van en un orden
+  // que deja 'jornadas' antes que 'ventas' y 'movimientos'.
+  const retenidos = new Set<string>()
+  {
+    const jornadasServidor = (
+      await getDocs(collection(firestore, 'negocios', ID_NEGOCIO, 'jornadas'))
+    ).docs.map((d) => d.data() as Pick<Jornada, 'id' | 'fecha' | 'turno'>)
+    const ids = new Set(jornadasServidor.map((j) => aClaveDeNube(j.id)))
+    const jornadasSinSubir = (await db.jornadas.toArray()).filter(
+      (j) => !ids.has(aClaveDeNube(j.id)) && !borrados.has(`jornadas/${j.id}`),
+    )
+    const turnosRetenidos =
+      jornadasSinSubir.length > 0
+        ? decidirRetenidos(
+            jornadasSinSubir,
+            jornadasServidor,
+            await db.ventas.toArray(),
+            await db.movimientos.toArray(),
+          )
+        : []
+    for (const t of turnosRetenidos) retenidos.add(t.id)
+    await anotarRetenidos(turnosRetenidos)
+  }
+
   for (const tabla of TABLAS) {
     const enElServidor = new Set(
       (await getDocs(collection(firestore, 'negocios', ID_NEGOCIO, tabla))).docs.map((d) => d.id),
@@ -419,6 +455,7 @@ async function empujarTodoLocal() {
       // de aca: para los codigos con barra no son el mismo.
       if (enElServidor.has(aClaveDeNube(clave))) continue
       if (borrados.has(`${tabla}/${clave}`)) continue
+      if (cuelgaDeRetenido(tabla, fila as Record<string, unknown>, retenidos)) continue
       operaciones.push({ tabla, clave, datos: limpiar(fila as Record<string, unknown>) })
     }
   }
@@ -450,6 +487,69 @@ async function empujarTodoLocal() {
       error: `Quedaron ${rechazadas.length} registros sin subir porque su clave no es válida para el servidor (${rechazadas.slice(0, 3).join(', ')}…).`,
     })
   }
+}
+
+/** Donde queda anotado, en este aparato, lo que la subida retuvo. */
+export const CLAVE_SUBIDA_RETENIDA = 'subidaRetenida'
+
+async function anotarRetenidos(turnos: TurnoRetenido[]): Promise<void> {
+  fijarEstadoNube({ retenidos: turnos })
+  const anotado: SubidaRetenida = { cuando: Date.now(), turnos }
+  await guardarAjuste(CLAVE_SUBIDA_RETENIDA, turnos.length > 0 ? JSON.stringify(anotado) : '')
+  if (turnos.length > 0) console.warn('Subida retenida para no duplicar turnos:', turnos)
+}
+
+/** Lo retenido en este aparato, para la pantalla de Ajustes aunque se recargue. */
+export async function leerRetenidos(): Promise<TurnoRetenido[]> {
+  const texto = await leerAjuste(CLAVE_SUBIDA_RETENIDA)
+  if (!texto) return []
+  try {
+    return (JSON.parse(texto) as SubidaRetenida).turnos
+  } catch {
+    return []
+  }
+}
+
+/**
+ * "Ya estaba cargado desde otro aparato": el turno retenido, sus ventas y
+ * sus egresos se borran de ESTE aparato nada mas. Nunca estuvieron en el
+ * servidor, asi que no hay nada que borrar alla ni constancia que dejar
+ * en `borrados`. Va en comoRemoto para que no viaje ni se anote como
+ * borrado de la persona.
+ */
+export async function descartarTurnoRetenido(id: string): Promise<void> {
+  await comoRemoto(async () => {
+    await db.transaction('rw', db.jornadas, db.ventas, db.movimientos, async () => {
+      await db.ventas.where('jornadaId').equals(id).delete()
+      await db.movimientos.where('jornadaId').equals(id).delete()
+      await db.jornadas.delete(id)
+    })
+  })
+  await anotarRetenidos((await leerRetenidos()).filter((t) => t.id !== id))
+}
+
+/**
+ * "De verdad falta": se sube el turno retenido con sus ventas y egresos,
+ * tal como lo habria hecho la subida inicial. Queda un turno repetido
+ * para esa fecha y horario, a sabiendas: Turnos del dia lo muestra.
+ */
+export async function subirTurnoRetenido(id: string): Promise<number> {
+  const firestore = obtenerFirestore()
+  const jornada = await db.jornadas.get(id)
+  if (!jornada) return 0
+  const ventas: Venta[] = await db.ventas.where('jornadaId').equals(id).toArray()
+  const movimientos: Movimiento[] = await db.movimientos.where('jornadaId').equals(id).toArray()
+  const lote = writeBatch(firestore)
+  const ref = (tabla: NombreTabla, clave: string) =>
+    doc(firestore, 'negocios', ID_NEGOCIO, tabla, aClaveDeNube(clave))
+  lote.set(ref('jornadas', jornada.id), limpiar(jornada as unknown as Record<string, unknown>))
+  for (const v of ventas) lote.set(ref('ventas', v.id), limpiar(v as unknown as Record<string, unknown>))
+  for (const m of movimientos) {
+    lote.set(ref('movimientos', m.id), limpiar(m as unknown as Record<string, unknown>))
+  }
+  await lote.commit()
+  await anotarRetenidos((await leerRetenidos()).filter((t) => t.id !== id))
+  return 1 + ventas.length + movimientos.length
 }
 
 /**
@@ -666,6 +766,11 @@ export function iniciarMotor(): void {
         desactivada: false,
       })
       escucharColecciones()
+      // Lo retenido la ultima vez se muestra desde el arranque: si ahora
+      // no hay internet, la subida inicial no corre y no lo recalcula.
+      leerRetenidos()
+        .then((t) => fijarEstadoNube({ retenidos: t }))
+        .catch(() => {})
       empujarTodoLocal()
         .catch((e) => console.warn('No se pudo subir el estado inicial:', e))
         // Recien despues de intentar subir tiene sentido contar lo que
