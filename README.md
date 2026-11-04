@@ -1624,6 +1624,67 @@ cualquier mes, que lleva a Turnos del día. Lo ve quien está al mando.
   el cartel, sobrevive a recargar la app, y «descartar» borra las copias de este aparato
   sin tocar el servidor.
 
+## Lo que pasó el 04/11: el aviso «sin subir» que no bajaba
+
+La Mac de Sandra quedó diciendo «Hay 1 cosa sin subir al servidor» y la PC de Gabriela
+«3», fijos, mientras las ventas del día subían bien. El aviso compara **cantidades** por
+tabla —cuántas filas tiene el aparato contra cuántas tiene el servidor— y no dice qué es
+lo que falta. Contra los emuladores, con las reglas que están en la consola y la versión
+publicada, salieron exactamente esos dos números.
+
+### Las causas
+
+- **Lo retenido se contaba como «sin subir».** Un turno frenado para no duplicarlo (ver
+  "Lo que no se sube") no se sube a propósito, pero el aviso amarillo lo sumaba igual: un
+  turno con dos ventas daba 3, al lado de un cartel rojo que decía «no se duplicó nada».
+- **Lo borrado desde otro aparato quedaba para siempre.** Si este aparato no se enteraba
+  del borrado, la subida inicial lo salteaba —bien, no lo revive— pero tampoco lo sacaba
+  de acá. Contaba 1 para siempre.
+- **Un lote rechazado se caía entero, y borraba.** La subida inicial manda en lotes de
+  hasta 400, y un lote es todo o nada: una sola fila que las reglas no aceptan (un renglón
+  del historial firmado por otra persona, un turno que ya trae el cierre autorizado) tiraba
+  abajo las demás, en cada arranque, con un `console.warn` como única señal. Y peor: al
+  deshacer el lote, Firestore avisa un `removed` por cada fila, y la app las **borraba de
+  este aparato**. En la prueba, una venta que estaba solo en la Mac desapareció sin haber
+  llegado nunca al servidor.
+- **La marca de arranque del historial** (`historial-arranca-2026-10-11`) la pone cada
+  aparato para sí, firmada por `sistema`: las reglas no la dejan subir, y viajaba en el lote.
+
+### El arreglo
+
+- Antes de mandar un lote, sus claves se anotan como rechazo; si entra, se desanotan. Así
+  la reversión de un lote rechazado ya no borra nada del aparato (`mandarLoteSinPerder`).
+  Lo mismo para «Falta de verdad: subirlo» de las cargas retenidas.
+- Si un lote falla, o si el aviso sigue arriba de cero después de un minuto, la app
+  **revisa de a una** (`revisarPendientes`, `src/sync/sinSubir.ts`): lo borrado a propósito
+  se saca de este aparato; un usuario que el servidor ya no tiene también (subirlo podría
+  revivir a alguien dado de baja); lo retenido y los renglones del historial firmados por
+  otra persona se dejan y no cuentan; lo demás se sube en una transacción que no pisa nada
+  que ya esté allá. Un turno con el cierre autorizado lo sube alguien al mando en dos pasos.
+  Lo que no entra queda con el motivo.
+- El cartel tiene «Ver qué es», que lleva a una pantalla con cada cosa y qué se hizo
+  (también desde Ajustes → «Lo que no subió»). Quien está al mando puede sacar de un
+  aparato algo que el servidor no acepta; la fila entera queda copiada en `rechazos`.
+- Cada revisión deja una constancia en `rechazos` con acción `revisar` y la lista de lo
+  que encontró, para verlo desde la consola sin pedir fotos.
+
+### Cómo se probó
+
+- 12 pruebas de `sinSubir.ts`. Rotas a propósito: sin mirar los borrados cae 1; sin
+  descontar lo retenido caen 2; tomando el historial de otro como propio cae 1; dejando
+  revivir usuarios cae 1.
+- La app entera contra los emuladores, en dos aparatos. La Mac de Sandra, con una venta
+  borrada desde otro aparato, una venta y un turno autorizado que nunca subieron, y un
+  renglón del historial de Gabriela. La PC de Gabriela, con un turno retenido de dos
+  ventas y un turno autorizado que como empleada no puede crear.
+  - Con la versión publicada: «1» y «3» fijos, y la venta y el turno de la Mac borrados
+    del aparato sin llegar al servidor.
+  - Con el arreglo sin la protección de lotes: los avisos en cero, pero la venta igual se
+    perdía. Por eso la protección.
+  - Con el arreglo entero: la Mac sube la venta y el turno con su autorización, saca la
+    venta borrada, y queda en cero sin perder nada. La PC no cuenta lo retenido, y el turno
+    que no puede crear queda en el aparato con el motivo, contando 1.
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño
@@ -2129,13 +2190,18 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 31/10/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 04/11/2026. Lo de arriba de la lista es lo que
 sigue.
 
 **Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
 ya no choca con un precio que su celular no había recibido), los ecos de una edición se
 aplican, `creadoPor` se conserva al editar, y la app muestra su versión en Ajustes y en
 el login. Ver "Lo que pasó el 31/10".
+
+**Hecho el 04/11** — el aviso «sin subir» ya no cuenta lo retenido ni lo firmado por otra
+persona, revisa solo qué es cada cosa y la resuelve, tiene «Ver qué es», y un lote
+rechazado en la subida inicial ya no borra lo que había en el aparato. Ver "Lo que pasó el
+04/11".
 
 **Hecho el 31/10, a la mañana** — el freno a la subida inicial cuando el servidor ya
 tiene ese turno desde otro aparato (la tarjeta «Cargas retenidas» en Ajustes), el aviso
@@ -2164,6 +2230,10 @@ celular sin dejar datos. Ver "Lo que no se sube".
 
 **En curso**
 
+- [ ] **Mirar en `rechazos` las constancias con acción `revisar`** que dejen la Mac de
+      Sandra y la PC de Gabriela al actualizar: dicen qué era cada cosa que el aviso
+      contaba. Y antes, las de acción `guardar` de los últimos días, por si algún lote se
+      cayó y borró algo de un aparato sin haber subido (ver "Lo que pasó el 04/11").
 - [ ] **Revisar el 29 y el 30/10 en Turnos del día** (o el aviso nuevo del Panel): si
       alguna venta del celular de Gabriela llegó igual al servidor y después se volvió a
       cargar desde la Mac, hay dos turnos para ese horario. El que sobra se borra con su
