@@ -1,5 +1,6 @@
 import { nubeConfigurada } from './config'
 import type { TurnoRetenido } from './retener'
+import type { Revision } from './sinSubir'
 
 /**
  * Estado reactivo de la sincronizacion, sin depender del SDK de
@@ -41,6 +42,12 @@ export interface EstadoSync {
    * Quedan hasta que alguien al mando los descarta o los sube igual.
    */
   retenidos: TurnoRetenido[]
+  /**
+   * La ultima revision de lo que el aviso «sin subir» estaba contando:
+   * que era cada cosa y que se hizo con ella (ver sinSubir.ts). null si
+   * en esta sesion no hizo falta revisar.
+   */
+  revision: Revision | null
 }
 
 export interface RechazoVisible {
@@ -61,6 +68,7 @@ let estado: EstadoSync = {
   sinSubir: null,
   rechazos: [],
   retenidos: [],
+  revision: null,
 }
 
 export function anotarRechazoVisible(texto: string): void {

@@ -15,6 +15,7 @@ import {
   getDocFromServer,
   getDocs,
   onSnapshot,
+  runTransaction,
   setDoc,
   writeBatch,
   type DocumentReference,
@@ -36,6 +37,7 @@ import {
   type NombreTabla,
   type Rol,
   type SeccionId,
+  ID_ARRANQUE_HISTORIAL,
 } from '../db/db'
 import { aClaveDeNube, aClaveLocal } from './claves'
 import { aplicarCambiosRemotos, type FalloAlRecibir } from './aplicarRemotos'
@@ -46,7 +48,19 @@ import {
   type TurnoRetenido,
 } from './retener'
 import { ID_NEGOCIO } from './config'
-import { anotarRechazoVisible, fijarEstadoNube } from './estado'
+import { anotarRechazoVisible, fijarEstadoNube, obtenerEstadoNube } from './estado'
+import {
+  claveDeFila,
+  clasificarPendiente,
+  describirPendiente,
+  faltanEnTabla,
+  filasRetenidasEn,
+  firmadosPorOtroEn,
+  motivoDeRechazo,
+  type RenglonRevision,
+  type Revision,
+} from './sinSubir'
+import { estaAlMando } from './permisos'
 import {
   camposParaConservar,
   motivosDelRechazo,
@@ -120,6 +134,31 @@ async function anotarSincronizacion(): Promise<void> {
  * eco siguiente ya no es un rechazo.
  */
 const rechazosRecientes = new Set<string>()
+
+/**
+ * Manda un lote sin que un rechazo borre lo que hay en este aparato.
+ *
+ * Un lote se aplica primero en la cache de Firestore y despues va al
+ * servidor. Si el servidor lo rechaza --alcanza con UNA fila que las
+ * reglas no aceptan--, Firestore deshace el lote entero, y para el
+ * listener eso es un 'removed' por cada fila: borraba de este aparato
+ * todo lo que venia en el lote. Paso en la prueba del 04/11 contra los
+ * emuladores: una venta que estaba solo en este aparato viajo en el
+ * mismo lote que un renglon del historial que no podia subir, y la
+ * venta desaparecio del aparato sin haber llegado nunca al servidor.
+ *
+ * Las claves se anotan como rechazo ANTES de mandar, asi la reversion
+ * no le gana de mano al catch: si el lote entra, se desanotan.
+ */
+async function mandarLoteSinPerder(
+  lote: ReturnType<typeof writeBatch>,
+  filas: { tabla: NombreTabla; clave: string }[],
+): Promise<void> {
+  const claves = filas.map(({ tabla, clave }) => `${tabla}/${aClaveDeNube(clave)}`)
+  for (const c of claves) rechazosRecientes.add(c)
+  await lote.commit()
+  for (const c of claves) rechazosRecientes.delete(c)
+}
 
 let desuscribirColecciones: Unsubscribe[] = []
 let motorIniciado = false
@@ -352,11 +391,12 @@ async function explicarRechazoDeProducto(
 async function dejarConstanciaDelRechazo(
   tabla: NombreTabla,
   clave: string,
-  accion: AccionCambio | 'recibir',
+  accion: AccionCambio | 'recibir' | 'revisar' | 'descartar',
   texto: string,
   motivos: MotivoRechazo[] | null,
   reintento: 'entro' | 'no' | 'esperable',
   mensajeOriginal?: string,
+  extra?: Record<string, unknown>,
 ): Promise<void> {
   try {
     const usuario = obtenerAuth().currentUser
@@ -371,6 +411,7 @@ async function dejarConstanciaDelRechazo(
       motivos: motivos ? JSON.parse(JSON.stringify(motivos)) : null,
       reintento,
       mensajeOriginal: mensajeOriginal ?? null,
+      ...(extra ? JSON.parse(JSON.stringify(extra)) : {}),
     })
   } catch (e) {
     console.warn('No se pudo dejar constancia del rechazo:', e)
@@ -456,14 +497,20 @@ async function empujarTodoLocal() {
       if (enElServidor.has(aClaveDeNube(clave))) continue
       if (borrados.has(`${tabla}/${clave}`)) continue
       if (cuelgaDeRetenido(tabla, fila as Record<string, unknown>, retenidos)) continue
+      // La marca de arranque del historial la pone cada aparato para si
+      // (ver marcarArranqueDelHistorial): va firmada por 'sistema' y las
+      // reglas no la dejan subir. En un lote, tiraba abajo todo el lote.
+      if (tabla === 'historial' && clave === ID_ARRANQUE_HISTORIAL) continue
       operaciones.push({ tabla, clave, datos: limpiar(fila as Record<string, unknown>) })
     }
   }
 
   const TAMANO_LOTE = 400
   const rechazadas: string[] = []
+  let algunLoteFallo = false
   for (let i = 0; i < operaciones.length; i += TAMANO_LOTE) {
     const lote = writeBatch(firestore)
+    const enEsteLote: { tabla: NombreTabla; clave: string }[] = []
     for (const { tabla, clave, datos } of operaciones.slice(i, i + TAMANO_LOTE)) {
       // Cada referencia va en su propio try. doc() tira al armar la
       // referencia, no al enviarla, asi que antes una sola clave mala
@@ -474,12 +521,20 @@ async function empujarTodoLocal() {
       // existen. Ahora una clave mala se saltea sola y el resto sube.
       try {
         lote.set(doc(firestore, 'negocios', ID_NEGOCIO, tabla, aClaveDeNube(clave)), datos)
+        enEsteLote.push({ tabla, clave })
       } catch (e) {
         rechazadas.push(`${tabla}/${clave}`)
         console.warn(`No se pudo armar la referencia de ${tabla}/${clave}:`, e)
       }
     }
-    await lote.commit().catch((e) => console.warn('No se pudo subir un lote de datos:', e))
+    // Un lote es todo o nada: una sola fila que las reglas rechazan
+    // tira abajo las otras 399, en cada arranque, en silencio. Eso es
+    // lo que dejaba un numero fijo en el aviso «sin subir». Si un lote
+    // falla, la revision lo intenta de a uno y dice que no entro y por que.
+    await mandarLoteSinPerder(lote, enEsteLote).catch((e) => {
+      console.warn('No se pudo subir un lote de datos:', e)
+      algunLoteFallo = true
+    })
   }
   if (rechazadas.length > 0) {
     fijarEstadoNube({
@@ -487,6 +542,7 @@ async function empujarTodoLocal() {
       error: `Quedaron ${rechazadas.length} registros sin subir porque su clave no es válida para el servidor (${rechazadas.slice(0, 3).join(', ')}…).`,
     })
   }
+  if (algunLoteFallo) await revisarPendientes()
 }
 
 /** Donde queda anotado, en este aparato, lo que la subida retuvo. */
@@ -547,7 +603,11 @@ export async function subirTurnoRetenido(id: string): Promise<number> {
   for (const m of movimientos) {
     lote.set(ref('movimientos', m.id), limpiar(m as unknown as Record<string, unknown>))
   }
-  await lote.commit()
+  await mandarLoteSinPerder(lote, [
+    { tabla: 'jornadas', clave: jornada.id },
+    ...ventas.map((v) => ({ tabla: 'ventas' as const, clave: v.id })),
+    ...movimientos.map((m) => ({ tabla: 'movimientos' as const, clave: m.id })),
+  ])
   await anotarRetenidos((await leerRetenidos()).filter((t) => t.id !== id))
   return 1 + ventas.length + movimientos.length
 }
@@ -582,7 +642,17 @@ export async function contarSinSubir(): Promise<number | null> {
           (r) => r.data().count,
         ),
       ])
-      if (aca > alla) total += aca - alla
+      // Lo retenido no se sube a proposito y tiene su propio cartel; un
+      // renglon del historial firmado por otra persona no lo puede subir
+      // esta sesion. Ninguno de los dos es "lo que cargo y no llega".
+      const { retenidos, revision } = obtenerEstadoNube()
+      total += faltanEnTabla(
+        aca,
+        alla,
+        filasRetenidasEn(tabla, retenidos) +
+          firmadosPorOtroEn(tabla, revision) +
+          (tabla === 'historial' ? await marcaDeArranqueSoloAca() : 0),
+      )
     }
     return total
   } catch (e) {
@@ -619,9 +689,240 @@ export async function existeEnLaNube(tabla: NombreTabla, clave: string): Promise
   }
 }
 
-/** Controla y deja el resultado en el estado de la nube. */
-export async function controlarSinSubir(): Promise<void> {
-  fijarEstadoNube({ sinSubir: await contarSinSubir() })
+let marcaEnElServidor: boolean | null = null
+
+/**
+ * 1 si este aparato tiene la marca de arranque del historial y el
+ * servidor no: es local a proposito y no tiene que contar. Se pregunta
+ * una vez por sesion (una lectura).
+ */
+async function marcaDeArranqueSoloAca(): Promise<number> {
+  if (!(await db.historial.get(ID_ARRANQUE_HISTORIAL))) return 0
+  if (marcaEnElServidor === null) {
+    marcaEnElServidor = (
+      await getDocFromServer(
+        doc(obtenerFirestore(), 'negocios', ID_NEGOCIO, 'historial', ID_ARRANQUE_HISTORIAL),
+      )
+    ).exists()
+  }
+  return marcaEnElServidor ? 0 : 1
+}
+
+/** Desde cuando el aviso viene diciendo que hay algo sin subir. */
+let pendientesDesde: number | null = null
+let ultimaRevisionAutomatica = 0
+/** Lo que recien se cargo puede estar en viaje: se espera antes de revisar. */
+const ESPERA_ANTES_DE_REVISAR = 60 * 1000
+/** La revision lee colecciones enteras: no mas seguido que esto, sola. */
+const ENTRE_REVISIONES = 30 * 60 * 1000
+
+/**
+ * Controla y deja el resultado en el estado de la nube.
+ *
+ * Si el numero sigue arriba de cero despues de un minuto --ya no es algo
+ * en viaje--, revisa que es cada cosa y la resuelve (ver sinSubir.ts).
+ * Antes el aviso quedaba fijo y nadie podia saber que estaba contando.
+ */
+export async function controlarSinSubir(revisarSiHaceFalta = true): Promise<void> {
+  const cuantos = await contarSinSubir()
+  fijarEstadoNube({ sinSubir: cuantos })
+  if (!cuantos) {
+    pendientesDesde = null
+    return
+  }
+  if (!revisarSiHaceFalta) return
+  const ahora = Date.now()
+  if (pendientesDesde === null) {
+    pendientesDesde = ahora
+    setTimeout(() => void controlarSinSubir(), ESPERA_ANTES_DE_REVISAR + 2000)
+    return
+  }
+  if (
+    ahora - pendientesDesde >= ESPERA_ANTES_DE_REVISAR &&
+    ahora - ultimaRevisionAutomatica >= ENTRE_REVISIONES
+  ) {
+    ultimaRevisionAutomatica = ahora
+    await revisarPendientes()
+  }
+}
+
+let revisando: Promise<Revision | null> | null = null
+
+/**
+ * Busca, una por una, las filas de este aparato que el servidor no
+ * tiene, dice que es cada una y hace con ella lo que corresponde:
+ *
+ * - borrada a proposito desde otro aparato: se saca de ESTE aparato;
+ * - de un turno retenido: se deja, tiene su propio cartel;
+ * - renglon del historial firmado por otra persona: se deja, sube
+ *   cuando esa persona entre desde aca;
+ * - lo demas: se sube, de a una, sin pisar nada que ya este alla.
+ *
+ * Lo que no entra queda con el motivo. Todo se anota en `rechazos`
+ * (accion 'revisar') para poder verlo desde la consola sin pedir fotos.
+ */
+export function revisarPendientes(): Promise<Revision | null> {
+  if (!revisando) {
+    revisando = hacerRevision().finally(() => {
+      revisando = null
+    })
+  }
+  return revisando
+}
+
+async function hacerRevision(): Promise<Revision | null> {
+  const usuario = obtenerAuth().currentUser
+  if (!usuario) return null
+  const firestore = obtenerFirestore()
+  const coleccion = (tabla: NombreTabla) => collection(firestore, 'negocios', ID_NEGOCIO, tabla)
+
+  try {
+    const borrados = new Set(
+      (await getDocs(coleccion('borrados'))).docs.map((d) => aClaveLocal(d.id)),
+    )
+    const retenidos = new Set(obtenerEstadoNube().retenidos.map((t) => t.id))
+    const alMando = estaAlMando(obtenerSesion().perfil)
+    const renglones: RenglonRevision[] = []
+
+    for (const tabla of TABLAS) {
+      const [aca, alla] = await Promise.all([
+        db.table(tabla).count(),
+        getCountFromServer(coleccion(tabla)).then((r) => r.data().count),
+      ])
+      const marca = tabla === 'historial' ? await marcaDeArranqueSoloAca() : 0
+      if (aca - marca <= alla) continue
+      const enElServidor = new Set((await getDocs(coleccion(tabla))).docs.map((d) => d.id))
+      const filas = (await db.table(tabla).toArray()) as Record<string, unknown>[]
+      for (const fila of filas) {
+        const clave = claveDeFila(tabla, fila)
+        if (enElServidor.has(aClaveDeNube(clave))) continue
+        if (tabla === 'historial' && clave === ID_ARRANQUE_HISTORIAL) continue
+        const pendiente = { tabla, clave, fila }
+        const que = describirPendiente(pendiente)
+        const destino = clasificarPendiente(pendiente, {
+          borrados,
+          retenidos,
+          email: usuario.email,
+          uid: usuario.uid,
+        })
+        if (destino === 'ya-borrado' || destino === 'usuario-viejo') {
+          await comoRemoto(async () => {
+            await db.table(tabla).delete(clave)
+          })
+          renglones.push({ tabla, clave, que, resultado: 'sacado-de-aca' })
+        } else if (destino === 'retenido' || destino === 'firmado-por-otro') {
+          renglones.push({ tabla, clave, que, resultado: destino })
+        } else {
+          renglones.push({ tabla, clave, que, ...(await subirUno(tabla, clave, fila, alMando)) })
+        }
+      }
+    }
+
+    const revision: Revision = { cuando: Date.now(), renglones }
+    fijarEstadoNube({ revision })
+    if (renglones.length > 0) {
+      console.warn('Revision de lo que no subia:', renglones)
+      void dejarConstanciaDelRechazo(
+        'borrados',
+        '-',
+        'revisar',
+        `Revisión de lo que no subía: ${resumirRevision(renglones)}`,
+        null,
+        renglones.some((r) => r.resultado === 'rechazado') ? 'no' : 'entro',
+        undefined,
+        { renglones: renglones.slice(0, 100) },
+      )
+    }
+    await controlarSinSubir(false)
+    return revision
+  } catch (e) {
+    console.warn('No se pudo revisar lo que falta subir:', e)
+    return null
+  }
+}
+
+function resumirRevision(renglones: RenglonRevision[]): string {
+  const cuantos = new Map<string, number>()
+  for (const r of renglones) cuantos.set(r.resultado, (cuantos.get(r.resultado) ?? 0) + 1)
+  return [...cuantos.entries()].map(([resultado, n]) => `${n} ${resultado}`).join(', ')
+}
+
+/**
+ * Sube UNA fila que el servidor no tiene, sin pisar nada: si en el
+ * medio alguien la creo, se deja la del servidor (el 20/10 se aprendio
+ * que un setDoc a ciegas pisa). Va en una transaccion, que no escribe
+ * en la cache local antes de que el servidor acepte: si las reglas la
+ * rechazan, no hay reversion que llegue como un borrado.
+ */
+async function subirUno(
+  tabla: NombreTabla,
+  clave: string,
+  fila: Record<string, unknown>,
+  alMando: boolean,
+): Promise<{ resultado: 'subido' | 'ya-estaba' | 'rechazado'; motivo?: string }> {
+  const firestore = obtenerFirestore()
+  const datos = limpiar(fila)
+  // Un turno con el cierre ya autorizado no se puede CREAR asi (la regla
+  // de alta pide que no traiga autorizacion). Alguien al mando lo sube
+  // en dos pasos: el turno, y despues la autorizacion, que es una
+  // edicion que si puede hacer. Un empleado no: se le explica.
+  const enDosPasos = tabla === 'jornadas' && datos.cierreAutorizado != null && alMando
+  const primero = enDosPasos ? { ...datos, cierreAutorizado: null } : datos
+  try {
+    const referencia = doc(firestore, 'negocios', ID_NEGOCIO, tabla, aClaveDeNube(clave))
+    const yaEstaba = await runTransaction(firestore, async (tx) => {
+      if ((await tx.get(referencia)).exists()) return true
+      tx.set(referencia, primero)
+      return false
+    })
+    if (yaEstaba) return { resultado: 'ya-estaba' }
+    if (enDosPasos) {
+      await setDoc(
+        referencia,
+        { cierreAutorizado: datos.cierreAutorizado },
+        { mergeFields: ['cierreAutorizado'] },
+      )
+    }
+    return { resultado: 'subido' }
+  } catch (e) {
+    console.warn(`No entro ${tabla}/${clave}:`, e)
+    return { resultado: 'rechazado', motivo: motivoDeRechazo(tabla, fila, e) }
+  }
+}
+
+/**
+ * Saca de ESTE aparato una fila que el servidor no acepta, despues de
+ * que alguien al mando lo decide mirando que es. No se pierde: la fila
+ * entera queda en la constancia del servidor (`rechazos`, accion
+ * 'descartar'), de donde se puede recuperar.
+ */
+export async function sacarDeEsteAparato(tabla: NombreTabla, clave: string): Promise<void> {
+  const fila = (await db.table(tabla).get(clave)) as Record<string, unknown> | undefined
+  if (fila) {
+    await dejarConstanciaDelRechazo(
+      tabla,
+      clave,
+      'descartar',
+      `Se sacó de un aparato: ${describirPendiente({ tabla, clave, fila })}. El servidor no la aceptaba.`,
+      null,
+      'no',
+      undefined,
+      { fila },
+    )
+    await comoRemoto(async () => {
+      await db.table(tabla).delete(clave)
+    })
+  }
+  const { revision } = obtenerEstadoNube()
+  if (revision) {
+    fijarEstadoNube({
+      revision: {
+        ...revision,
+        renglones: revision.renglones.filter((r) => !(r.tabla === tabla && r.clave === clave)),
+      },
+    })
+  }
+  await controlarSinSubir(false)
 }
 
 /**
