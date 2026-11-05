@@ -920,8 +920,8 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Sincronización y respaldo',
     pregunta: 'Dice "hay N cosas sin subir al servidor", ¿qué hago?',
     respuesta:
-      'Significa que este dispositivo tiene datos guardados que todavía no llegaron a los demás. Normalmente es pasajero: pasa cuando se cargó algo sin señal, y se sube solo apenas vuelve internet.\n\nQué mirar: si tenés internet y el número no baja en unos minutos, algo está trabado. Avisá antes de seguir cargando, y sobre todo no borres los datos de la app ni la desinstales: ese dispositivo puede ser la única copia de lo que figura sin subir.\n\nLa app controla esto cada cinco minutos, comparando cuántos registros tiene acá contra cuántos hay en el servidor.',
-    palabrasClave: ['sin subir', 'pendiente', 'no sincroniza', 'no llega', 'cartel'],
+      'Significa que este aparato tiene cosas guardadas que el servidor no tiene. Normalmente es pasajero: pasa cuando se cargó algo sin señal, y se sube solo apenas vuelve internet.\n\nSi el número no baja en un minuto, la app revisa sola qué es cada cosa: sube lo que faltaba, saca de este aparato lo que ya se había borrado a propósito desde otro, y deja a la vista lo que el servidor no acepta. Tocá «Ver qué es» en el cartel para ver la lista y qué se hizo con cada cosa. Desde ahí también podés tocar «Revisar ahora».\n\nLo único que sigue contando después de revisar es lo que el servidor no acepta, con el motivo al lado. Sacale una foto y mandásela a Emmanuel. Mientras tanto podés seguir cargando: lo que cargás en el momento sube enseguida, aparte. Eso sí, no borres los datos de la app ni la desinstales, porque ese aparato puede ser la única copia de lo que figura ahí.\n\nNo cuentan, a propósito: los turnos retenidos para no duplicarlos (tienen su propio cartel rojo) y los renglones del historial firmados por otra persona, que suben solos cuando esa persona entra desde ese aparato.',
+    palabrasClave: ['sin subir', 'pendiente', 'no sincroniza', 'no llega', 'cartel', 'ver que es', 'revisar', 'no baja', '1 cosa', '3 cosas'],
   },
   {
     id: 'codigos-con-barra',

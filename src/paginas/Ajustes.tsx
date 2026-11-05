@@ -612,6 +612,12 @@ function TarjetaRespaldo() {
         <span className="fila-etiqueta">Versión de la app</span>
         <span className="fila-valor">{__VERSION_APP__}</span>
       </div>
+      <div className="fila" style={{ marginBottom: 10 }}>
+        <span className="fila-etiqueta">Lo que no subió</span>
+        <span className="fila-valor">
+          <Link to="/sin-subir">Ver y revisar</Link>
+        </span>
+      </div>
       <p className="silencio" style={{ marginBottom: 0 }}>
         Todo lo que se carga en cualquier dispositivo se guarda en el servidor (no solo en el
         celular) y se ve en los demás en cuanto haya internet. Sin conexión la app sigue

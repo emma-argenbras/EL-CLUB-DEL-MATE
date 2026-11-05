@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { aplicarPreciosNuevos, sembrarCatalogo, sincronizarMesImportado } from './db/sembrar'
 import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { mesLindo } from './lib/formato'
@@ -30,6 +30,7 @@ import VentasSinCodigo from './paginas/VentasSinCodigo'
 import UnirProveedores from './paginas/UnirProveedores'
 import RevisionProveedores from './paginas/RevisionProveedores'
 import TurnosDelDia from './paginas/TurnosDelDia'
+import SinSubir from './paginas/SinSubir'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
@@ -194,8 +195,9 @@ export default function App() {
               ? 'Hay 1 cosa sin subir al servidor.'
               : `Hay ${estadoNube.sinSubir} cosas sin subir al servidor.`}
           </strong>{' '}
-          Están guardadas en este dispositivo pero no llegaron a los demás. Si tenés internet
-          y no baja en unos minutos, avisá antes de seguir cargando.
+          Están guardadas en este dispositivo pero no llegaron a los demás. Si no baja sola en
+          un minuto, la app revisa qué es cada una.{' '}
+          <Link to="/sin-subir">Ver qué es</Link>
         </div>
       )}
       {nubeConfigurada && !enConsulta && estadoNube.retenidos.length > 0 && (
@@ -280,6 +282,7 @@ export default function App() {
             path="/revision-costos"
             element={alMando ? <RevisionCostos /> : <Navigate to="/caja" replace />}
           />
+          <Route path="/sin-subir" element={<SinSubir />} />
           <Route
             path="/ventas-sin-codigo"
             element={alMando ? <VentasSinCodigo /> : <Navigate to="/caja" replace />}
