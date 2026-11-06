@@ -56,9 +56,17 @@ export const AYUDA: EntradaAyuda[] = [
   {
     id: 'menu',
     categoria: 'Primeros pasos',
-    pregunta: '¿Qué es cada sección del menú de abajo?',
+    pregunta: '¿Qué es cada sección del menú?',
     respuesta:
-      '🧭 Panel: la revisión automática. Lo primero que conviene mirar al abrir la app: te dice qué hay para hacer hoy.\n\n🧉 Caja: abrir el turno, cargar ventas y cerrar la caja. Es lo que se usa todos los días.\n\n🏷️ Productos: el catálogo completo, buscar y editar precios y costos.\n\n🚚 Proveedores: quién provee cada producto, para actualizar costos en bloque.\n\n💸 Gastos: alquiler, sueldos, proveedores pagados con la caja grande.\n\n📊 Reportes (dueños): el margen de contribución del mes, si dio a favor o en contra.\n\n⭐ Mi día (empleados): tus pendientes del día, tu resumen del mes y lo más vendido.\n\n⚙️ Ajustes (dueños): respaldo de los datos y usuarios del equipo.',
+      'En el celular el menú está abajo; en la compu, arriba, con el nombre completo de cada sección. Son las mismas en los dos.\n\n🧭 Panel: la revisión automática. Lo primero que conviene mirar al abrir la app: te dice qué hay para hacer hoy.\n\n🧉 Caja: abrir el turno, cargar ventas y cerrar la caja. Es lo que se usa todos los días.\n\n🏷️ Productos: el catálogo completo, buscar y editar precios y costos.\n\n🚚 Proveedores: quién provee cada producto, para actualizar costos en bloque.\n\n💸 Gastos: alquiler, sueldos, proveedores pagados con la caja grande.\n\n📊 Reportes (dueños): el margen de contribución del mes, si dio a favor o en contra.\n\n⭐ Mi día (empleados): tus pendientes del día, tu resumen del mes y lo más vendido.\n\n⚙️ Ajustes (dueños): respaldo de los datos y usuarios del equipo.',
+  },
+  {
+    id: 'compu-distinta',
+    categoria: 'Primeros pasos',
+    pregunta: '¿Por qué en la compu la app se ve distinta que en el celular?',
+    respuesta:
+      'Porque la pantalla es más ancha y se aprovecha: el menú pasa arriba, con todas las secciones a la vista, y el contenido usa más lugar. En el Panel, por ejemplo, arriba aparece lo de hoy en cuatro recuadros, los avisos en tres columnas y las ventas de la semana en barras.\n\nEs la misma app, con los mismos datos y los mismos botones: solo cambia cómo se acomoda. En el celular sigue todo igual que siempre.\n\nSi en la compu ves el menú abajo, como en el celular, es que la ventana quedó angosta o el zoom está muy grande. Agrandá la ventana, o volvé el zoom a su tamaño normal: en la Mac, ⌘ y 0 (cero); en Windows, Ctrl y 0.',
+    palabrasClave: ['computadora', 'notebook', 'pantalla grande', 'menu arriba', 'diseño', 'se ve distinto', 'zoom'],
   },
   {
     id: 'sin-internet',
@@ -101,6 +109,15 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'Es la revisión automática del negocio. Cada vez que abrís la app, revisa sola la caja, el catálogo, los proveedores, los gastos y la sincronización, y te dice qué hay para hacer — ordenado de lo más urgente a lo menos.\n\nCada cosa que encuentra viene con tres datos: qué pasa, por qué importa, y qué hacer para resolverlo. El botón "Ir a resolverlo" te lleva derecho a la pantalla donde se arregla, ya filtrada.\n\nNo hay que pedirle nada ni apretar "actualizar": se recalcula sola con lo que va pasando.',
     palabrasClave: ['panel', 'auditoria', 'revision', 'dashboard', 'tablero'],
+    requiereSeccion: 'panel',
+  },
+  {
+    id: 'tablero-compu',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿Qué son los recuadros de arriba del Panel en la compu?',
+    respuesta:
+      'Son lo de hoy de un vistazo, y se actualizan solos con cada venta.\n\nVendido hoy: lo vendido entre todos los turnos del día, y cuántas operaciones fueron. Un ticket con varios productos, o un cambio, cuenta como una sola.\n\nEfectivo en el cajón: lo que debería haber en el cajón del turno abierto, el mismo número que la Caja muestra como «Efectivo esperado en caja». Si no hay ningún turno abierto, dice «No hay turno abierto».\n\nTarjetas y transferencias: lo cobrado hoy con tarjeta, transferencia o QR. Eso no está en el cajón: va al banco.\n\nEl cuarto recuadro depende de quién sea. El dueño y la encargada ven el saldo de la caja grande (si nunca se contó, dice «Sin contar»; tocándolo se abre la caja grande). El resto ve cuántos avisos hay para hoy.\n\nMás abajo están los avisos en tres columnas (Para hoy, Esta semana y Cuando puedas), las ventas de la semana en barras, de lunes a sábado y con hoy resaltado, y los turnos del día con quién los abrió y si ya se cerraron. En el celular el Panel sigue como siempre, sin los recuadros.',
+    palabrasClave: ['recuadros', 'tablero', 'vendido hoy', 'efectivo en el cajon', 'ventas de la semana', 'barras', 'turnos de hoy', 'compu'],
     requiereSeccion: 'panel',
   },
   {

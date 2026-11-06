@@ -1060,3 +1060,284 @@ th.num {
   height: 100%;
   background: var(--verde-claro);
 }
+
+/* ---------- La compu: opción B (06/11) ----------
+   Elegida por Emmanuel el 06/11 entre dos diseños. Desde 1024 px de ancho:
+   fondo claro, tarjetas blancas con borde fino, y el menú arriba, en la
+   misma barra que la marca, con íconos y la sección activa subrayada en
+   calabaza. En el celular no cambia nada: estas clases ni se ven. */
+
+.marca-escritorio,
+.menu-escritorio,
+.solo-escritorio {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  body {
+    background: #f4f5f2;
+  }
+
+  .app {
+    padding-bottom: 0;
+  }
+
+  .menu {
+    display: none;
+  }
+
+  .cabecera {
+    background: #ffffff;
+    color: var(--tinta);
+    border-bottom: 1px solid #e5e7e1;
+    padding: 0 32px;
+    min-height: 64px;
+    gap: 28px;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .marca {
+    display: none;
+  }
+
+  .marca-escritorio {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  .marca-circulo {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--verde);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  .menu-escritorio {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    flex: 1 1 auto;
+  }
+
+  .pestana-menu {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 64px;
+    padding: 0 2px;
+    box-sizing: border-box;
+    color: #44403c;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+  }
+
+  .pestana-menu:hover {
+    color: var(--verde);
+  }
+
+  .pestana-menu.activo {
+    color: var(--verde);
+    font-weight: 700;
+    border-bottom-color: #9c5516;
+  }
+
+  .acciones-cabecera {
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .cabecera .boton-ayuda {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid #d6d9d1;
+    color: var(--tinta);
+    font-size: 0.95rem;
+  }
+
+  .cabecera .campana {
+    color: var(--tinta);
+    width: 40px;
+    height: 40px;
+    border: 1px solid #d6d9d1;
+    border-radius: 10px;
+  }
+
+  .contenido {
+    max-width: 1080px;
+    padding: 28px 32px;
+  }
+
+  .contenido-ancho {
+    max-width: 1320px;
+  }
+
+  .tarjeta {
+    border-color: #e5e7e1;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: none;
+  }
+
+  h2 {
+    font-size: 1.6rem;
+    margin: 4px 0 18px;
+  }
+
+  .solo-escritorio {
+    display: block;
+  }
+
+  .solo-celular {
+    display: none;
+  }
+
+  /* El Panel como tablero */
+  .tablero-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .tablero-cabecera p::first-letter {
+    text-transform: uppercase;
+  }
+
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 6px;
+  }
+
+  .kpi {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 0;
+  }
+
+  .kpi-enlace {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .kpi-enlace:hover {
+    border-color: var(--verde);
+  }
+
+  .kpi-ficha {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+
+  .kpi-valor {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kpi-etiqueta {
+    color: var(--tinta-suave);
+    font-size: 0.82rem;
+  }
+
+  .plazos {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  .semana-y-turnos {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+    margin-top: 16px;
+  }
+
+  .barras {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+    align-items: end;
+    height: 170px;
+  }
+
+  .barra-dia {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    height: 100%;
+  }
+
+  .barra {
+    width: 100%;
+    background: #e7c9a9;
+    border-radius: 6px 6px 0 0;
+  }
+
+  .barra.hoy {
+    background: #9c5516;
+  }
+
+  .barra-numero,
+  .barra-dia-nombre {
+    font-size: 0.75rem;
+    color: var(--tinta-suave);
+  }
+
+  .barra-numero.hoy,
+  .barra-dia-nombre.hoy {
+    color: var(--tinta);
+    font-weight: 700;
+  }
+
+  .fila-turno {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid #eef0eb;
+  }
+
+  .fila-turno:last-child {
+    border-bottom: none;
+  }
+}
+
+/* Un enlace con forma de boton principal (Ir a la caja). */
+a.boton-verde-enlace {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: #ffffff;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+}
