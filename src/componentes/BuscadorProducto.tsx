@@ -151,8 +151,7 @@ export default function BuscadorProducto({ onElegir, autoFoco }: Props) {
               </div>
               {esComodin(p) && (
                 <div className="item-sub negativo">
-                  Producto comodín: la venta no va a decir qué salió. Mejor «Vender igual, sin
-                  código» con el nombre de lo que es.
+                  Producto genérico: al elegirlo, te pide qué salió.
                 </div>
               )}
             </div>

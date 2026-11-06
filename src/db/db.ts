@@ -87,6 +87,13 @@ export interface Producto {
    * no se vuelve a comprar.
    */
   descontinuado?: boolean
+  /**
+   * Producto generico, como «SALDOS – DE TODO»: al venderlo, Caja pide
+   * escribir que salio y eso queda como descripcion de la venta (punto 15
+   * del pedido del 06/11). Los comodines sin proveedor, costo ni precio
+   * lo piden aunque no tengan la marca (ver pideDescripcionAlVender).
+   */
+  generico?: boolean
   /** Un empleado pidio archivarlo; espera que un dueño lo autorice. */
   solicitudBorrado?: SolicitudBorrado | null
   creadoPor?: string | null
