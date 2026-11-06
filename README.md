@@ -1944,6 +1944,79 @@ De paso: el aviso del Panel decía «1 producto está más baratos»; ahora conc
 
 ---
 
+## La agenda de vencimientos (06/11)
+
+Punto 18 del pedido del 06/11: alquiler, luz, internet, contador, monotributo, el resumen de la
+tarjeta. Hasta acá la app avisaba recién después, cuando un gasto del mes pasado faltaba en
+este («gastos habituales faltantes»).
+
+**Una tabla nueva que sincroniza**, `vencimientos` (versión 9 de la base local):
+- qué se paga, el día del mes, un monto aproximado, la categoría y de dónde sale la plata;
+- si es fijo o variable y cuántos días antes avisar;
+- `desde`: la fecha desde la que se controla. Un mes que venció antes no se reclama.
+
+Está en la sincronización, en el historial y en el respaldo nocturno (en la rama). La regla
+general del servidor ya la cubre.
+
+**Pagado es un gasto, no un dato aparte.** «Marcar pagado» carga el gasto con su categoría y
+su cuenta, con `vencimiento: {id, periodo}`, y un vencimiento está pagado en un mes si hay
+un gasto que lo dice. Así no hay dos verdades: si el gasto se borra, vuelve a figurar sin
+pagar. Si ya estaba cargado a mano en Gastos, la pantalla lo ofrece y se engancha ese
+(`engancharGasto`), sin cargarlo dos veces. Si sale del cajón, va contra el turno abierto,
+como el pago a un proveedor.
+
+**Qué se reclama** (`situacionDe`, `src/lib/vencimientos.ts`):
+- el mes pasado, si venció y no se pagó;
+- si no, el mes en curso;
+- el día 31 en un mes más corto vence el último día.
+
+**Los avisos del Panel**, solo para quien está al mando:
+- «Hoy» para lo vencido o lo que vence hoy;
+- «Esta semana» para lo que vence en los próximos días.
+
+Lo que está en la agenda sale del aviso de gastos habituales faltantes: no se avisa dos veces.
+
+**La pantalla** (`/vencimientos`, desde Gastos):
+- lo pagado y lo que falta del mes;
+- la lista con lo vencido primero;
+- «Marcar pagado» y «Editar»;
+- botones para cargar los de siempre.
+
+Probado: 18 pruebas de la agenda y 4 de los avisos. Cada una se rompió a propósito y se puso
+en rojo:
+- el fin de mes;
+- no reclamar lo que la agenda no conocía;
+- el pago por mes;
+- los días de aviso;
+- los archivados;
+- no ofrecer un gasto ya enganchado;
+- el turno solo si sale del cajón;
+- el cajón sin turno;
+- enganchar dos veces;
+- el motivo y el monto;
+- no avisar dos veces;
+- lo de hoy y lo de la semana;
+- solo al mando.
+
+En el navegador:
+- la agenda con el contador vencido, la luz por vencer y el alquiler;
+- los dos avisos del Panel;
+- «Es este» con el gasto del contador cargado a mano;
+- la luz pagada con Mercado Pago, y los avisos que se van.
+
+Contra los emuladores en tres aparatos:
+- Emmanuel carga la luz y el servidor la tiene.
+- Sandra la ve en su Panel y la marca pagada: el gasto queda con su vencimiento, y el
+  historial dice quién y por qué.
+- La Mac la ve pagada y sin aviso.
+- Gabriela no entra a la agenda.
+- Cero rechazos y nada «sin subir».
+
+De paso: la entrada de la Ayuda sobre la caja grande se le mostraba a una empleada con Gastos,
+y la pantalla es solo para quien está al mando; ahora no.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -2483,9 +2556,12 @@ el contador y con los datos reales cuánto cambia.
 - [ ] **Pago a proveedor en un solo paso** contra sus facturas, condición de IVA del
       proveedor (falta saber cómo factura cada uno y qué es «medio IVA»), pedidos de
       insumos y reposición.
-- [ ] **Vencimientos** (alquiler, luz, internet, contador, monotributo, tarjetas) y
-      proyección de plata; **cierre de mes** con la carpeta para el contador y el tope del
-      monotributo.
+- [x] **Vencimientos**: la agenda con avisos y «marcar pagado» (ver «La agenda de
+      vencimientos»). Falta que Emmanuel cargue los suyos: qué, qué día y cuánto, más o menos.
+- [ ] **Flujo de fondos**: lo que hay, más lo que se va a cobrar, menos lo que vence, semana
+      por semana. Necesita las tarjetas a cobrar.
+- [ ] **Cierre de mes** con la carpeta para el contador y el tope del monotributo (falta la
+      categoría y en qué formato quiere los datos el contador).
 - [ ] **ARCA**: factura C desde la app, con el certificado guardado en el servidor (no en
       el celular).
 - [ ] La **visual en la compu** y el **logo original** (cuando Emmanuel lo pase en SVG o en

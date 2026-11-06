@@ -5,6 +5,7 @@ import type {
   Producto,
   Proveedor,
   SeccionId,
+  Vencimiento,
   Venta,
 } from '../db/db'
 import {
@@ -20,6 +21,7 @@ import {
 import { fechaLinda, plata } from './formato'
 import { fantasmasDeLosProductos } from './proveedorDeProducto'
 import { comodinesConVentas, ventasSinCodigo } from './ventaSinCodigo'
+import { agenda, cuandoVence } from './vencimientos'
 
 /**
  * Auditoria automatica del negocio.
@@ -78,6 +80,8 @@ export interface DatosAuditoria {
   ventasPorJornada: Map<string, Venta[]>
   movimientosPorJornada: Map<string, Movimiento[]>
   cuentaCorriente: MovimientoProveedor[]
+  /** La agenda de pagos que se repiten (06/11). Opcional: sin ella no se controla. */
+  vencimientos?: Vencimiento[]
   estadoNube: 'sin-configurar' | 'desconectado' | 'conectando' | 'sincronizado' | 'error'
   errorNube: string | null
   /**
@@ -715,7 +719,62 @@ function auditarProveedores(datos: DatosAuditoria, hallazgos: Hallazgo[]): void 
   })
 }
 
+function auditarVencimientos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
+  const lista = agenda(datos.vencimientos ?? [], datos.hoy, [...datos.movimientos, ...datos.movimientosMesAnterior])
+  const linea = (s: (typeof lista)[number]) =>
+    `${s.vencimiento.concepto}: ${cuandoVence(s).toLowerCase()} (${fechaLinda(s.fecha)}${s.vencimiento.montoAproximado ? `, aprox. ${plata(s.vencimiento.montoAproximado)}` : ''})`
+  const suma = (l: typeof lista) => l.reduce((t, s) => t + (s.vencimiento.montoAproximado ?? 0), 0)
+
+  // Lo vencido y lo que vence hoy: para hoy.
+  const hoy = lista.filter((s) => (s.estado === 'vencido' || s.estado === 'por-vencer') && s.dias <= 0)
+  if (hoy.length > 0) {
+    hallazgos.push({
+      id: 'vencimientos-hoy',
+      modulo: 'gastos',
+      nivel: 'critico',
+      titulo:
+        hoy.length === 1
+          ? `${hoy[0].vencimiento.concepto}: ${cuandoVence(hoy[0]).toLowerCase()}`
+          : `${hoy.length} pagos vencidos o que vencen hoy`,
+      detalle: `${hoy.map(linea).join(' · ')}.`,
+      comoSeResuelve:
+        'Si ya se pagó, marcalo pagado en Vencimientos: el gasto se carga solo (o se engancha el que ya estaba en Gastos). Si no, es para hoy.',
+      ruta: '/vencimientos',
+      cantidad: hoy.length,
+      monto: suma(hoy) || undefined,
+      soloOwner: true,
+      requiereSeccion: 'gastos',
+    })
+  }
+
+  // Lo que vence en los proximos dias: para esta semana.
+  const pronto = lista.filter((s) => s.estado === 'por-vencer' && s.dias > 0)
+  if (pronto.length > 0) {
+    hallazgos.push({
+      id: 'vencimientos-proximos',
+      modulo: 'gastos',
+      nivel: 'importante',
+      titulo:
+        pronto.length === 1
+          ? `${pronto[0].vencimiento.concepto}: ${cuandoVence(pronto[0]).toLowerCase()}`
+          : `${pronto.length} pagos vencen en los próximos días`,
+      detalle: `${pronto.map(linea).join(' · ')}.`,
+      comoSeResuelve: 'Cuando lo pagues, marcalo pagado en Vencimientos.',
+      ruta: '/vencimientos',
+      cantidad: pronto.length,
+      monto: suma(pronto) || undefined,
+      soloOwner: true,
+      requiereSeccion: 'gastos',
+    })
+  }
+}
+
 function auditarGastos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
+  // Lo que ya esta en la agenda de vencimientos lo avisa la agenda, antes
+  // de que venza: no hace falta avisarlo dos veces.
+  const enLaAgenda = new Set<string>(
+    (datos.vencimientos ?? []).filter((v) => v.activo !== false).map((v) => v.categoria),
+  )
   const categoriasDelMes = new Set(
     datos.movimientos
       .filter((m) => m.tipo === 'GASTO_CAJA_GRANDE' && m.categoria)
@@ -730,7 +789,8 @@ function auditarGastos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   // Solo se avisa por lo que efectivamente se pago el mes pasado: asi no
   // reclama un gasto que este negocio no tiene.
   const faltantes = GASTOS_HABITUALES.filter(
-    (categoria) => categoriasMesAnterior.has(categoria) && !categoriasDelMes.has(categoria),
+    (categoria) =>
+      categoriasMesAnterior.has(categoria) && !categoriasDelMes.has(categoria) && !enLaAgenda.has(categoria),
   )
   if (faltantes.length === 0) return
 
@@ -827,6 +887,7 @@ export function auditar(datosCompletos: DatosAuditoria): Hallazgo[] {
   auditarVentasSinCodigo(datos, hallazgos)
   auditarProveedores(datos, hallazgos)
   auditarGastos(datos, hallazgos)
+  auditarVencimientos(datos, hallazgos)
   auditarSistema(datos, hallazgos)
 
   return hallazgos.sort((a, b) => {
@@ -1052,6 +1113,22 @@ export const CONTROLES: {
     modulo: 'gastos',
     que: 'Que no falte cargar un gasto que se paga todos los meses',
     bien: 'Los gastos habituales del mes están cargados',
+    soloOwner: true,
+    requiereSeccion: 'gastos',
+  },
+  {
+    id: 'vencimientos-hoy',
+    modulo: 'gastos',
+    que: 'Que no haya pagos de la agenda vencidos',
+    bien: 'Ningún pago de la agenda está vencido',
+    soloOwner: true,
+    requiereSeccion: 'gastos',
+  },
+  {
+    id: 'vencimientos-proximos',
+    modulo: 'gastos',
+    que: 'Los pagos de la agenda que vencen en los próximos días',
+    bien: 'Nada de la agenda vence en los próximos días',
     soloOwner: true,
     requiereSeccion: 'gastos',
   },

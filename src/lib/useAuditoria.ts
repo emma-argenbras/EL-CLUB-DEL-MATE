@@ -77,6 +77,7 @@ export function useAuditoria(): ResultadoAuditoria {
       cuentaCorriente,
       pospuestos,
       ultimaSync,
+      vencimientos,
     ] = await Promise.all([
       db.productos.toArray(),
       db.proveedores.toArray(),
@@ -87,6 +88,7 @@ export function useAuditoria(): ResultadoAuditoria {
       db.movimientosProveedor.toArray(),
       db.ajustes.where('clave').startsWith(PREFIJO_POSPUESTO).toArray(),
       db.ajustes.get(CLAVE_ULTIMA_SYNC),
+      db.vencimientos.toArray(),
     ])
 
     // Para calcular la diferencia de caja hace falta lo de cada turno
@@ -107,6 +109,7 @@ export function useAuditoria(): ResultadoAuditoria {
       movimientosMes,
       movimientosMesAnterior,
       cuentaCorriente,
+      vencimientos,
       ultimaSync: ultimaSync ? Number(ultimaSync.valor) : null,
       ventasPorJornada: agrupar(ventasDeTurnos, (v) => v.jornadaId),
       movimientosPorJornada: agrupar(movimientosDeTurnos, (m) => m.jornadaId),
@@ -132,6 +135,7 @@ export function useAuditoria(): ResultadoAuditoria {
       ventasPorJornada: datos.ventasPorJornada,
       movimientosPorJornada: datos.movimientosPorJornada,
       cuentaCorriente: datos.cuentaCorriente,
+      vencimientos: datos.vencimientos,
       estadoNube: nube.estado,
       errorNube: nube.error,
       ultimaSync: datos.ultimaSync,
