@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { aplicarPreciosNuevos, sembrarCatalogo, sincronizarMesImportado } from './db/sembrar'
+import { aplicarPreciosNuevos, sembrarCatalogo } from './db/sembrar'
 import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
-import { mesLindo } from './lib/formato'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
 import { marcarArranqueDelHistorial } from './db/db'
@@ -50,19 +49,11 @@ const NAV_POR_SECCION: Record<SeccionId, { ruta: string; icono: string; texto: s
   reportes: { ruta: '/reportes', icono: '📊', texto: 'Reportes' },
 }
 
-// Meses de la planilla vieja ya extraidos y listos para cargarse solos.
-// Todo 2026 desde enero: cada mes se carga una sola vez y nunca pisa un
-// turno cargado a mano desde la app.
-const MESES_HISTORICOS = [
-  '2026-01',
-  '2026-02',
-  '2026-03',
-  '2026-04',
-  '2026-05',
-  '2026-06',
-  '2026-07',
-  '2026-08',
-]
+// El importador de los meses de la planilla vieja se saco el 06/11. Los
+// archivos dejaron de publicarse el 15/10 (eran ventas: datos privados), y
+// si alguna vez volvian, cada aparato iba a crear su propia copia de esos
+// meses, con otros ids: asi aparecieron los 406 turnos retenidos en la Mac.
+// Lo historico ya esta en el servidor.
 
 // Actualizaciones de la lista de precios traidas de la BASE DE DATOS.
 const LISTAS_DE_PRECIOS = ['2026-08']
@@ -91,12 +82,6 @@ export default function App() {
       // verdad: la tabla existio dos meses sin grabar nada, y el
       // silencio de ese tramo no puede leerse como "no se toco nada".
       await marcarArranqueDelHistorial()
-      // La primera vez son ocho meses de planilla: conviene ir contando
-      // en que va, para que no parezca que se colgo.
-      for (const mes of MESES_HISTORICOS) {
-        setPaso(`Trayendo las ventas de ${mesLindo(mes)}…`)
-        await sincronizarMesImportado(mes)
-      }
       for (const mes of LISTAS_DE_PRECIOS) {
         setPaso('Actualizando la lista de precios…')
         await aplicarPreciosNuevos(mes)
