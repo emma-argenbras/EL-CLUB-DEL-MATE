@@ -1558,3 +1558,107 @@ a.boton-verde-enlace {
     grid-column: 1 / -1;
   }
 }
+
+/* ---------- La ficha del producto en la compu: opción B (06/11) ---------- */
+
+.boton-enlace {
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 0;
+  color: var(--verde);
+  font-weight: 600;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.boton-verde {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: #ffffff;
+}
+
+.ficha-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+}
+
+.ficha-nombre {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 420px;
+}
+
+.ficha-icono {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 16px;
+  background: #f6e7d8;
+  color: #8a4a12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ficha-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ficha-precio {
+  text-align: right;
+}
+
+.ficha-precio-valor {
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ficha-grilla {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.ficha-grilla .tarjeta {
+  margin-bottom: 16px;
+}
+
+.dato {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef0eb;
+  font-variant-numeric: tabular-nums;
+}
+
+.ficha-remarcar {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fdf6e3;
+  border: 1px solid #efe1b8;
+}
+
+.ficha-cambio {
+  padding: 8px 0;
+  border-bottom: 1px solid #eef0eb;
+}
+
+.ficha-cambio:last-of-type {
+  border-bottom: none;
+}
