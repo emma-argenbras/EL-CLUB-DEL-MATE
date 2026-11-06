@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -26,7 +26,7 @@ import { nubeConfigurada } from '../sync/config'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { estaAlMando } from '../sync/permisos'
 import { fechaLinda, plata } from '../lib/formato'
-import type { TurnoRetenido } from '../sync/retener'
+import type { Coincidencia, TurnoRetenido } from '../sync/retener'
 import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
 import { apagarModoConsulta, leerModoConsulta, prenderModoConsulta } from '../lib/modoConsulta'
@@ -481,10 +481,67 @@ function TarjetaRetenidos() {
   const sesion = useSesion()
   const [mensaje, setMensaje] = useState('')
   const [trabajando, setTrabajando] = useState<string | null>(null)
-  if (!nubeConfigurada || estado.retenidos.length === 0) return null
+  const [comparacion, setComparacion] = useState<Map<string, Coincidencia> | null>(null)
   const alMando = estaAlMando(sesion.perfil)
+  const retenidos = estado.retenidos
+
+  // Cada vez que cambia la lista se vuelve a comparar con lo que el
+  // servidor ya tiene (ver compararConServidor en retener.ts).
+  useEffect(() => {
+    let vigente = true
+    setComparacion(null)
+    if (retenidos.length === 0) return
+    import('../sync/motor')
+      .then(({ compararRetenidos }) => compararRetenidos(retenidos))
+      .then((c) => {
+        if (vigente) setComparacion(c)
+      })
+      .catch(() => {})
+    return () => {
+      vigente = false
+    }
+  }, [retenidos])
+
+  if (!nubeConfigurada || retenidos.length === 0) return null
   const nombreTurno = (t: TurnoRetenido) =>
     `${fechaLinda(t.fecha)} ${t.turno === 'M' ? 'mañana' : 'tarde'}`
+
+  const copias = comparacion ? retenidos.filter((t) => comparacion.get(t.id) === 'igual') : []
+  const sinServidor = comparacion
+    ? retenidos.filter((t) => comparacion.get(t.id) === 'sin-servidor').length
+    : 0
+  const paraMirar = comparacion
+    ? retenidos.filter((t) => comparacion.get(t.id) !== 'igual')
+    : retenidos
+  const ventasDeCopias = copias.reduce((s, t) => s + t.ventas, 0)
+  const MOSTRAR = 30
+
+  async function descartarCopias() {
+    const movimientos = copias.reduce((s, t) => s + t.movimientos, 0)
+    if (
+      !confirm(
+        `¿Sacar de este aparato ${copias.length} turnos con ${ventasDeCopias.toLocaleString('es-AR')} ventas y ${movimientos} movimientos?\n\n` +
+          'Son copias exactas de turnos que ya están en el servidor: mismo día, mismo horario, mismas ventas y mismos montos. ' +
+          'En el servidor no cambia nada. Queda un renglón en el historial con el motivo.',
+      )
+    ) {
+      return
+    }
+    setTrabajando('copias')
+    try {
+      const { descartarCopiasRetenidas } = await import('../sync/motor')
+      const r = await descartarCopiasRetenidas(
+        'Copias exactas de turnos que ya estaban en el servidor (importación vieja de la planilla). Se sacaron solo de este aparato.',
+      )
+      setMensaje(
+        `Listo: se sacaron de este aparato ${r.turnos} turnos con ${r.ventas.toLocaleString('es-AR')} ventas. El servidor quedó igual.`,
+      )
+    } catch (e) {
+      setMensaje(`No se pudo: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTrabajando(null)
+    }
+  }
 
   async function descartar(t: TurnoRetenido) {
     if (
@@ -534,39 +591,88 @@ function TarjetaRetenidos() {
         faltan, subilos.
       </div>
       {mensaje && <div className="aviso aviso-ok">{mensaje}</div>}
-      <ul className="lista">
-        {estado.retenidos.map((t) => (
-          <li className="item" key={t.id} style={{ display: 'block' }}>
-            <div className="item-titulo">{nombreTurno(t)}</div>
-            <div className="item-sub">
-              {t.ventas} {t.ventas === 1 ? 'venta' : 'ventas'} por {plata(t.totalVentas)} ·{' '}
-              {t.movimientos} {t.movimientos === 1 ? 'egreso' : 'egresos'}
+
+      {!comparacion ? (
+        <p className="silencio">
+          Comparando {retenidos.length.toLocaleString('es-AR')} turnos con lo que tiene el servidor…
+        </p>
+      ) : (
+        <>
+          <div className="fila">
+            <span className="fila-etiqueta">Copias exactas de lo que ya está en el servidor</span>
+            <span className="fila-valor">{copias.length.toLocaleString('es-AR')}</span>
+          </div>
+          <div className="fila">
+            <span className="fila-etiqueta">Distintas: hay que mirarlas</span>
+            <span className="fila-valor">{(paraMirar.length - sinServidor).toLocaleString('es-AR')}</span>
+          </div>
+          {sinServidor > 0 && (
+            <div className="fila">
+              <span className="fila-etiqueta">Todavía sin el turno del servidor para comparar</span>
+              <span className="fila-valor">{sinServidor.toLocaleString('es-AR')}</span>
             </div>
-            {alMando ? (
-              <div className="botonera" style={{ marginTop: 6 }}>
-                <button
-                  className="boton-chico"
-                  disabled={trabajando === t.id}
-                  onClick={() => void descartar(t)}
-                >
-                  Ya está cargado: descartar
-                </button>
-                <button
-                  className="boton-chico"
-                  disabled={trabajando === t.id}
-                  onClick={() => void subir(t)}
-                >
-                  Falta de verdad: subirlo
-                </button>
-              </div>
+          )}
+          {copias.length > 0 &&
+            (alMando ? (
+              <button
+                className="boton-principal"
+                style={{ marginTop: 8 }}
+                disabled={trabajando !== null}
+                onClick={() => void descartarCopias()}
+              >
+                {trabajando === 'copias'
+                  ? 'Sacando…'
+                  : `Sacar de este aparato las ${copias.length.toLocaleString('es-AR')} copias exactas`}
+              </button>
             ) : (
-              <p className="silencio" style={{ marginTop: 4, marginBottom: 0 }}>
-                Lo decide un dueño o la encargada desde este mismo aparato.
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
+              <p className="silencio">Lo decide un dueño o la encargada desde este mismo aparato.</p>
+            ))}
+        </>
+      )}
+
+      {paraMirar.length > 0 && (
+        <ul className="lista" style={{ marginTop: 8 }}>
+          {paraMirar.slice(0, MOSTRAR).map((t) => (
+            <li className="item" key={t.id} style={{ display: 'block' }}>
+              <div className="item-titulo">{nombreTurno(t)}</div>
+              <div className="item-sub">
+                {t.ventas} {t.ventas === 1 ? 'venta' : 'ventas'} por {plata(t.totalVentas)} ·{' '}
+                {t.movimientos} {t.movimientos === 1 ? 'egreso' : 'egresos'}
+                {comparacion?.get(t.id) === 'distinto' && ' · no coincide con el del servidor'}
+                {comparacion?.get(t.id) === 'sin-servidor' && ' · falta el del servidor para comparar'}
+              </div>
+              {alMando ? (
+                <div className="botonera" style={{ marginTop: 6 }}>
+                  <button
+                    className="boton-chico"
+                    disabled={trabajando !== null}
+                    onClick={() => void descartar(t)}
+                  >
+                    Ya está cargado: descartar
+                  </button>
+                  <button
+                    className="boton-chico"
+                    disabled={trabajando !== null}
+                    onClick={() => void subir(t)}
+                  >
+                    Falta de verdad: subirlo
+                  </button>
+                </div>
+              ) : (
+                <p className="silencio" style={{ marginTop: 4, marginBottom: 0 }}>
+                  Lo decide un dueño o la encargada desde este mismo aparato.
+                </p>
+              )}
+            </li>
+          ))}
+          {paraMirar.length > MOSTRAR && (
+            <li className="item silencio">
+              Y {(paraMirar.length - MOSTRAR).toLocaleString('es-AR')} más. Aparecen a medida que se
+              resuelven los de arriba.
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   )
 }
