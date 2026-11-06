@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Jornada, Movimiento, MovimientoProveedor, Producto, Venta } from '../db/db'
+import type { Jornada, Movimiento, MovimientoProveedor, Producto, Vencimiento, Venta } from '../db/db'
 import {
   auditar,
   CONTROLES,
@@ -273,6 +273,48 @@ describe('auditar: proveedores y gastos', () => {
       }),
     )
     expect(buscar(hallazgos, 'gastos-habituales-faltantes')).toBeUndefined()
+  })
+})
+
+describe('la agenda de vencimientos (06/11)', () => {
+  const venc = (parcial: Partial<Vencimiento> = {}): Vencimiento => ({
+    id: 'alq', concepto: 'Alquiler', dia: 10, montoAproximado: 350000, categoria: 'ALQUILER', cuenta: 'cajaGrande',
+    esVariable: false, avisarDiasAntes: 3, desde: '2026-08-01', activo: true, notas: null, ...parcial,
+  })
+  const pagado = (id: string, periodo: string, fecha: string) =>
+    movimiento({ id: `p-${id}-${periodo}`, fecha, categoria: 'ALQUILER', vencimiento: { id, periodo } })
+
+  it('vencido: para hoy, solo para quien está al mando', () => {
+    const h = buscar(auditar(datos({ hoy: '2026-08-11', vencimientos: [venc()] })), 'vencimientos-hoy')
+    expect([h?.nivel, h?.soloOwner, h?.ruta, h?.monto]).toEqual(['critico', true, '/vencimientos', 350000])
+    expect(h?.titulo).toBe('Alquiler: venció ayer')
+  })
+
+  it('vence en dos días: para esta semana, no para hoy', () => {
+    const hallazgos = auditar(datos({ hoy: '2026-08-08', vencimientos: [venc()] }))
+    const h = buscar(hallazgos, 'vencimientos-proximos')
+    expect([h?.nivel, h?.titulo]).toEqual(['importante', 'Alquiler: vence en 2 días'])
+    expect(buscar(hallazgos, 'vencimientos-hoy')).toBeUndefined()
+  })
+
+  it('pagado: no avisa', () => {
+    const hallazgos = auditar(
+      datos({ hoy: '2026-08-11', vencimientos: [venc()], movimientos: [pagado('alq', '2026-08', '2026-08-09')] }),
+    )
+    expect(buscar(hallazgos, 'vencimientos-hoy')).toBeUndefined()
+    expect(buscar(hallazgos, 'vencimientos-proximos')).toBeUndefined()
+  })
+
+  it('lo que está en la agenda no se avisa dos veces como gasto habitual faltante', () => {
+    const hallazgos = auditar(
+      datos({
+        hoy: '2026-08-08',
+        vencimientos: [venc()],
+        movimientosMesAnterior: [movimiento({ categoria: 'ALQUILER', esVariable: false })],
+      }),
+    )
+    expect(buscar(hallazgos, 'gastos-habituales-faltantes')).toBeUndefined()
+    expect(buscar(hallazgos, 'vencimientos-proximos')).toBeDefined()
   })
 })
 

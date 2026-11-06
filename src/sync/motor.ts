@@ -92,6 +92,9 @@ const TABLAS: NombreTabla[] = [
   // Los conteos de la caja grande (06/11): el punto de partida de su
   // saldo tiene que ser el mismo en todos los aparatos.
   'arqueosCuenta',
+  // La agenda de vencimientos (06/11): la carga Emmanuel una vez y la
+  // ven todos los que pagan.
+  'vencimientos',
 ]
 
 /**

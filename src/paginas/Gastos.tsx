@@ -75,6 +75,18 @@ export default function Gastos() {
         </div>
       )}
 
+      {alMando && (
+        <div className="tarjeta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div>
+            <p className="tarjeta-titulo" style={{ margin: 0 }}>📅 Vencimientos</p>
+            <div className="item-sub">Alquiler, luz, contador, monotributo: avisa antes y carga el gasto.</div>
+          </div>
+          <Link className="boton-chico" to="/vencimientos">
+            Ver agenda
+          </Link>
+        </div>
+      )}
+
       <div className="tarjeta">
         <label htmlFor="mes-gastos">Mes</label>
         <input
