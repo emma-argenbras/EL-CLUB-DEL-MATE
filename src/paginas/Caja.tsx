@@ -19,7 +19,13 @@ import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
 import { egresoIgual, preguntaEgresoRepetido } from '../lib/egresoRepetido'
 import FormularioCambio from '../componentes/FormularioCambio'
-import { borrarCambio, MOTIVO_BORRAR_CAMBIO, MOTIVO_DESHACER_CAMBIO } from '../db/cambioProducto'
+import {
+  agruparCambios,
+  borrarCambio,
+  contarOperaciones,
+  MOTIVO_BORRAR_CAMBIO,
+  MOTIVO_DESHACER_CAMBIO,
+} from '../db/cambioProducto'
 import CierresPendientes from '../componentes/CierresPendientes'
 import CierresTardios from '../componentes/CierresTardios'
 import { useSesion } from '../sync/useSesion'
@@ -334,7 +340,7 @@ function TurnoAbierto({
           className={pestana === 'ventas' ? 'pestana activa' : 'pestana'}
           onClick={() => setPestana('ventas')}
         >
-          Ventas ({ventas?.length ?? 0})
+          Ventas ({ventas ? contarOperaciones(ventas) : 0})
         </button>
         <button
           className={pestana === 'egresos' ? 'pestana activa' : 'pestana'}
@@ -658,43 +664,74 @@ function PanelVentas({
           <p className="vacio">Todavía no hay ventas cargadas.</p>
         ) : (
           <ul className="lista">
-            {[...ventas].reverse().map((v) => (
-              <li className="item" key={v.id}>
-                <div style={{ minWidth: 0 }}>
-                  <div className="item-titulo">
-                    {v.cambioId && (
-                      <span className="chip chip-alerta" style={{ marginRight: 6 }}>
-                        CAMBIO · {v.cambio === 'vuelve' ? 'VUELVE' : 'SE LLEVA'}
-                      </span>
-                    )}
-                    {v.descripcion}
-                  </div>
-                  <div className="item-sub">
-                    {v.hora} · {v.codigo || 'sin código'} · {Math.abs(v.cantidad)} × {plata(v.precioUnitario)}{' '}
-                    <span
-                      className={v.medioPago === 'EFECTIVO' ? 'chip' : 'chip chip-banco'}
-                    >
-                      {v.medioPago}
-                    </span>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div className="item-monto">{plata(v.total)}</div>
-                  {!bloqueado && (
-                    <div className="botonera" style={{ marginTop: 4, justifyContent: 'flex-end' }}>
-                      {otroTurno && !v.cambioId && (
-                        <button className="boton-chico" onClick={() => mover(v)}>
-                          Pasar a {otroTurno.turno === 'M' ? 'mañana' : 'tarde'}
-                        </button>
-                      )}
-                      <button className="boton-chico" onClick={() => borrar(v)}>
-                        Borrar
-                      </button>
+            {agruparCambios(ventas)
+              .reverse()
+              .map((r) =>
+                r.tipo === 'cambio' ? (
+                  <li className="item" key={r.cambioId}>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="item-titulo">
+                        <span className="chip chip-alerta" style={{ marginRight: 6 }}>
+                          CAMBIO
+                        </span>
+                        Volvió {r.vuelve.map((v) => v.descripcion).join(', ')} · se llevó{' '}
+                        {r.lleva.map((v) => v.descripcion).join(', ')}
+                      </div>
+                      <div className="item-sub">
+                        {r.hora} ·{' '}
+                        {r.diferencia > 0
+                          ? `el cliente pagó ${plata(r.diferencia)}`
+                          : r.diferencia < 0
+                            ? `se le devolvió ${plata(-r.diferencia)}`
+                            : 'sin diferencia'}{' '}
+                        {r.diferencia !== 0 && (
+                          <span className={r.medioPago === 'EFECTIVO' ? 'chip' : 'chip chip-banco'}>
+                            {r.medioPago}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </li>
-            ))}
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="item-monto">{plata(r.diferencia)}</div>
+                      {!bloqueado && (
+                        <div className="botonera" style={{ marginTop: 4, justifyContent: 'flex-end' }}>
+                          <button className="boton-chico" onClick={() => borrar((r.lleva[0] ?? r.vuelve[0])!)}>
+                            Borrar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ) : (
+                  <li className="item" key={r.venta.id}>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="item-titulo">{r.venta.descripcion}</div>
+                      <div className="item-sub">
+                        {r.venta.hora} · {r.venta.codigo || 'sin código'} · {Math.abs(r.venta.cantidad)} ×{' '}
+                        {plata(r.venta.precioUnitario)}{' '}
+                        <span className={r.venta.medioPago === 'EFECTIVO' ? 'chip' : 'chip chip-banco'}>
+                          {r.venta.medioPago}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="item-monto">{plata(r.venta.total)}</div>
+                      {!bloqueado && (
+                        <div className="botonera" style={{ marginTop: 4, justifyContent: 'flex-end' }}>
+                          {otroTurno && (
+                            <button className="boton-chico" onClick={() => mover(r.venta)}>
+                              Pasar a {otroTurno.turno === 'M' ? 'mañana' : 'tarde'}
+                            </button>
+                          )}
+                          <button className="boton-chico" onClick={() => borrar(r.venta)}>
+                            Borrar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ),
+              )}
           </ul>
         )}
       </div>

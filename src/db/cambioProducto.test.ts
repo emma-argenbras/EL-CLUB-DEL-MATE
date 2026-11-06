@@ -1,8 +1,10 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { db, engancharAutor, historialAlDia, type Producto } from './db'
+import { db, engancharAutor, historialAlDia, type Producto, type Venta } from './db'
 import { resumirJornada, resumirMes } from '../lib/calculos'
 import {
+  agruparCambios,
+  contarOperaciones,
   armarCambio,
   borrarCambio,
   diferenciaCambio,
@@ -159,5 +161,48 @@ describe('borrarCambio', () => {
     const quedan = await db.ventas.toArray()
     expect(quedan).toHaveLength(2)
     expect(quedan.every((v) => v.cambioId === otro.cambioId)).toBe(true)
+  })
+})
+
+describe('agruparCambios: la lista del turno con cada cambio en una linea', () => {
+  const venta = (id: string, extra: Partial<Venta> = {}): Venta => ({
+    id, jornadaId: 'j', fecha: '2026-11-06', hora: '10:00', codigo: 'A', descripcion: 'MATE',
+    cantidad: 1, precioUnitario: 1000, costoUnitario: null, medioPago: 'EFECTIVO', total: 1000,
+    vendedor: null, ...extra,
+  })
+
+  it('las dos mitades de un cambio quedan juntas, con la diferencia que pago el cliente', () => {
+    const r = agruparCambios([
+      venta('v1'),
+      venta('c-vuelve', { cambioId: 'c1', cambio: 'vuelve', cantidad: -1, total: -40000, hora: '10:15', medioPago: 'DEBITO' }),
+      venta('c-lleva', { cambioId: 'c1', cambio: 'lleva', total: 45000, hora: '10:15', medioPago: 'DEBITO' }),
+      venta('v2'),
+    ])
+    expect(r.map((x) => x.tipo)).toEqual(['venta', 'cambio', 'venta'])
+    const cambio = r[1]
+    if (cambio.tipo !== 'cambio') throw new Error('se esperaba un cambio')
+    expect(cambio.diferencia).toBe(5000)
+    expect(cambio.medioPago).toBe('DEBITO')
+    expect(cambio.vuelve.map((v) => v.id)).toEqual(['c-vuelve'])
+    expect(cambio.lleva.map((v) => v.id)).toEqual(['c-lleva'])
+  })
+
+  it('si lo que se lleva vale menos, la diferencia es lo que se le devolvio', () => {
+    const [cambio] = agruparCambios([
+      venta('a', { cambioId: 'c2', cambio: 'vuelve', cantidad: -1, total: -45000 }),
+      venta('b', { cambioId: 'c2', cambio: 'lleva', total: 30000 }),
+    ])
+    if (cambio.tipo !== 'cambio') throw new Error('se esperaba un cambio')
+    expect(cambio.diferencia).toBe(-15000)
+  })
+
+  it('un cambio cuenta como una operacion, no como dos', () => {
+    expect(
+      contarOperaciones([
+        venta('v1'),
+        venta('a', { cambioId: 'c3', cambio: 'vuelve', cantidad: -1, total: -1000 }),
+        venta('b', { cambioId: 'c3', cambio: 'lleva', total: 1000 }),
+      ]),
+    ).toBe(2)
   })
 })

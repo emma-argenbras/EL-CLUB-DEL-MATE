@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { resumirMes } from '../lib/calculos'
 import { fechaLinda, hoyISO, mesActualISO, mesLindo, numero, plata, porcentaje } from '../lib/formato'
-import { ETIQUETA_MODULO, puntajeSalud, type ModuloAuditoria } from '../lib/auditoria'
+import { puntajeSalud } from '../lib/auditoria'
+import { agruparPorPlazo, TITULO_PLAZO } from '../lib/agruparAvisos'
 import { reactivarPospuestos, useAuditoria } from '../lib/useAuditoria'
 import ListaHallazgos from '../componentes/ListaHallazgos'
 import RevisionCompleta from '../componentes/RevisionCompleta'
@@ -11,7 +12,6 @@ import { seccionesVisibles } from '../sync/sesion'
 import { useSesion } from '../sync/useSesion'
 import { estaAlMando } from '../sync/permisos'
 
-const ORDEN_MODULOS: ModuloAuditoria[] = ['caja', 'productos', 'proveedores', 'gastos', 'sistema']
 
 function semaforo(puntaje: number): { emoji: string; texto: string; clase: string } {
   if (puntaje >= 90) return { emoji: '🟢', texto: 'Todo en orden', clase: 'positivo' }
@@ -47,15 +47,9 @@ export default function Panel() {
     [ventas, movimientos],
   )
 
-  const porModulo = useMemo(() => {
-    const mapa = new Map<ModuloAuditoria, typeof hallazgos>()
-    for (const h of hallazgos) {
-      const actual = mapa.get(h.modulo)
-      if (actual) actual.push(h)
-      else mapa.set(h.modulo, [h])
-    }
-    return mapa
-  }, [hallazgos])
+  const porPlazo = useMemo(() => agruparPorPlazo(hallazgos), [hallazgos])
+  // Lo de mantenimiento arranca plegado: es trabajo de a poco, no de hoy.
+  const [verCuandoPuedas, setVerCuandoPuedas] = useState(false)
 
   const puntaje = puntajeSalud(hallazgos)
   const luz = semaforo(puntaje)
@@ -93,12 +87,19 @@ export default function Panel() {
             </p>
           </div>
 
-          {ORDEN_MODULOS.filter((m) => porModulo.has(m)).map((modulo) => (
-            <div key={modulo}>
+          {porPlazo.map(({ plazo, hallazgos: delPlazo }) => (
+            <div key={plazo}>
               <p className="tarjeta-titulo" style={{ marginTop: 16, marginBottom: 8 }}>
-                {ETIQUETA_MODULO[modulo]}
+                {TITULO_PLAZO[plazo]} · {delPlazo.length}
               </p>
-              <ListaHallazgos hallazgos={porModulo.get(modulo) ?? []} />
+              {plazo === 'cuandoPuedas' && !verCuandoPuedas ? (
+                <button className="boton-chico" onClick={() => setVerCuandoPuedas(true)}>
+                  Mostrar {delPlazo.length === 1 ? 'el aviso' : `los ${delPlazo.length} avisos`} de
+                  mantenimiento
+                </button>
+              ) : (
+                <ListaHallazgos hallazgos={delPlazo} />
+              )}
             </div>
           ))}
 

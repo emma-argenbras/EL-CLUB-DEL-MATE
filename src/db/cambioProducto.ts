@@ -40,6 +40,63 @@ function redondear(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+/** Un renglon de la lista del turno: una venta, o un cambio entero. */
+export type RenglonDelTurno =
+  | { tipo: 'venta'; venta: Venta }
+  | {
+      tipo: 'cambio'
+      cambioId: string
+      vuelve: Venta[]
+      lleva: Venta[]
+      /** Positiva: pago el cliente. Negativa: se le devolvio. */
+      diferencia: number
+      medioPago: MedioPago
+      hora: string
+    }
+
+/**
+ * Las ventas del turno con cada cambio en un solo renglon, en el orden
+ * en que se cargaron. Hasta el 06/11 la lista mostraba los dos renglones
+ * sueltos --uno en negativo-- y habia que hacer la cuenta a mano para
+ * saber cuanto habia pagado el cliente (punto 9 del pedido del 06/11).
+ */
+export function agruparCambios(ventas: Venta[]): RenglonDelTurno[] {
+  const renglones: RenglonDelTurno[] = []
+  const cambios = new Map<string, Extract<RenglonDelTurno, { tipo: 'cambio' }>>()
+  for (const v of ventas) {
+    if (!v.cambioId) {
+      renglones.push({ tipo: 'venta', venta: v })
+      continue
+    }
+    let cambio = cambios.get(v.cambioId)
+    if (!cambio) {
+      cambio = {
+        tipo: 'cambio',
+        cambioId: v.cambioId,
+        vuelve: [],
+        lleva: [],
+        diferencia: 0,
+        medioPago: v.medioPago,
+        hora: v.hora,
+      }
+      cambios.set(v.cambioId, cambio)
+      renglones.push(cambio)
+    }
+    if (v.cambio === 'vuelve') cambio.vuelve.push(v)
+    else {
+      cambio.lleva.push(v)
+      cambio.medioPago = v.medioPago
+    }
+    cambio.diferencia = redondear(cambio.diferencia + v.total)
+  }
+  return renglones
+}
+
+/** Cuantas operaciones hubo: un cambio cuenta como una, no como dos. */
+export function contarOperaciones(ventas: Venta[]): number {
+  return agruparCambios(ventas).length
+}
+
 /** Positiva: paga el cliente. Negativa: se le devuelve. */
 export function diferenciaCambio(vuelve: LadoCambio, lleva: LadoCambio): number {
   return redondear(lleva.cantidad * lleva.precioUnitario - vuelve.cantidad * vuelve.precioUnitario)

@@ -1628,6 +1628,25 @@ vuelve a importar.
   botón saca las 9 del aparato (18 ventas) sin tocar el servidor, con el renglón del
   historial y la constancia.
 
+## Los avisos por plazo, y el cambio en una línea (06/11)
+
+Dos pedidos del 06/11 que no tocan cómo se guardan los datos:
+
+- **Avisos por plazo** (punto 4, `src/lib/agruparAvisos.ts`). La campana y el Panel
+  separan «Para hoy» (los urgentes), «Esta semana» (los importantes) y «Cuando puedas»
+  (el mantenimiento). La campana cuenta solo lo de hoy: en la Mac de Emmanuel decía 13 con
+  todo mezclado. De cada aviso se ve el título; el porqué y el qué hacer van plegados. Lo de
+  mantenimiento arranca plegado y, cuando el aviso trae un total («532 de 1.337»), se ve
+  como un avance: «60 % al día».
+- **El cambio en una línea** (punto 9, `agruparCambios` en `cambioProducto.ts`). La lista
+  del turno muestra las dos mitades de un cambio juntas: qué volvió, qué se llevó y cuánto
+  pagó el cliente o se le devolvió, con el medio de pago. La pestaña «Ventas (N)» y Turnos
+  del día cuentan un cambio como una operación, no como dos.
+
+Probado: 6 pruebas de los plazos y 3 del cambio (rotas a propósito: contar todo en la
+campana cae 1; no sumar lo que vuelve caen 2; contar renglones en vez de operaciones cae
+1), y las dos pantallas en el navegador.
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño
@@ -2173,9 +2192,9 @@ celular sin dejar datos. Ver "Lo que no se sube".
 - [ ] **Las pruebas de reglas no corren en el CI.** GitHub Actions tiene Java: agregar
       `npm run test:reglas` a `verificar.yml`. Y pasar tres o cuatro guiones de
       Playwright al repositorio para correrlos contra los emuladores.
-- [ ] Detalles: un cambio de producto cuenta como dos en "Ventas (N)" de Caja y en
-      Turnos del día; el aviso "ventas sin costo" cuenta dos veces un cambio cuyo
-      producto no tiene costo; `rechazos` no se limpia nunca.
+- [ ] Detalles: el aviso "ventas sin costo" cuenta dos veces un cambio cuyo producto no
+      tiene costo; `rechazos` no se limpia nunca. (Que un cambio contaba como dos en
+      "Ventas (N)" y en Turnos del día se arregló el 06/11.)
 
 **En curso**
 
