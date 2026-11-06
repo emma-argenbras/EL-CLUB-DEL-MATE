@@ -585,6 +585,11 @@ a.boton-chico {
   color: var(--amarillo);
 }
 
+.chip-peligro {
+  background: var(--rojo-suave);
+  color: var(--rojo);
+}
+
 .chip-ticket {
   background: #f6e7d8;
   color: var(--calabaza);

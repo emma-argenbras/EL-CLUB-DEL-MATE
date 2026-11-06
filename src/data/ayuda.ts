@@ -1002,6 +1002,18 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'En Gastos, arriba de todo, «Ver caja grande». La ven Emmanuel y Sandra.\n\nLa primera vez hay que contarla: «Contar la caja grande», cargás los billetes y guardás. Desde ahí la app lleva la cuenta sola: le suma los pases desde el cajón del turno y los ingresos, y le resta los gastos pagados con ella y los depósitos. Lo que la movió desde el último conteo aparece en una lista.\n\nConviene contarla de vez en cuando, por ejemplo una vez por semana. Como en el cierre del turno, primero se cuenta y después se ve cuánto debería haber. Si no da justo, falta anotar algo: un gasto pagado con esa plata, un pase, un depósito.\n\nPara un depósito al banco o un pase a Mercado Pago: «Depositar o pasar plata». No es un gasto, la plata sigue siendo del negocio. Los pases desde el cajón del turno se siguen cargando en Caja, en Egresos.\n\nAbajo está la caja virtual: lo cobrado hoy y en el mes con débito, crédito, transferencia y QR, que va al banco o a Mercado Pago.',
     palabrasClave: ['caja grande', 'saldo', 'contar', 'deposito', 'banco', 'mercado pago', 'caja virtual', 'tres cajas'],
+    // La pantalla es solo para quien esta al mando: a un empleado no le sirve leer como se usa.
+    soloOwner: true,
+    requiereSeccion: 'gastos',
+  },
+  {
+    id: 'vencimientos',
+    categoria: 'Gastos',
+    pregunta: '¿Cómo hago para que la app me avise antes de que venza el alquiler, la luz o el monotributo?',
+    respuesta:
+      'En Gastos, «📅 Vencimientos» → «Ver agenda». Cada pago que se repite todos los meses se carga una vez: qué es, qué día del mes vence, un monto aproximado, la categoría y de dónde sale la plata. Hay botones para los de siempre: alquiler, luz, internet, contador, monotributo (el 20, a confirmar con el contador) y el resumen de la tarjeta.\n\nLa app avisa en el Panel: unos días antes (3, o los que elijas) en «Esta semana», y el día que vence o si ya venció, en «Hoy».\n\nCuando lo pagues, tocá «Marcar pagado»: ponés cuánto se pagó y de dónde salió, y la app carga el gasto con su categoría, así no hay que cargarlo aparte en Gastos. Si ya lo habías cargado a mano, te lo muestra: tocá «Es este» y queda enganchado, sin cargarlo dos veces. Si sale del cajón, va contra el turno abierto y el cierre lo descuenta solo.\n\nSi un mes quedó sin pagar, la agenda lo sigue mostrando como vencido hasta que se marque. Si se borra el gasto, vuelve a figurar sin pagar. Lo que está en la agenda ya no aparece en el aviso de «gastos habituales que faltan cargar»: lo avisa la agenda, antes.\n\nLa ven Emmanuel y Sandra. Para sacar algo de la agenda: «Editar» → «Sacar de la agenda» (sus pagos quedan en Gastos).',
+    palabrasClave: ['vencimiento', 'vencimientos', 'agenda', 'alquiler', 'luz', 'internet', 'monotributo', 'contador', 'tarjeta', 'aviso', 'pago mensual', 'recordatorio'],
+    soloOwner: true,
     requiereSeccion: 'gastos',
   },
   {

@@ -406,6 +406,37 @@ export type MotivoDiferencia =
   | 'no-se'
 
 /**
+ * Un pago que se repite todos los meses: alquiler, luz, internet,
+ * contador, monotributo, el resumen de la tarjeta (punto 18 del pedido
+ * del 06/11). Se carga una vez; la app avisa antes de que venza y, al
+ * marcarlo pagado, carga el gasto (ver lib/vencimientos.ts).
+ */
+export interface Vencimiento {
+  id: string
+  concepto: string
+  /** Dia del mes, de 1 a 31. En un mes mas corto vence el ultimo dia. */
+  dia: number
+  montoAproximado: number | null
+  categoria: CategoriaGasto
+  /** De donde sale normalmente la plata. */
+  cuenta: CuentaDePago
+  esVariable: boolean
+  /** Cuantos dias antes avisa. */
+  avisarDiasAntes: number
+  /**
+   * Desde que fecha (yyyy-mm-dd) se controla. Un mes que vencio antes no se
+   * reclama: no tiene sentido avisar que no se pago algo que la app
+   * todavia no conocia.
+   */
+  desde: string
+  activo: boolean
+  notas: string | null
+  creadoEn?: number
+  creadoPor?: string | null
+  actualizadoEn?: number
+}
+
+/**
  * Un conteo de una cuenta del negocio, por ahora la caja grande (06/11).
  * Es el punto de partida del saldo: lo que se conto, mas lo que entro y
  * menos lo que salio despues (ver lib/cajaGrande.ts).
@@ -578,6 +609,12 @@ export interface Movimiento {
   cuenta?: CuentaDePago | null
   /** Solo en PASE_ENTRE_CUENTAS: a que cuenta entra la plata. */
   cuentaDestino?: CuentaDePago | null
+  /**
+   * Si es el pago de un vencimiento de la agenda (06/11): cual, y de que
+   * mes. Un vencimiento esta pagado en un mes si hay un gasto que lo dice;
+   * si ese gasto se borra, vuelve a figurar sin pagar.
+   */
+  vencimiento?: { id: string; periodo: string } | null
   concepto: string
   monto: number
   categoria: CategoriaGasto | null
@@ -672,6 +709,7 @@ export type NombreTabla =
   | 'historial'
   | 'borrados'
   | 'arqueosCuenta'
+  | 'vencimientos'
 
 /**
  * 'guardar' manda el documento entero (altas y la subida inicial).
@@ -778,6 +816,7 @@ class BaseECDM extends Dexie {
   movimientosProveedor!: Table<MovimientoProveedor, string>
   borrados!: Table<Borrado, string>
   arqueosCuenta!: Table<ArqueoCuenta, string>
+  vencimientos!: Table<Vencimiento, string>
 
   constructor() {
     super('el-club-del-mate')
@@ -981,6 +1020,11 @@ class BaseECDM extends Dexie {
       arqueosCuenta: 'id, cuenta, cuando',
     })
 
+    // La agenda de pagos que se repiten (06/11).
+    this.version(9).stores({
+      vencimientos: 'id, activo, dia',
+    })
+
     // Que campos se anotan cuando cambian, por tabla. El resto
     // (busqueda, actualizadoEn, los derivados) son ruido: ya se ven en
     // otro lado o no los decidio una persona.
@@ -1021,7 +1065,7 @@ class BaseECDM extends Dexie {
       // otro cuando se cargo en el equivocado, y eso mueve plata de una
       // caja a la otra: tiene que quedar escrito.
       ventas: ['codigo', 'descripcion', 'cantidad', 'precioUnitario', 'medioPago', 'jornadaId'],
-      movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable', 'cuenta', 'cuentaDestino'],
+      movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable', 'cuenta', 'cuentaDestino', 'vencimiento'],
       proveedores: [
         'nombre',
         'contacto',
@@ -1049,6 +1093,17 @@ class BaseECDM extends Dexie {
       borrados: [],
       // Un conteo no se edita: se cuenta otra vez. El alta queda como 'creo'.
       arqueosCuenta: ['contado', 'nota'],
+      vencimientos: [
+        'concepto',
+        'dia',
+        'montoAproximado',
+        'categoria',
+        'cuenta',
+        'esVariable',
+        'avisarDiasAntes',
+        'activo',
+        'notas',
+      ],
     }
 
     /**
@@ -1077,6 +1132,8 @@ class BaseECDM extends Dexie {
           return texto('nombre') || texto('email') || clave
         case 'arqueosCuenta':
           return `Conteo de ${texto('cuenta') === 'cajaGrande' ? 'la caja grande' : texto('cuenta')} del ${texto('fecha')}`
+        case 'vencimientos':
+          return `Vencimiento: ${texto('concepto') || clave}`
         default:
           return clave
       }
@@ -1110,6 +1167,7 @@ class BaseECDM extends Dexie {
       'historial',
       'borrados',
       'arqueosCuenta',
+      'vencimientos',
     ] as const) {
       const tabla: Table<Record<string, unknown>, string> = this.table(nombre)
 
