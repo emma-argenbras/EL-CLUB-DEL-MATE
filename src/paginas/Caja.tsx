@@ -20,6 +20,13 @@ import BuscadorProducto from '../componentes/BuscadorProducto'
 import FormularioCambio from '../componentes/FormularioCambio'
 import { egresoIgual, preguntaEgresoRepetido } from '../lib/egresoRepetido'
 import {
+  ETIQUETA_MOTIVO,
+  MOTIVOS_DIFERENCIA,
+  pideRecuento,
+  pistasDeLaDiferencia,
+  type MotivoDiferencia,
+} from '../lib/diferenciaCaja'
+import {
   descripcionesAnteriores,
   descripcionParaVender,
   pideDescripcionAlVender,
@@ -965,6 +972,34 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
   const cerrado = jornada.estado === 'cerrado'
   useCambiosSinGuardar('el conteo del cierre de caja', arqueo, !cerrado)
 
+  // Conteo ciego (06/11): primero se cuenta, y recien con «Ya conte» se
+  // ve cuanto deberia haber. Asi el conteo no se acomoda a lo esperado.
+  // Lo contado en ese momento queda guardado, aunque despues se reconte.
+  const yaPedido = jornada.solicitudCierre?.estado === 'pendiente'
+  const [conteoListo, setConteoListo] = useState(
+    cerrado || yaPedido || jornada.primerConteo != null,
+  )
+  const [primerConteo, setPrimerConteo] = useState<number | null>(jornada.primerConteo ?? null)
+  const [motivo, setMotivo] = useState<MotivoDiferencia | ''>(jornada.motivoDiferencia ?? '')
+  const [nota, setNota] = useState(jornada.notaCierre ?? '')
+  const ventasDelTurno = useLiveQuery(
+    () => db.ventas.where('jornadaId').equals(jornada.id).toArray(),
+    [jornada.id],
+  )
+  const movimientosDelTurno = useLiveQuery(
+    () => db.movimientos.where('jornadaId').equals(jornada.id).toArray(),
+    [jornada.id],
+  )
+  const pistas =
+    conteoListo && !cerrado
+      ? pistasDeLaDiferencia(diferencia, ventasDelTurno ?? [], movimientosDelTurno ?? [])
+      : []
+
+  function verCuantoDa() {
+    setPrimerConteo(contado)
+    setConteoListo(true)
+  }
+
   // Los turnos que ya existen ese mismo dia: si la tarde ya arranco,
   // cerrar la mañana es una correccion sobre algo que ya paso.
   const turnosDelDia = useLiveQuery(
@@ -1015,6 +1050,14 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
   }
 
   async function cerrar() {
+    // Cuando la caja no da justa se pide a que se debe, pero NO se frena
+    // el cierre: «No sé» es una respuesta valida, y la persona tiene que
+    // poder terminar su turno e irse. Lo que queda pendiente es el visto
+    // bueno del dueño.
+    if (diferencia !== 0 && motivo === '') {
+      alert('Elegí a qué se debe la diferencia. Si no sabés, elegí «No sé».')
+      return
+    }
     if (
       !confirm(
         diferencia === 0
@@ -1024,24 +1067,13 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
     )
       return
 
-    // Cuando la caja no da justa se pide una explicacion, pero NO se
-    // frena el cierre: la persona tiene que poder terminar su turno e
-    // irse. Lo que queda pendiente es el visto bueno del dueño.
-    let nota: string | null = jornada.notaCierre ?? null
-    if (diferencia !== 0) {
-      const escrito = prompt(
-        `¿Sabés a qué se debe la diferencia de ${plata(diferencia)}? Contale al dueño lo que te acordás (podés dejarlo vacío).`,
-        nota ?? '',
-      )
-      // Cancelar el cartel no cancela el cierre: solo deja la nota como estaba.
-      if (escrito !== null) nota = escrito.trim() || null
-    }
-
     await db.jornadas.update(jornada.id, {
       estado: 'cerrado',
       arqueoCierre: arqueo,
       horaCierre: horaAhora(),
-      notaCierre: nota,
+      notaCierre: diferencia !== 0 ? nota.trim() || null : null,
+      motivoDiferencia: diferencia !== 0 && motivo !== '' ? motivo : null,
+      primerConteo: primerConteo ?? contado,
       // Una diferencia nueva vuelve a necesitar visto bueno: si se
       // reabre el turno y se cierra distinto, el de antes ya no vale.
       cierreAutorizado: null,
@@ -1059,6 +1091,21 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
     <>
       <ArqueoCaja arqueo={arqueo} onCambiar={setArqueo} titulo="Arqueo de cierre" />
 
+      {!conteoListo ? (
+        <div className="tarjeta">
+          <div className="fila destacada">
+            <span className="fila-etiqueta">Contado</span>
+            <span className="fila-valor">{plata(contado)}</span>
+          </div>
+          <p className="silencio" style={{ marginTop: 8 }}>
+            Contá la plata del cajón sin apuro. Cuando termines, tocá «Ya conté» y la app te dice
+            si da justo.
+          </p>
+          <button className="boton-principal" onClick={verCuantoDa}>
+            Ya conté: ver cómo da
+          </button>
+        </div>
+      ) : (
       <div className="tarjeta">
         <div className="fila">
           <span className="fila-etiqueta">Debería haber</span>
@@ -1088,6 +1135,60 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
             {diferencia > 0
               ? 'Sobra plata en la caja: puede haber una venta sin cargar.'
               : 'Falta plata en la caja: puede haber un egreso sin registrar.'}
+          </p>
+        )}
+        {primerConteo !== null && primerConteo !== contado && (
+          <p className="silencio" style={{ marginTop: 4 }}>
+            Primer conteo, antes de ver lo esperado: {plata(primerConteo)}.
+          </p>
+        )}
+        {!cerrado && pideRecuento(diferencia) && (
+          <div className="aviso aviso-ojo" style={{ marginTop: 8 }}>
+            La diferencia es de {plata(Math.abs(diferencia))}. Antes de cerrar, recontá los billetes
+            grandes: es donde suele estar el error.
+          </div>
+        )}
+        {pistas.length > 0 && (
+          <div className="aviso" style={{ marginTop: 8 }}>
+            <strong>Puede ser que:</strong>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              {pistas.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {!cerrado && diferencia !== 0 && (
+          <>
+            <div className="campo" style={{ marginTop: 8 }}>
+              <label htmlFor="motivo-dif">¿A qué se debe la diferencia?</label>
+              <select
+                id="motivo-dif"
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value as MotivoDiferencia | '')}
+              >
+                <option value="">Elegí una opción</option>
+                {MOTIVOS_DIFERENCIA.map((m) => (
+                  <option key={m} value={m}>
+                    {ETIQUETA_MOTIVO[m]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="campo">
+              <label htmlFor="nota-dif">Lo que te acordás (opcional)</label>
+              <input
+                id="nota-dif"
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                placeholder="Por ejemplo: le di mal el vuelto a un cliente"
+              />
+            </div>
+          </>
+        )}
+        {cerrado && jornada.motivoDiferencia && (
+          <p className="silencio" style={{ marginTop: 4 }}>
+            Motivo elegido al cerrar: {ETIQUETA_MOTIVO[jornada.motivoDiferencia]}.
           </p>
         )}
         {/* Que pasa con la diferencia despues de cerrar. Sin esto, quien
@@ -1120,6 +1221,7 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
           </p>
         )}
       </div>
+      )}
 
       {esperandoPermiso && pedido && (
         <div className="aviso aviso-ojo">
@@ -1148,7 +1250,7 @@ function PanelCierre({ jornada, esperado }: { jornada: Jornada; esperado: number
         <button onClick={cancelarPedido} style={{ width: '100%' }}>
           Dar de baja el pedido
         </button>
-      ) : necesitaPermiso ? (
+      ) : !conteoListo ? null : necesitaPermiso ? (
         <button className="boton-principal" onClick={pedirCierre}>
           Pedir autorización para cerrar
         </button>
