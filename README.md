@@ -2722,9 +2722,9 @@ domingos, y las copias exactas retenidas se sacan de una vez. Ver "Lo que pasó 
 Después, en el día: los avisos por plazo y el cambio en una línea, los saldos que piden qué
 salió, el cierre con conteo ciego, la caja grande con saldo, y el ticket con varios
 productos y las tarjetas con recargo. Más tarde: el ingreso de mercadería, la agenda de
-vencimientos, los pedidos de insumos y la primera parte de la visual nueva en la compu. El
-análisis de los 22 pedidos del 06/11 y el plan están en el documento «ECDM · Análisis y
-plan de mejoras (noviembre)».
+vencimientos, los pedidos de insumos y la visual nueva en la compu (opción B: el menú
+arriba, el Panel, la Caja y la ficha del producto). El análisis de los 22 pedidos del
+06/11 y el plan están en el documento «ECDM · Análisis y plan de mejoras (noviembre)».
 
 **Para que decida Emmanuel (encontrado el 06/11):** un pago a proveedor genera un gasto
 variable de categoría PROVEEDORES, y el resultado del mes ya resta el costo de la mercadería
