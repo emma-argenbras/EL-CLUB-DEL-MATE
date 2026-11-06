@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Jornada, type Venta, type Movimiento } from '../db/db'
 import { resumirJornada, totalArqueo } from '../lib/calculos'
 import { fechaLinda, plata } from '../lib/formato'
+import { ETIQUETA_MOTIVO } from '../lib/diferenciaCaja'
 import { useSesion } from '../sync/useSesion'
 import { estaAlMando } from '../sync/permisos'
 
@@ -115,9 +116,20 @@ export default function CierresPendientes() {
                 </strong>
                 {p.jornada.vendedor ? ` · cerró ${p.jornada.vendedor}` : ''}
               </div>
+              {p.jornada.motivoDiferencia && (
+                <div className="item-sub">Motivo: {ETIQUETA_MOTIVO[p.jornada.motivoDiferencia]}</div>
+              )}
               {p.jornada.notaCierre && (
                 <div className="item-sub">«{p.jornada.notaCierre}»</div>
               )}
+              {p.jornada.primerConteo != null &&
+                p.jornada.arqueoCierre &&
+                Math.abs(p.jornada.primerConteo - totalArqueo(p.jornada.arqueoCierre)) >= 1 && (
+                  <div className="item-sub">
+                    Primer conteo {plata(p.jornada.primerConteo)}; cerró con{' '}
+                    {plata(totalArqueo(p.jornada.arqueoCierre))}.
+                  </div>
+                )}
             </div>
             <button
               className="boton-chico"

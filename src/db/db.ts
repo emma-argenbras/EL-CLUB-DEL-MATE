@@ -348,6 +348,17 @@ export interface Jornada {
    */
   notaCierre?: string | null
   /**
+   * A que se debio la diferencia, elegido de una lista al cerrar (06/11).
+   * Con esto sale cuantas diferencias fueron de conteo, de vuelto, de
+   * ventas mal cargadas... y no solo un texto libre.
+   */
+  motivoDiferencia?: MotivoDiferencia | null
+  /**
+   * Lo contado ANTES de ver cuanto deberia haber (conteo ciego, 06/11).
+   * Si despues se reconto y cambio, el dueño ve los dos numeros.
+   */
+  primerConteo?: number | null
+  /**
    * El visto bueno del dueño sobre la diferencia de este cierre.
    * Mientras esta en null, el cierre figura pendiente de revisar.
    * Solo un dueño lo puede escribir (ver firestore.rules).
@@ -363,6 +374,15 @@ export interface Jornada {
   creadoEn?: number
   actualizadoEn?: number
 }
+
+/** A que se debio una diferencia de caja (ver lib/diferenciaCaja.ts). */
+export type MotivoDiferencia =
+  | 'conteo'
+  | 'vuelto'
+  | 'venta-mal-cargada'
+  | 'egreso-sin-cargar'
+  | 'pase-sin-cargar'
+  | 'no-se'
 
 /** Cantidad de billetes por denominacion + un monto suelto de monedas. */
 export interface Arqueo {

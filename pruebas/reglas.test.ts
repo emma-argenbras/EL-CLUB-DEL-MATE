@@ -153,6 +153,17 @@ describe('jornadas: cerrar el turno del dia', () => {
     await assertSucceeds(updateDoc(doc(comoGabi(), `${NEGOCIO}/jornadas/j1`), CIERRE))
   })
 
+  it('un empleado cierra con el motivo y el primer conteo del conteo ciego (06/11)', async () => {
+    await sembrarJornada(hoyArgentina())
+    await assertSucceeds(
+      setDoc(
+        doc(comoGabi(), `${NEGOCIO}/jornadas/j1`),
+        { ...CIERRE, motivoDiferencia: 'venta-mal-cargada', primerConteo: 10000, notaCierre: 'fue por transferencia' },
+        { mergeFields: ['estado', 'horaCierre', 'arqueoCierre', 'motivoDiferencia', 'primerConteo', 'notaCierre'] },
+      ),
+    )
+  })
+
   it('un empleado puede seguir cargando el turno de ayer sin cerrarlo', async () => {
     // Corregir una venta vieja o anotar algo no es cerrar: no se toca.
     await sembrarJornada(ayerArgentina())
