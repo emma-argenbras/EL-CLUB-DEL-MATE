@@ -50,6 +50,7 @@ const COLECCIONES = [
   'historialProductos',
   'borrados',
   'arqueosCuenta',
+  'vencimientos',
 ]
 
 const carpeta = process.argv[2]
