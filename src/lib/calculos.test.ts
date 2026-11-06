@@ -638,3 +638,42 @@ describe('costoSospechoso', () => {
     ).toBeNull()
   })
 })
+
+describe('un ticket pagado con dos medios (06/11)', () => {
+  // Un mate de $ 40.000 y una bombilla de $ 10.000: $ 30.000 en efectivo
+  // y $ 20.000 con débito. El mate quedo partido entre los dos medios.
+  const ticket = [
+    venta({
+      id: 'r0', ticketId: 't1', total: 40000, cantidad: 1, medioPago: 'EFECTIVO',
+      pagos: [{ medio: 'EFECTIVO', monto: 30000 }, { medio: 'DEBITO', monto: 10000 }],
+    }),
+    venta({ id: 'r1', ticketId: 't1', total: 10000, cantidad: 1, medioPago: 'DEBITO', pagos: [{ medio: 'DEBITO', monto: 10000 }] }),
+  ]
+
+  it('el efectivo esperado del turno cuenta solo lo cobrado en efectivo', () => {
+    const r = resumirJornada(0, ticket, [])
+    expect(r.efectivo).toBe(30000)
+    expect(r.banco).toBe(20000)
+    expect(r.unidades).toBe(2)
+  })
+
+  it('en el mes, un ticket es una operación aunque tenga dos productos', () => {
+    const r = resumirMes([...ticket, venta({ id: 'suelta', total: 5000 })], [])
+    expect(r.operaciones).toBe(2)
+    expect(r.ventasEfectivo).toBe(35000)
+    expect(r.ventasBanco).toBe(20000)
+  })
+
+  it('el recargo de tarjeta suma plata pero no unidades', () => {
+    const r = resumirJornada(
+      0,
+      [
+        venta({ id: 'm', ticketId: 't2', total: 40000, cantidad: 1, medioPago: 'CREDITO' }),
+        venta({ id: 'rec', ticketId: 't2', codigo: 'REC-TARJETA', total: 6000, cantidad: 1, costoUnitario: 0, medioPago: 'CREDITO' }),
+      ],
+      [],
+    )
+    expect(r.banco).toBe(46000)
+    expect(r.unidades).toBe(1)
+  })
+})

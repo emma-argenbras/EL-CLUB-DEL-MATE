@@ -1823,6 +1823,61 @@ pase; la otra compu ve $ 150.000; ningún aviso de «sin subir».
 
 ---
 
+## El ticket con varios productos, y las tarjetas con recargo (06/11)
+
+Puntos 7 y 8 del pedido del 06/11. Hasta acá cada producto era una venta suelta con su
+propio medio de pago: un cliente que se llevaba un mate y una bombilla eran dos ventas, si
+pagaba una parte en efectivo y otra con tarjeta no había cómo cargarlo, y el recargo de
+Consumax o Club del Este se hacía a mano en el precio.
+
+**Sin tabla nueva** (`src/db/ticket.ts`). Cada producto sigue siendo un renglón de `ventas`,
+y los del mismo ticket comparten `ticketId`. Si el ticket se pagó con más de un medio, o con
+una tarjeta y un plan, cada renglón guarda en `pagos` cómo se pagó lo suyo
+(`repartirPagos`: cada renglón toma de los pagos en orden hasta cubrirse, en centavos, así
+cada medio suma exacto). Un renglón pagado entero con un solo medio y sin tarjeta queda
+igual que cualquier venta de antes, sin `pagos`.
+
+**Las cuentas de plata leen `cobrosDe(v)`** (en `db.ts`): los `pagos` si los hay, y si no
+el medio y el total de siempre. Lo usan el resumen del turno y del mes (`calculos.ts`), la
+caja virtual y las pistas del cierre. Las ventas viejas no cambian en nada.
+
+**El recargo es un renglón más del ticket**, con el código `REC-TARJETA` y costo cero: así
+lo vendido suma lo cobrado, el banco del turno da con lo que pasó por el posnet, y el margen
+lo cuenta. No suma unidades, no aparece en los más vendidos ni en «costos a actualizar»
+(`esRecargo`). Los planes están en `src/lib/tarjetas.ts`: débito y crédito bancaria sin
+recargo; Consumax y Club del Este, 5 % en un pago y 15 % en tres (lo que pasó Emmanuel).
+Con crédito hay que elegir la tarjeta en cada venta; con débito no.
+
+**En Caja:** «🧾 Varios productos» abre el ticket (`FormularioTicket.tsx`): buscador,
+renglones con cantidad y precio, los genéricos piden qué salió, «+ Otro medio de pago» con
+el segundo monto que se completa con lo que falta, «Paga con» con el vuelto, y los totales.
+Desde la venta común, «+ Se lleva otro producto» pasa a ticket con lo ya elegido. La venta
+común con un plan con recargo se guarda como ticket (producto + recargo). En la lista, el
+ticket es una línea («TICKET») que se deshace, se borra o se pasa de turno entera
+(`borrarTicket` y `moverTicket`, en una transacción), y cuenta como una operación.
+
+**El servidor no cambia:** la regla general de `ventas` no limita campos. Ningún valor
+queda `undefined` adentro de `pagos` (Firestore no lo acepta y `limpiar` del motor solo
+mira el primer nivel): hay una prueba para eso.
+
+**Ojo legal, para Emmanuel:** la ley 25.065 pide no cobrar distinto con tarjeta de crédito
+que en efectivo. Cómo se presenta el recargo lo decide él con el contador; la app registra lo
+que se cobró.
+
+Probado: 13 pruebas del ticket, 4 de tarjetas, y las de cálculos, caja virtual, pistas y
+agrupado (rotas a propósito una por una: el reparto sin tope, sin renglón de recargo, el
+stock sin sumar por código, los pagos sin guardar, el agrupado, el orden, mover solo un
+renglón, un `undefined` en los pagos, el plan puesto por defecto en crédito, las cuentas
+leyendo el medio en vez de los pagos; cada una pone en rojo su prueba). En el navegador:
+Consumax 3 pagos ($ 40.000 → «cobrá $ 46.000»), deshacer, un ticket de tres productos mitad
+en efectivo y resto con Club del Este (resumen del turno: $ 30.000 efectivo, $ 32.550
+banco), pasarlo de turno, y borrar con el stock que vuelve. Contra los emuladores en dos
+aparatos: la Mac carga el ticket mixto, el servidor tiene los renglones con sus pagos, la
+otra compu ve lo mismo y los mismos totales, la borra desde ahí y desaparece en la Mac;
+ningún aviso de «sin subir».
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -2337,8 +2392,28 @@ el login. Ver "Lo que pasó el 31/10".
 **Hecho el 06/11** — la ruedita del mouse ya no cambia los números (el conteo que quedaba
 en cero), el cartel de cargas retenidas resume, el Panel no cuenta lo retenido ni los
 domingos, y las copias exactas retenidas se sacan de una vez. Ver "Lo que pasó el 06/11".
-El análisis de los 22 pedidos del 06/11 y el plan están en el documento «ECDM · Análisis y
-plan de mejoras (noviembre)».
+Después, en el día: los avisos por plazo y el cambio en una línea, los saldos que piden qué
+salió, el cierre con conteo ciego, la caja grande con saldo, y el ticket con varios
+productos y las tarjetas con recargo. El análisis de los 22 pedidos del 06/11 y el plan
+están en el documento «ECDM · Análisis y plan de mejoras (noviembre)».
+
+**Lo que sigue del plan del 06/11**, en orden:
+
+- [ ] **Tarjetas a cobrar**: lo vendido con cada tarjeta, cuándo se acredita y cuánto se
+      queda la procesadora, para controlar contra la liquidación. Falta que Sandra junte,
+      de cada tarjeta, los días de acreditación y el porcentaje que descuentan.
+- [ ] **Precio de oferta o liquidación por producto.** Toca `productos` en el servidor:
+      necesita cambio de reglas y el OK de Emmanuel (y quién puede ponerlo).
+- [ ] **Ingreso de mercadería** con remito, **prorrateo del flete** en el costo, **pago a
+      proveedor en un solo paso** desde la caja chica o la grande, condición de IVA del
+      proveedor y compras por código. Pedidos de insumos y reposición.
+- [ ] **Vencimientos** (alquiler, luz, internet, contador, monotributo, tarjetas) y
+      proyección de plata; **cierre de mes** con la carpeta para el contador y el tope del
+      monotributo.
+- [ ] **ARCA**: factura C desde la app, con el certificado guardado en el servidor (no en
+      el celular).
+- [ ] La **visual en la compu** y el **logo original** (cuando Emmanuel lo pase en SVG o en
+      PNG de 1024).
 
 **Hecho el 04/11** — el aviso «sin subir» ya no cuenta lo retenido ni lo firmado por otra
 persona, revisa solo qué es cada cosa y la resuelve, tiene «Ver qué es», y un lote

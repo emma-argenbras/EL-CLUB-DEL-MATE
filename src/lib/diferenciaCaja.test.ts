@@ -47,6 +47,11 @@ describe('pistas cuando sobra plata', () => {
     expect(pistasDeLaDiferencia(8500, [venta('a', 8500, 'EFECTIVO')], [])).toEqual([])
     expect(pistasDeLaDiferencia(-8500, [venta('a', 8500, 'EFECTIVO', { cambioId: 'c' })], [])).toEqual([])
   })
+
+  it('el recargo de una tarjeta no es una venta que se pueda haber cargado mal (06/11)', () => {
+    const recargo = venta('r', 1500, 'DEBITO', { codigo: 'REC-TARJETA', descripcion: 'Recargo Consumax 3 pagos (15 %)' })
+    expect(pistasDeLaDiferencia(1500, [recargo], [])).toEqual([])
+  })
 })
 
 describe('cuándo pedir recontar', () => {

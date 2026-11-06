@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import {
   db,
   nuevoId,
+  CODIGO_RECARGO,
   CATEGORIAS_GASTO,
   MEDIOS_PAGO,
   type CategoriaGasto,
@@ -18,6 +19,15 @@ import { fechaLinda, haceCuanto, hoyISO, horaAhora, leerNumero, plata } from '..
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
 import FormularioCambio from '../componentes/FormularioCambio'
+import FormularioTicket, { type InicioTicket } from '../componentes/FormularioTicket'
+import {
+  borrarTicket,
+  moverTicket,
+  MOTIVO_BORRAR_TICKET,
+  MOTIVO_DESHACER_TICKET,
+  registrarTicket,
+} from '../db/ticket'
+import { nombreDelPlan, planAlElegirMedio, planesDe, planPorId, recargoDe } from '../lib/tarjetas'
 import { egresoIgual, preguntaEgresoRepetido } from '../lib/egresoRepetido'
 import {
   ETIQUETA_MOTIVO,
@@ -37,6 +47,7 @@ import {
   contarOperaciones,
   MOTIVO_BORRAR_CAMBIO,
   MOTIVO_DESHACER_CAMBIO,
+  type RenglonDelTurno,
 } from '../db/cambioProducto'
 import CierresPendientes from '../componentes/CierresPendientes'
 import CierresTardios from '../componentes/CierresTardios'
@@ -429,6 +440,8 @@ function PanelVentas({
   const [cantidad, setCantidad] = useState('1')
   const [precio, setPrecio] = useState('')
   const [medioPago, setMedioPago] = useState<MedioPago>('EFECTIVO')
+  // Con tarjeta: cual y en que plan (Consumax en 3 pagos lleva recargo).
+  const [planId, setPlanId] = useState<string | null>(null)
   // Lo que salio, cuando el producto es generico («SALDOS – DE TODO»).
   const [queSalio, setQueSalio] = useState('')
   // Una venta a medio cargar: el producto elegido y todavia sin registrar.
@@ -439,13 +452,16 @@ function PanelVentas({
   // equivocado o un cero de mas se ven justo despues de tocar
   // "Agregar": ahi es cuando conviene poder volver atras de un toque.
   const [ultima, setUltima] = useState<{
-    /** La venta, o el cambio (dos renglones que se deshacen juntos). */
+    /** La venta, el cambio o el ticket (sus renglones se deshacen juntos). */
     ventaId?: string
     cambioId?: string
+    ticketId?: string
     texto: string
     cuando: number
   } | null>(null)
-  const [modo, setModo] = useState<'venta' | 'cambio'>('venta')
+  const [modo, setModo] = useState<'venta' | 'ticket' | 'cambio'>('venta')
+  // Lo que ya estaba elegido cuando el cliente pidio sumar otro producto.
+  const [inicioTicket, setInicioTicket] = useState<InicioTicket | null>(null)
   const [ahora, setAhora] = useState(Date.now())
   useEffect(() => {
     if (!ultima) return
@@ -478,6 +494,29 @@ function PanelVentas({
     }
   }
 
+  async function moverElTicket(ticketId: string, cuantos: number) {
+    if (!otroTurno) return
+    const aDonde = otroTurno.turno === 'M' ? 'la mañana' : 'la tarde'
+    if (!confirm(`¿Pasar el ticket entero (${cuantos} renglones) al turno de ${aDonde}?\n\nLa plata deja de contar en esta caja y pasa a contar en la otra. Queda registrado en el historial.`)) return
+    try {
+      await moverTicket({ jornadaId: jornada.id, ticketId }, otroTurno.id)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function borrarElTicket(ticketId: string, cuantos: number) {
+    // Un ticket se borra entero: un pedazo seria una venta que nadie hizo.
+    if (
+      !confirm(
+        `¿Borrar el ticket entero?\n\nSe borran sus ${cuantos} renglones y el stock vuelve a como estaba.`,
+      )
+    ) {
+      return
+    }
+    await borrarTicket({ jornadaId: jornada.id, ticketId }, MOTIVO_BORRAR_TICKET, sesion.email)
+  }
+
   function seleccionar(producto: Producto) {
     setQueSalio('')
     setElegido(producto)
@@ -488,6 +527,10 @@ function PanelVentas({
   const cant = leerNumero(cantidad) ?? 0
   const pre = leerNumero(precio) ?? 0
   const total = Math.round(cant * pre * 100) / 100
+  const planes = planesDe(medioPago)
+  const plan = planPorId(planId)
+  const faltaPlan = planes.length > 0 && !plan
+  const recargo = recargoDe(total, plan)
   const pideQueSalio = elegido !== null && pideDescripcionAlVender(elegido)
   const descripcion = elegido ? descripcionParaVender(elegido, queSalio) : null
   const anteriores = useLiveQuery(
@@ -501,6 +544,30 @@ function PanelVentas({
   async function registrar() {
     if (!elegido || cant <= 0 || pre <= 0) return
     if (!descripcion || 'problema' in descripcion) return
+    if (faltaPlan) return
+    // Con recargo son dos renglones (el producto y el recargo): van juntos
+    // como un ticket, asi se borran o se pasan de turno juntos.
+    if (plan && recargo > 0) {
+      const r = await registrarTicket(
+        jornada,
+        [{ producto: elegido, descripcion: descripcion.descripcion, cantidad: cant, precioUnitario: pre }],
+        [{ medio: medioPago, monto: total, planId: plan.id }],
+        horaAhora(),
+      )
+      const cuando = Date.now()
+      setUltima({
+        ticketId: r.ticketId,
+        texto: `${descripcion.descripcion} · ${nombreDelPlan(plan)} · ${plata(total + recargo)} con recargo`,
+        cuando,
+      })
+      setAhora(cuando)
+      setQueSalio('')
+      setElegido(null)
+      setPrecio('')
+      setCantidad('1')
+      setPlanId(planAlElegirMedio(medioPago))
+      return
+    }
     const id = nuevoId()
     await db.transaction('rw', db.ventas, db.productos, async () => {
       await db.ventas.add({
@@ -531,13 +598,18 @@ function PanelVentas({
     setElegido(null)
     setPrecio('')
     setCantidad('1')
+    // La tarjeta se vuelve a elegir en cada venta: que la de recien no
+    // quede puesta para el proximo cliente.
+    setPlanId(planAlElegirMedio(medioPago))
   }
 
   async function deshacer() {
     if (!ultima) return
-    const { ventaId, cambioId } = ultima
+    const { ventaId, cambioId, ticketId } = ultima
     setUltima(null)
-    if (cambioId) {
+    if (ticketId) {
+      await borrarTicket({ jornadaId: jornada.id, ticketId }, MOTIVO_DESHACER_TICKET, sesion.email)
+    } else if (cambioId) {
       await borrarCambio({ jornadaId: jornada.id, cambioId }, MOTIVO_DESHACER_CAMBIO, sesion.email)
     } else if (ventaId) {
       await borrarVenta(ventaId, MOTIVO_DESHACER_VENTA, sesion.email)
@@ -573,12 +645,17 @@ function PanelVentas({
         <div className="tarjeta">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <p className="tarjeta-titulo" style={{ margin: 0 }}>
-              {modo === 'venta' ? 'Cargar venta' : 'Cambio de producto'}
+              {modo === 'venta' ? 'Cargar venta' : modo === 'ticket' ? 'Ticket con varios productos' : 'Cambio de producto'}
             </p>
-            {modo === 'venta' && (
-              <button className="boton-chico" onClick={() => setModo('cambio')}>
-                ↔ Cambio
-              </button>
+            {modo === 'venta' && !elegido && (
+              <div className="botonera" style={{ marginTop: 0 }}>
+                <button className="boton-chico" onClick={() => setModo('ticket')}>
+                  🧾 Varios productos
+                </button>
+                <button className="boton-chico" onClick={() => setModo('cambio')}>
+                  ↔ Cambio
+                </button>
+              </div>
             )}
           </div>
 
@@ -588,7 +665,7 @@ function PanelVentas({
               style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}
             >
               <span style={{ minWidth: 0 }}>
-                {ultima.cambioId ? ultima.texto : `Cargada: ${ultima.texto}`}
+                {ultima.cambioId || ultima.ticketId ? ultima.texto : `Cargada: ${ultima.texto}`}
               </span>
               <button className="boton-chico" style={{ flex: 'none' }} onClick={() => void deshacer()}>
                 Deshacer ({quedaParaDeshacer(ultima.cuando, ahora)})
@@ -596,7 +673,23 @@ function PanelVentas({
             </div>
           )}
 
-          {modo === 'cambio' ? (
+          {modo === 'ticket' ? (
+            <FormularioTicket
+              jornada={jornada}
+              inicial={inicioTicket}
+              onCancelar={() => {
+                setInicioTicket(null)
+                setModo('venta')
+              }}
+              onListo={({ ticketId, texto }) => {
+                setInicioTicket(null)
+                const cuando = Date.now()
+                setUltima({ ticketId, texto, cuando })
+                setAhora(cuando)
+                setModo('venta')
+              }}
+            />
+          ) : modo === 'cambio' ? (
             <FormularioCambio
               jornada={jornada}
               onCancelar={() => setModo('venta')}
@@ -677,7 +770,11 @@ function PanelVentas({
                 <select
                   id="medio"
                   value={medioPago}
-                  onChange={(e) => setMedioPago(e.target.value as MedioPago)}
+                  onChange={(e) => {
+                    const medio = e.target.value as MedioPago
+                    setMedioPago(medio)
+                    setPlanId(planAlElegirMedio(medio))
+                  }}
                 >
                   {MEDIOS_PAGO.map((m) => (
                     <option key={m} value={m}>
@@ -686,6 +783,27 @@ function PanelVentas({
                   ))}
                 </select>
               </div>
+
+              {planes.length > 1 && (
+                <div className="campo">
+                  <label htmlFor="plan">Tarjeta y plan</label>
+                  <select id="plan" value={planId ?? ''} onChange={(e) => setPlanId(e.target.value || null)}>
+                    <option value="">Elegí la tarjeta…</option>
+                    {planes.map((pl) => (
+                      <option key={pl.id} value={pl.id}>
+                        {nombreDelPlan(pl)}
+                        {pl.recargoPct > 0 ? ` · recargo ${pl.recargoPct} %` : ' · sin recargo'}
+                      </option>
+                    ))}
+                  </select>
+                  {plan && recargo > 0 && (
+                    <div className="item-sub">
+                      Recargo {plan.recargoPct} %: {plata(recargo)}. En el posnet cobrá{' '}
+                      <strong>{plata(total + recargo)}</strong>.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {sinStock(elegido) && (
                 <div className="aviso aviso-ojo">
@@ -703,11 +821,32 @@ function PanelVentas({
               )}
 
               <button
+                className="boton-chico"
+                style={{ marginBottom: 8 }}
+                onClick={() => {
+                  // El cliente se lleva algo mas: pasa a ticket con lo que ya
+                  // estaba elegido como primer producto.
+                  setInicioTicket({ producto: elegido, queSalio, cantidad, precio, medio: medioPago, planId })
+                  setElegido(null)
+                  setQueSalio('')
+                  setPrecio('')
+                  setCantidad('1')
+                  setModo('ticket')
+                }}
+              >
+                + Se lleva otro producto
+              </button>
+
+              <button
                 className="boton-principal"
                 onClick={registrar}
-                disabled={total <= 0 || !descripcion || 'problema' in descripcion}
+                disabled={total <= 0 || !descripcion || 'problema' in descripcion || faltaPlan}
               >
-                Agregar {plata(total)}
+                {faltaPlan
+                  ? 'Elegí la tarjeta'
+                  : recargo > 0
+                    ? `Agregar ${plata(total + recargo)} (con recargo)`
+                    : `Agregar ${plata(total)}`}
               </button>
             </>
           )}
@@ -758,6 +897,15 @@ function PanelVentas({
                       )}
                     </div>
                   </li>
+                ) : r.tipo === 'ticket' ? (
+                  <RenglonTicketDelTurno
+                    key={r.ticketId}
+                    ticket={r}
+                    bloqueado={bloqueado}
+                    otroTurno={otroTurno ?? null}
+                    onMover={() => void moverElTicket(r.ticketId, r.filas.length)}
+                    onBorrar={() => void borrarElTicket(r.ticketId, r.filas.length)}
+                  />
                 ) : (
                   <li className="item" key={r.venta.id}>
                     <div style={{ minWidth: 0 }}>
@@ -792,6 +940,67 @@ function PanelVentas({
         )}
       </div>
     </>
+  )
+}
+
+/** Un ticket en la lista del turno: todos sus productos y cómo se pagó. */
+function RenglonTicketDelTurno({
+  ticket,
+  bloqueado,
+  otroTurno,
+  onMover,
+  onBorrar,
+}: {
+  ticket: Extract<RenglonDelTurno, { tipo: 'ticket' }>
+  bloqueado: boolean
+  otroTurno: Jornada | null
+  onMover: () => void
+  onBorrar: () => void
+}) {
+  const productos = ticket.filas.filter((f) => f.codigo !== CODIGO_RECARGO)
+  const recargo = ticket.filas
+    .filter((f) => f.codigo === CODIGO_RECARGO)
+    .reduce((s, f) => s + f.total, 0)
+  return (
+    <li className="item">
+      <div style={{ minWidth: 0 }}>
+        <div className="item-titulo">
+          <span className="chip chip-ticket" style={{ marginRight: 6 }}>
+            TICKET
+          </span>
+          {productos.map((f) => (f.cantidad > 1 ? `${f.descripcion} ×${f.cantidad}` : f.descripcion)).join(', ')}
+        </div>
+        <div className="item-sub">
+          {ticket.hora} · {productos.length} {productos.length === 1 ? 'producto' : 'productos'}
+          {recargo > 0 && ` · recargo ${plata(recargo)}`} ·{' '}
+          {ticket.pagos.map((p, i) => (
+            <span
+              key={i}
+              className={p.medio === 'EFECTIVO' ? 'chip' : 'chip chip-banco'}
+              style={{ marginRight: 4 }}
+            >
+              {p.detalle ?? p.medio}
+              {ticket.pagos.length > 1 && ` ${plata(p.monto)}`}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        <div className="item-monto">{plata(ticket.total)}</div>
+        {!bloqueado && (
+          <div className="botonera" style={{ marginTop: 4, justifyContent: 'flex-end' }}>
+            {otroTurno && (
+              <button className="boton-chico" onClick={onMover}>
+                Pasar a {otroTurno.turno === 'M' ? 'mañana' : 'tarde'}
+              </button>
+            )}
+            <button className="boton-chico" onClick={onBorrar}>
+              Borrar
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
   )
 }
 

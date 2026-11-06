@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
-import { db } from '../db/db'
+import { db, esRecargo } from '../db/db'
 import { costoDesactualizado, desglosarGastos, resumirMes } from '../lib/calculos'
 import { fechaLinda, mesActualISO, mesLindo, plata, porcentaje, numero } from '../lib/formato'
 import DesgloseGastos from '../componentes/DesgloseGastos'
@@ -42,6 +42,7 @@ export default function Reportes() {
   const masVendidos = useMemo(() => {
     const mapa = new Map<string, { desc: string; unidades: number; venta: number; margen: number }>()
     for (const v of ventas ?? []) {
+      if (esRecargo(v)) continue
       // Una venta suelta no tiene codigo: se agrupa por su descripcion,
       // asi no quedan todas amontonadas en una sola fila del ranking.
       const clave = v.codigo || v.descripcion
@@ -70,6 +71,8 @@ export default function Reportes() {
     let montoTotal = 0
     for (const v of ventas) {
       montoTotal += v.total
+      // El recargo de tarjeta no tiene costo que actualizar.
+      if (esRecargo(v)) continue
       const producto = v.codigo ? catalogo.get(v.codigo) : undefined
       if (producto && !costoDesactualizado(producto)) continue
       const actual = mapa.get(v.codigo || v.descripcion) ?? {

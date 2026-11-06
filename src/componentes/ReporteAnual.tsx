@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/db'
+import { db, esRecargo } from '../db/db'
 import { desglosarGastos, resumirAnio } from '../lib/calculos'
 import { mesLindo, numero, plata, porcentaje } from '../lib/formato'
 import DesgloseGastos from './DesgloseGastos'
@@ -29,6 +29,7 @@ export default function ReporteAnual({ anio }: { anio: string }) {
   const masVendidos = useMemo(() => {
     const mapa = new Map<string, { desc: string; unidades: number; venta: number }>()
     for (const v of ventas ?? []) {
+      if (esRecargo(v)) continue
       const clave = v.codigo || v.descripcion
       const actual = mapa.get(clave) ?? { desc: v.descripcion, unidades: 0, venta: 0 }
       actual.unidades += v.cantidad
