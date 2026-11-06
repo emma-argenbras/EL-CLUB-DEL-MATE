@@ -361,7 +361,15 @@ function TurnoAbierto({
         </div>
         <div className="fila">
           <span className="fila-etiqueta">Efectivo esperado en caja</span>
-          <span className="fila-valor">{plata(resumen.cierreEsperado)}</span>
+          {/* Conteo ciego: mientras se cuenta en «Cierre», lo esperado no se
+              ve tampoco aca arriba. Aparece abajo, con «Ya conté». */}
+          {pestana === 'cierre' && !cerrado ? (
+            <span className="fila-valor silencio" data-esperado-oculto>
+              se ve después de contar
+            </span>
+          ) : (
+            <span className="fila-valor">{plata(resumen.cierreEsperado)}</span>
+          )}
         </div>
         {cerrado && (
           <div className="aviso aviso-ok" style={{ marginTop: 10, marginBottom: 0 }}>
