@@ -65,7 +65,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Primeros pasos',
     pregunta: '¿Por qué en la compu la app se ve distinta que en el celular?',
     respuesta:
-      'Porque la pantalla es más ancha y se aprovecha: el menú pasa arriba, con todas las secciones a la vista, y el contenido usa más lugar. En el Panel, por ejemplo, arriba aparece lo de hoy en cuatro recuadros, los avisos en tres columnas y las ventas de la semana en barras.\n\nEs la misma app, con los mismos datos y los mismos botones: solo cambia cómo se acomoda. En el celular sigue todo igual que siempre.\n\nSi en la compu ves el menú abajo, como en el celular, es que la ventana quedó angosta o el zoom está muy grande. Agrandá la ventana, o volvé el zoom a su tamaño normal: en la Mac, ⌘ y 0 (cero); en Windows, Ctrl y 0.',
+      'Porque la pantalla es más ancha y se aprovecha: el menú pasa arriba, con todas las secciones a la vista, y el contenido usa más lugar. En el Panel, por ejemplo, arriba aparece lo de hoy en cuatro recuadros, los avisos en tres columnas y las ventas de la semana en barras. En la Caja, la búsqueda, el ticket y el cobro quedan uno al lado del otro.\n\nEs la misma app, con los mismos datos y los mismos botones: solo cambia cómo se acomoda. En el celular sigue todo igual que siempre.\n\nSi en la compu ves el menú abajo, como en el celular, es que la ventana quedó angosta o el zoom está muy grande. Agrandá la ventana, o volvé el zoom a su tamaño normal: en la Mac, ⌘ y 0 (cero); en Windows, Ctrl y 0.',
     palabrasClave: ['computadora', 'notebook', 'pantalla grande', 'menu arriba', 'diseño', 'se ve distinto', 'zoom'],
   },
   {
@@ -294,7 +294,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Caja',
     pregunta: '¿Cómo cargo una venta?',
     respuesta:
-      'Con el turno abierto, en la pestaña "Ventas" escribí el código o el nombre del producto en el buscador. Elegí el que corresponda de la lista, revisá la cantidad y el precio (se completa solo con el precio de venta cargado), elegí el medio de pago, y tocá "Agregar". La venta queda en la lista de abajo, y los totales de arriba se actualizan solos.',
+      'Con el turno abierto, en la pestaña "Ventas" escribí el código o el nombre del producto en el buscador. Elegí el que corresponda de la lista, revisá la cantidad y el precio (se completa solo con el precio de venta cargado), elegí el medio de pago, y tocá "Agregar". La venta queda en la lista de abajo, y los totales de arriba se actualizan solos.\n\nEn la compu se cobra distinto: todo desde el ticket, en tres columnas. Ver «¿Cómo se cobra en la compu?».',
     palabrasClave: ['vender', 'buscar producto', 'cobrar'],
     requiereSeccion: 'caja',
   },
@@ -312,8 +312,17 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Caja',
     pregunta: 'Un cliente se lleva varios productos, o paga una parte en efectivo y otra con tarjeta, ¿cómo lo cargo?',
     respuesta:
-      'En Caja, pestaña "Ventas", tocá "🧾 Varios productos". Buscá cada producto: cada uno que elijas se suma al ticket (si elegís el mismo dos veces, suma uno a la cantidad). En cada renglón podés corregir la cantidad y el precio, o tocar «Sacar». Si ya habías elegido un producto en la venta común, «+ Se lleva otro producto» lo pasa al ticket.\n\nAbajo, en «Cómo paga», el monto se completa solo con el total. Si paga con dos medios: escribí lo del primero (por ejemplo, $ 30.000 en efectivo), tocá «+ Otro medio de pago» y el segundo se completa con lo que falta. Con tarjeta de crédito elegí la tarjeta y el plan (ver la pregunta de Consumax y Club del Este). Si paga en efectivo, en «Paga con» ponés con cuánto paga y te dice el vuelto.\n\nTocá «Registrar ticket». En la lista del turno se ve en una sola línea, marcada «TICKET», con los productos y cómo se pagó. Cuenta como una operación. El stock baja de cada producto, y el efectivo y el banco del turno suman cada parte por su medio.\n\nDurante 30 segundos se puede deshacer. Después, «Borrar» o «Pasar a mañana/tarde» en esa línea hacen todo el ticket junto: no se puede borrar o mover un solo producto de un ticket.',
+      'En Caja, pestaña "Ventas", tocá "🧾 Varios productos". Buscá cada producto: cada uno que elijas se suma al ticket (si elegís el mismo dos veces, suma uno a la cantidad). En cada renglón podés corregir la cantidad y el precio, o tocar «Sacar». Si ya habías elegido un producto en la venta común, «+ Se lleva otro producto» lo pasa al ticket.\n\nAbajo, en «Cómo paga», el monto se completa solo con el total. Si paga con dos medios: escribí lo del primero (por ejemplo, $ 30.000 en efectivo), tocá «+ Otro medio de pago» y el segundo se completa con lo que falta. Con tarjeta de crédito elegí la tarjeta y el plan (ver la pregunta de Consumax y Club del Este). Si paga en efectivo, en «Paga con» ponés con cuánto paga y te dice el vuelto.\n\nTocá «Registrar ticket». En la lista del turno se ve en una sola línea, marcada «TICKET», con los productos y cómo se pagó. Si al final era un solo producto pagado con un solo medio y sin recargo, queda como una venta común, sin la marca. Cuenta como una operación. El stock baja de cada producto, y el efectivo y el banco del turno suman cada parte por su medio.\n\nDurante 30 segundos se puede deshacer. Después, «Borrar» o «Pasar a mañana/tarde» en esa línea hacen todo el ticket junto: no se puede borrar o mover un solo producto de un ticket.',
     palabrasClave: ['ticket', 'varios productos', 'carrito', 'cliente', 'pago mixto', 'dos medios', 'parte efectivo', 'parte tarjeta', 'vuelto'],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'cobrar-en-la-compu',
+    categoria: 'Caja',
+    pregunta: '¿Cómo se cobra en la compu?',
+    respuesta:
+      'En la compu, la Caja se arma en tres columnas y todo se cobra desde el ticket.\n\nA la izquierda, «Buscar producto»: escribí el código o el nombre, o tocá uno de «Lo más vendido de la semana», que son los seis que más salieron en los últimos siete días. Cada producto que elegís se suma al ticket.\n\nEn el medio, el ticket: con − y + cambiás la cantidad, y el precio se puede corregir ahí mismo. «Sacar» lo quita.\n\nA la derecha, el cobro: el medio de pago, con la tarjeta y el plan si es crédito, «+ Otro medio de pago» si paga con dos, y «Paga con» para el vuelto. Abajo está el total, con el recargo si lo hay. «Registrar» lo guarda y deja el ticket vacío para el próximo cliente; «Vaciar el ticket» lo descarta sin guardar.\n\nSi es un solo producto pagado con un solo medio y sin recargo, queda como una venta común, igual que en el celular. Si son varios productos, o dos medios, o una tarjeta con recargo, queda como ticket.\n\nPara un cambio de producto, el botón «Cambio de producto» está arriba de la búsqueda. Abajo de todo, las ventas del turno se ven en una tabla, con «Pasar a mañana/tarde» y «Borrar». Lo último que registraste se puede deshacer durante 30 segundos.',
+    palabrasClave: ['compu', 'computadora', 'tres columnas', 'lo mas vendido', 'cobro', 'registrar', 'vaciar ticket', 'tabla de ventas'],
     requiereSeccion: 'caja',
   },
   {

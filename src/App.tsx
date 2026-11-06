@@ -53,7 +53,7 @@ interface ItemMenu {
 }
 
 /** Las pantallas que ya tienen su diseño de compu (opcion B). */
-const PANTALLAS_ANCHAS = ['/panel']
+const PANTALLAS_ANCHAS = ['/panel', '/caja']
 
 const NAV_POR_SECCION: Record<SeccionId, ItemMenu> = {
   panel: { ruta: '/panel', icono: '🧭', texto: 'Panel', textoLargo: 'Panel', dibujo: 'panel' },
@@ -88,7 +88,8 @@ export default function App() {
   // Las pantallas ya rehechas para la compu (opcion B, 06/11) usan todo el
   // ancho; las demas, uno mas angosto hasta que les toque, asi los
   // formularios no quedan estirados de punta a punta.
-  const anchoCompleto = PANTALLAS_ANCHAS.some((r) => ruta.startsWith(r))
+  // Exacta: /caja-grande no es /caja.
+  const anchoCompleto = PANTALLAS_ANCHAS.includes(ruta)
   const estadoNube = useEstadoNube()
 
   useEffect(() => {

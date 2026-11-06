@@ -19,7 +19,8 @@ import { arqueoVacio, esCierreTardio, resumirJornada, sinStock, totalArqueo } fr
 import { fechaLinda, haceCuanto, hoyISO, horaAhora, leerNumero, plata } from '../lib/formato'
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
-import FormularioTicket, { type InicioTicket } from '../componentes/FormularioTicket'
+import FormularioTicket, { type InicioTicket, type Registrado } from '../componentes/FormularioTicket'
+import { useEsCompu } from '../lib/useEsCompu'
 import {
   borrarTicket,
   moverTicket,
@@ -115,7 +116,7 @@ export default function Caja() {
       <CierresTardios />
       <CierresPendientes />
 
-      <div className="tarjeta">
+      <div className="tarjeta caja-elegir">
         <div className="campo">
           <label htmlFor="fecha">Fecha</label>
           <input
@@ -337,7 +338,7 @@ function TurnoAbierto({
           </button>
         </div>
       )}
-      <div className="tarjeta">
+      <div className="tarjeta resumen-turno">
         <div className="grilla grilla-3">
           <div className="cifra">
             <div className="cifra-valor">{plata(resumen.totalVentas)}</div>
@@ -491,6 +492,10 @@ function PanelVentas({
   const [modo, setModo] = useState<'venta' | 'ticket' | 'cambio'>('venta')
   // Lo que ya estaba elegido cuando el cliente pidio sumar otro producto.
   const [inicioTicket, setInicioTicket] = useState<InicioTicket | null>(null)
+  // En la compu se cobra siempre desde el ticket (opcion B, 06/11). Al
+  // registrar o vaciar, el formulario arranca de nuevo.
+  const esCompu = useEsCompu()
+  const [ticketNuevo, setTicketNuevo] = useState(0)
   const [ahora, setAhora] = useState(Date.now())
   useEffect(() => {
     if (!ultima) return
@@ -632,6 +637,13 @@ function PanelVentas({
     setPlanId(planAlElegirMedio(medioPago))
   }
 
+  /** Lo que registro el formulario del ticket, para poder deshacerlo. */
+  function anotarUltima(r: Registrado) {
+    const cuando = Date.now()
+    setUltima({ ticketId: r.ticketId ?? undefined, ventaId: r.ventaId ?? undefined, texto: r.texto, cuando })
+    setAhora(cuando)
+  }
+
   async function deshacer() {
     if (!ultima) return
     const { ventaId, cambioId, ticketId } = ultima
@@ -667,6 +679,67 @@ function PanelVentas({
     await borrarVenta(venta.id, MOTIVO_BORRAR_VENTA, sesion.email)
   }
 
+  const avisoUltima = ultima && (
+    <div
+      className="aviso aviso-ojo"
+      style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}
+    >
+      <span style={{ minWidth: 0 }}>
+        {ultima.cambioId || ultima.ticketId ? ultima.texto : `Cargada: ${ultima.texto}`}
+      </span>
+      <button className="boton-chico" style={{ flex: 'none' }} onClick={() => void deshacer()}>
+        Deshacer ({quedaParaDeshacer(ultima.cuando, ahora)})
+      </button>
+    </div>
+  )
+
+  function cambioListo({ cambioId, texto }: { cambioId: string; texto: string }) {
+    const cuando = Date.now()
+    setUltima({ cambioId, texto, cuando })
+    setAhora(cuando)
+    setModo('venta')
+  }
+
+  // La compu (opcion B, 06/11): buscar, ticket y cobro en tres columnas, y
+  // las ventas del turno en una tabla. Una venta de un solo producto se
+  // guarda igual que en el celular (ver comoVentaSola en db/ticket.ts).
+  if (esCompu) {
+    return (
+      <>
+        {bloqueado && <TurnoCerradoAviso onIrAlCierre={onIrAlCierre} />}
+        {!bloqueado && avisoUltima}
+        {!bloqueado &&
+          (modo === 'cambio' ? (
+            <div className="tarjeta">
+              <p className="tarjeta-titulo">Cambio de producto</p>
+              <FormularioCambio jornada={jornada} onCancelar={() => setModo('venta')} onListo={cambioListo} />
+            </div>
+          ) : (
+            <FormularioTicket
+              key={ticketNuevo}
+              jornada={jornada}
+              enColumnas
+              onCambio={() => setModo('cambio')}
+              onCancelar={() => setTicketNuevo((n) => n + 1)}
+              onListo={(r) => {
+                anotarUltima(r)
+                setTicketNuevo((n) => n + 1)
+              }}
+            />
+          ))}
+        <TablaDelTurno
+          ventas={ventas}
+          bloqueado={bloqueado}
+          otroTurno={otroTurno ?? null}
+          onMover={(v) => void mover(v)}
+          onBorrar={(v) => void borrar(v)}
+          onMoverTicket={(id, n) => void moverElTicket(id, n)}
+          onBorrarTicket={(id, n) => void borrarElTicket(id, n)}
+        />
+      </>
+    )
+  }
+
   return (
     <>
       {bloqueado && <TurnoCerradoAviso onIrAlCierre={onIrAlCierre} />}
@@ -688,19 +761,7 @@ function PanelVentas({
             )}
           </div>
 
-          {ultima && (
-            <div
-              className="aviso aviso-ojo"
-              style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <span style={{ minWidth: 0 }}>
-                {ultima.cambioId || ultima.ticketId ? ultima.texto : `Cargada: ${ultima.texto}`}
-              </span>
-              <button className="boton-chico" style={{ flex: 'none' }} onClick={() => void deshacer()}>
-                Deshacer ({quedaParaDeshacer(ultima.cuando, ahora)})
-              </button>
-            </div>
-          )}
+          {avisoUltima}
 
           {modo === 'ticket' ? (
             <FormularioTicket
@@ -710,25 +771,14 @@ function PanelVentas({
                 setInicioTicket(null)
                 setModo('venta')
               }}
-              onListo={({ ticketId, texto }) => {
+              onListo={(r) => {
                 setInicioTicket(null)
-                const cuando = Date.now()
-                setUltima({ ticketId, texto, cuando })
-                setAhora(cuando)
+                anotarUltima(r)
                 setModo('venta')
               }}
             />
           ) : modo === 'cambio' ? (
-            <FormularioCambio
-              jornada={jornada}
-              onCancelar={() => setModo('venta')}
-              onListo={({ cambioId, texto }) => {
-                const cuando = Date.now()
-                setUltima({ cambioId, texto, cuando })
-                setAhora(cuando)
-                setModo('venta')
-              }}
-            />
+            <FormularioCambio jornada={jornada} onCancelar={() => setModo('venta')} onListo={cambioListo} />
           ) : !elegido ? (
             <BuscadorProducto onElegir={seleccionar} autoFoco />
           ) : (
@@ -1030,6 +1080,150 @@ function RenglonTicketDelTurno({
         )}
       </div>
     </li>
+  )
+}
+
+/**
+ * Las ventas del turno en la compu: una tabla con la hora, qué fue, cómo se
+ * pagó y el total. Lo mismo que la lista del celular, en menos lugar.
+ */
+function TablaDelTurno({
+  ventas,
+  bloqueado,
+  otroTurno,
+  onMover,
+  onBorrar,
+  onMoverTicket,
+  onBorrarTicket,
+}: {
+  ventas: import('../db/db').Venta[]
+  bloqueado: boolean
+  otroTurno: Jornada | null
+  onMover: (v: import('../db/db').Venta) => void
+  onBorrar: (v: import('../db/db').Venta) => void
+  onMoverTicket: (ticketId: string, cuantos: number) => void
+  onBorrarTicket: (ticketId: string, cuantos: number) => void
+}) {
+  const renglones = agruparCambios(ventas).reverse()
+  const pasarA = otroTurno ? `Pasar a ${otroTurno.turno === 'M' ? 'mañana' : 'tarde'}` : null
+  const chipMedio = (medio: string, texto: string = medio, clave?: number) => (
+    <span key={clave} className={medio === 'EFECTIVO' ? 'chip' : 'chip chip-banco'} style={{ marginRight: 4 }}>
+      {texto}
+    </span>
+  )
+  return (
+    <div className="tarjeta">
+      <p className="tarjeta-titulo">Ventas del turno ({renglones.length})</p>
+      {renglones.length === 0 ? (
+        <p className="vacio">Todavía no hay ventas cargadas.</p>
+      ) : (
+        <div className="tabla-envoltorio">
+          <table className="tabla-turno">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Qué</th>
+                <th>Cómo pagó</th>
+                <th className="numero">Total</th>
+                {!bloqueado && <th aria-label="Acciones" />}
+              </tr>
+            </thead>
+            <tbody>
+              {renglones.map((r) => {
+                if (r.tipo === 'cambio') {
+                  return (
+                    <tr key={r.cambioId}>
+                      <td>{r.hora}</td>
+                      <td>
+                        <span className="chip chip-alerta" style={{ marginRight: 6 }}>
+                          CAMBIO
+                        </span>
+                        Volvió {r.vuelve.map((v) => v.descripcion).join(', ')} · se llevó{' '}
+                        {r.lleva.map((v) => v.descripcion).join(', ')}
+                      </td>
+                      <td>
+                        {r.diferencia === 0
+                          ? 'Sin diferencia'
+                          : chipMedio(r.medioPago, `${r.diferencia > 0 ? 'Pagó' : 'Se le devolvió'} · ${r.medioPago}`)}
+                      </td>
+                      <td className="numero">{plata(r.diferencia)}</td>
+                      {!bloqueado && (
+                        <td className="acciones">
+                          <button className="boton-chico" onClick={() => onBorrar((r.lleva[0] ?? r.vuelve[0])!)}>
+                            Borrar
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                }
+                if (r.tipo === 'ticket') {
+                  const productos = r.filas.filter((f) => f.codigo !== CODIGO_RECARGO)
+                  const recargo = r.filas.filter((f) => f.codigo === CODIGO_RECARGO).reduce((s, f) => s + f.total, 0)
+                  return (
+                    <tr key={r.ticketId}>
+                      <td>{r.hora}</td>
+                      <td>
+                        <span className="chip chip-ticket" style={{ marginRight: 6 }}>
+                          TICKET
+                        </span>
+                        {productos.map((f) => (f.cantidad > 1 ? `${f.descripcion} ×${f.cantidad}` : f.descripcion)).join(', ')}
+                        {recargo > 0 && <span className="silencio"> · recargo {plata(recargo)}</span>}
+                      </td>
+                      <td>
+                        {r.pagos.map((p, i) =>
+                          chipMedio(p.medio, `${p.detalle ?? p.medio}${r.pagos.length > 1 ? ` ${plata(p.monto)}` : ''}`, i),
+                        )}
+                      </td>
+                      <td className="numero">{plata(r.total)}</td>
+                      {!bloqueado && (
+                        <td className="acciones">
+                          {pasarA && (
+                            <button className="boton-chico" onClick={() => onMoverTicket(r.ticketId, r.filas.length)}>
+                              {pasarA}
+                            </button>
+                          )}
+                          <button className="boton-chico" onClick={() => onBorrarTicket(r.ticketId, r.filas.length)}>
+                            Borrar
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                }
+                const v = r.venta
+                return (
+                  <tr key={v.id}>
+                    <td>{v.hora}</td>
+                    <td>
+                      {v.descripcion}
+                      <span className="silencio">
+                        {' '}
+                        · {v.codigo || 'sin código'} · {Math.abs(v.cantidad)} × {plata(v.precioUnitario)}
+                      </span>
+                    </td>
+                    <td>{chipMedio(v.medioPago)}</td>
+                    <td className="numero">{plata(v.total)}</td>
+                    {!bloqueado && (
+                      <td className="acciones">
+                        {pasarA && (
+                          <button className="boton-chico" onClick={() => onMover(v)}>
+                            {pasarA}
+                          </button>
+                        )}
+                        <button className="boton-chico" onClick={() => onBorrar(v)}>
+                          Borrar
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   )
 }
 

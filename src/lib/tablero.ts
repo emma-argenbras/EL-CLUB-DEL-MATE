@@ -13,7 +13,8 @@ export function saludo(hora: number): string {
   return 'Buenas noches'
 }
 
-function sumarDias(fecha: string, dias: number): string {
+/** La fecha corrida tantos dias (negativo, para atras). */
+export function sumarDias(fecha: string, dias: number): string {
   const [a, m, d] = fecha.split('-').map(Number)
   const f = new Date(Date.UTC(a, m - 1, d + dias))
   return f.toISOString().slice(0, 10)

@@ -183,6 +183,47 @@ export async function registrarTicket(
     renglones: renglones.map(() => nuevoId()),
     recargos: pagos.map(() => nuevoId()),
   })
+  await guardarFilas(filas, renglones)
+  return { ticketId, filas }
+}
+
+/**
+ * Un ticket de un solo producto, pagado con un solo medio y sin recargo, es
+ * una venta comun: se guarda sin `ticketId` ni `pagos`, igual que las de
+ * siempre. La caja de la compu (06/11) cobra todo desde el ticket, y asi una
+ * venta suelta no aparece como un «TICKET» de un producto. Con recargo hay
+ * dos renglones (el producto y el recargo), y con dos medios el renglon
+ * necesita sus `pagos`: esos siguen siendo ticket.
+ */
+export function comoVentaSola(filas: Venta[]): Venta | null {
+  if (filas.length !== 1 || (filas[0].pagos?.length ?? 0) > 1) return null
+  const venta: Venta = { ...filas[0] }
+  delete venta.ticketId
+  delete venta.pagos
+  return venta
+}
+
+/** Lo que registra el formulario del ticket: una venta comun o un ticket (ver comoVentaSola). */
+export async function registrarCobro(
+  jornada: Pick<Jornada, 'id' | 'fecha' | 'vendedor'>,
+  renglones: RenglonTicket[],
+  pagos: PagoTicket[],
+  hora: string,
+): Promise<{ ventaId: string; ticketId: null } | { ventaId: null; ticketId: string }> {
+  const problema = problemaDelTicket(renglones, pagos)
+  if (problema) throw new Error(problema)
+  const ticketId = nuevoId()
+  const filas = armarTicket(jornada, renglones, pagos, hora, {
+    ticketId,
+    renglones: renglones.map(() => nuevoId()),
+    recargos: pagos.map(() => nuevoId()),
+  })
+  const sola = comoVentaSola(filas)
+  await guardarFilas(sola ? [sola] : filas, renglones)
+  return sola ? { ventaId: sola.id, ticketId: null } : { ventaId: null, ticketId }
+}
+
+async function guardarFilas(filas: Venta[], renglones: RenglonTicket[]): Promise<void> {
   await db.transaction('rw', db.ventas, db.productos, async () => {
     await db.ventas.bulkAdd(filas)
     const porCodigo = new Map<string, number>()
@@ -196,7 +237,6 @@ export async function registrarTicket(
       }
     }
   })
-  return { ticketId, filas }
 }
 
 /** Borra el ticket entero: un pedazo seria una venta que nadie hizo. */
