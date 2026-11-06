@@ -405,6 +405,33 @@ export type MotivoDiferencia =
   | 'pase-sin-cargar'
   | 'no-se'
 
+/** En que anda un pedido de insumos. */
+export type EstadoPedido = 'pendiente' | 'pedido' | 'recibido' | 'descartado'
+
+/**
+ * Algo que falta en el local: bolsas, papel, articulos de limpieza (punto
+ * 14 del pedido del 06/11). Lo anota cualquiera; quien esta al mando lo
+ * marca pedido, recibido o descartado (ver lib/pedidos.ts).
+ */
+export interface PedidoInsumo {
+  id: string
+  que: string
+  /** Texto libre: «2 rollos», «una caja». */
+  cantidad: string | null
+  nota: string | null
+  estado: EstadoPedido
+  /** Quien lo anoto y cuando (ms). */
+  pidio: string | null
+  pidioNombre: string | null
+  cuando: number
+  /** Quien lo paso al ultimo estado, y cuando (ms). */
+  resolvio: string | null
+  resolvioNombre: string | null
+  resueltoEn: number | null
+  creadoEn?: number
+  actualizadoEn?: number
+}
+
 /**
  * Un pago que se repite todos los meses: alquiler, luz, internet,
  * contador, monotributo, el resumen de la tarjeta (punto 18 del pedido
@@ -710,6 +737,7 @@ export type NombreTabla =
   | 'borrados'
   | 'arqueosCuenta'
   | 'vencimientos'
+  | 'pedidos'
 
 /**
  * 'guardar' manda el documento entero (altas y la subida inicial).
@@ -817,6 +845,7 @@ class BaseECDM extends Dexie {
   borrados!: Table<Borrado, string>
   arqueosCuenta!: Table<ArqueoCuenta, string>
   vencimientos!: Table<Vencimiento, string>
+  pedidos!: Table<PedidoInsumo, string>
 
   constructor() {
     super('el-club-del-mate')
@@ -1025,6 +1054,11 @@ class BaseECDM extends Dexie {
       vencimientos: 'id, activo, dia',
     })
 
+    // Los pedidos de insumos del local (06/11).
+    this.version(10).stores({
+      pedidos: 'id, estado, cuando',
+    })
+
     // Que campos se anotan cuando cambian, por tabla. El resto
     // (busqueda, actualizadoEn, los derivados) son ruido: ya se ven en
     // otro lado o no los decidio una persona.
@@ -1104,6 +1138,9 @@ class BaseECDM extends Dexie {
         'activo',
         'notas',
       ],
+      // El alta queda como 'creo'; lo que importa despues es quien lo paso
+      // de estado.
+      pedidos: ['que', 'cantidad', 'nota', 'estado'],
     }
 
     /**
@@ -1134,6 +1171,8 @@ class BaseECDM extends Dexie {
           return `Conteo de ${texto('cuenta') === 'cajaGrande' ? 'la caja grande' : texto('cuenta')} del ${texto('fecha')}`
         case 'vencimientos':
           return `Vencimiento: ${texto('concepto') || clave}`
+        case 'pedidos':
+          return `Pedido de insumos: ${texto('que') || clave}`
         default:
           return clave
       }
@@ -1168,6 +1207,7 @@ class BaseECDM extends Dexie {
       'borrados',
       'arqueosCuenta',
       'vencimientos',
+      'pedidos',
     ] as const) {
       const tabla: Table<Record<string, unknown>, string> = this.table(nombre)
 

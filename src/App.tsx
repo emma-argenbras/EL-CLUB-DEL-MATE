@@ -33,6 +33,7 @@ import SinSubir from './paginas/SinSubir'
 import CajaGrande from './paginas/CajaGrande'
 import IngresoMercaderia from './paginas/IngresoMercaderia'
 import Vencimientos from './paginas/Vencimientos'
+import Pedidos from './paginas/Pedidos'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
@@ -245,6 +246,7 @@ export default function App() {
             path="/proveedores"
             element={puedeVer('proveedores') ? <Proveedores /> : <Navigate to="/mi-actividad" replace />}
           />
+          <Route path="/pedidos" element={<Pedidos />} />
           <Route
             path="/vencimientos"
             element={alMando ? <Vencimientos /> : <Navigate to="/caja" replace />}
