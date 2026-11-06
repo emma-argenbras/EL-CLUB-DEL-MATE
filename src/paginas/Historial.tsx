@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type AccionHistorial, type EntradaHistorial, type NombreTabla } from '../db/db'
-import { fechaLinda, haceCuanto, plata } from '../lib/formato'
+import { fechaLinda, haceCuanto } from '../lib/formato'
+import { comoSeLee, etiquetaCampo } from '../lib/historialLegible'
 import { ETIQUETA_ROL } from '../sync/permisos'
 
 /**
@@ -42,66 +43,6 @@ const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   edito: 'Editó',
   archivo: 'Archivó',
   borro: 'Borró',
-}
-
-/** Nombres de campo como los lee una persona, no como se llaman en el código. */
-const ETIQUETA_CAMPO: Record<string, string> = {
-  descripcion: 'nombre',
-  precioCompra: 'costo',
-  fechaCompra: 'fecha del costo',
-  precioVenta: 'precio de venta',
-  fechaPrecioVenta: 'fecha del precio',
-  rentabilidad: 'markup',
-  proveedorId: 'proveedor',
-  stock: 'stock',
-  activo: 'activo',
-  archivado: 'archivado',
-  descontinuado: 'descontinuado',
-  solicitudBorrado: 'pedido de archivado',
-  estado: 'estado del turno',
-  cajaInicial: 'caja inicial',
-  arqueoApertura: 'conteo de apertura',
-  arqueoCierre: 'conteo de cierre',
-  vendedor: 'vendedor',
-  notaCierre: 'nota del cierre',
-  cierreAutorizado: 'visto bueno',
-  solicitudCierre: 'pedido de cierre',
-  rol: 'rol',
-  secciones: 'qué ve',
-  nombre: 'nombre',
-  email: 'mail',
-  monto: 'monto',
-  concepto: 'concepto',
-  categoria: 'categoría',
-  tipo: 'tipo',
-}
-
-/** Los campos que son plata, para mostrarlos con formato de plata. */
-const CAMPOS_DE_PLATA = new Set([
-  'precioCompra',
-  'precioVenta',
-  'monto',
-  'cajaInicial',
-  'precioUnitario',
-])
-
-function etiquetaCampo(campo: string | null): string {
-  if (!campo) return ''
-  return ETIQUETA_CAMPO[campo] ?? campo
-}
-
-/**
- * Un valor como se lee en pantalla.
- *
- * Los objetos (un arqueo, un visto bueno) no se despliegan: ocuparian
- * media pantalla y no se leen. Se dice que cambiaron y listo.
- */
-function comoSeLee(valor: unknown, campo: string | null): string {
-  if (valor === null || valor === undefined || valor === '') return '—'
-  if (typeof valor === 'boolean') return valor ? 'sí' : 'no'
-  if (typeof valor === 'number' && campo && CAMPOS_DE_PLATA.has(campo)) return plata(valor)
-  if (typeof valor === 'object') return '(cambió)'
-  return String(valor)
 }
 
 export default function Historial() {

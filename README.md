@@ -2147,6 +2147,61 @@ Probado:
   - el celular ve lo mismo que el servidor;
   - cero rechazos y nada «sin subir».
 
+### La ficha del producto (tercera parte)
+
+En la compu, tocar un producto de la lista abre su ficha (`src/componentes/FichaProducto.tsx`):
+- **Arriba**, el nombre, el código, el proveedor, el precio y las marcas «EN STOCK», «SIN
+  STOCK», «CONVIENE REMARCAR», «DESCONTINUADO» o «GENÉRICO». Al lado, «Compartir por
+  WhatsApp» y «Editar», que abre el formulario de siempre; al salir, se vuelve a la ficha.
+- **Precio y margen**: el costo, la rentabilidad buscada y el margen de hoy. Si el precio
+  quedó atrás (`precioAtrasado`), dice cuánto pide la rentabilidad y cuánto se deja de
+  cobrar por unidad. Quien está al mando tiene el botón «Poner $ X». Usa `remarcar`, el
+  mismo del ingreso de mercadería: pregunta antes y queda en el historial con el motivo
+  «Remarcado desde la ficha del producto». Un empleado lo ve sin el botón, igual que en el
+  formulario, donde tampoco puede cambiar el precio.
+- **Stock y ventas**: cuántos hay, los vendidos en 30 días (menos lo que volvió en un
+  cambio), para cuánto alcanzan a ese ritmo y la última venta (`src/lib/fichaProducto.ts`).
+- **Historial**: los últimos cambios, con quién y cuándo, sin las fechas que se mueven solas.
+- **Compras**: la tabla con el costo, el flete y el remito de cada una, y cuánto subió el
+  costo desde la primera.
+
+En el celular, tocar un producto sigue abriendo el formulario directo.
+
+**Y dos números que se habían quedado.** La tarjeta «Historial de ediciones» del formulario
+del producto y el «productos actualizados este mes» de Mi día leían `historialProductos`.
+Esa tabla no se escribe desde la versión 6, cuando el historial pasó a `historial`, y su
+contenido se copió ahí. El formulario mostraba solo lo de antes, y Mi día daba siempre
+cero. Ahora los dos leen `historial` (`src/lib/historialLegible.ts`, con los nombres de los
+campos que ya usaba la pantalla del Historial). De paso, Mi día buscaba hasta el día 31 de
+cada mes, una fecha que en noviembre no existe y que algunos navegadores toman como
+inválida: ahora va del 1 del mes al 1 del siguiente.
+
+Probado:
+- 4 pruebas de la ficha, rotas a propósito de 12 maneras y las 12 en rojo (dos sobrevivían
+  al principio: el piso en cero y el ritmo de 30 días; se sumaron los casos):
+  - 31 días en vez de 30;
+  - sin restar lo que volvió;
+  - la última venta sin la hora, o con una devolución;
+  - el cero como «no queda»;
+  - los límites de la semana y de los dos meses;
+  - el costo sin flete, o sin ordenar;
+  - la variación con una sola compra.
+- 3 del historial, rotas de 5 maneras y las 5 en rojo:
+  - otras tablas, otras personas u otras acciones;
+  - otros meses;
+  - el mismo producto contado dos veces.
+- En el navegador, a 1440: la ficha, «Poner $ 19.600», «Editar» y la vuelta a la ficha y a
+  la lista. A 390, tocar el producto abre el formulario, como siempre.
+- Contra los emuladores, con Emmanuel y con Gabriela (empleada con Productos), los dos a
+  1440:
+  - Gabriela ve la ficha sin el botón;
+  - Emmanuel remarca, y el servidor queda con el precio nuevo, la fecha de hoy y el
+    historial con el motivo;
+  - Gabriela ve el precio nuevo al instante;
+  - Gabriela cambia el stock desde «Editar», vuelve a la ficha con el cambio en el
+    historial, y Mi día dice «Productos que actualizaste: 1» (antes daba 0);
+  - cero rechazos y nada «sin subir».
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño
@@ -2700,9 +2755,9 @@ el contador y con los datos reales cuánto cambia.
       categoría y en qué formato quiere los datos el contador).
 - [ ] **ARCA**: factura C desde la app, con el certificado guardado en el servidor (no en
       el celular).
-- [ ] La **visual en la compu** (opción B). Hecho: el menú arriba, el Panel como tablero y
-      la Caja en tres columnas (ver «La compu: opción B»). Sigue la ficha del producto;
-      después, el resto de las pantallas, de a una.
+- [ ] La **visual en la compu** (opción B). Hecho el 06/11: el menú arriba, el Panel como
+      tablero, la Caja en tres columnas y la ficha del producto (ver «La compu: opción B»).
+      Sigue el resto de las pantallas, de a una: Proveedores, Gastos, Reportes y Ajustes.
 - [ ] El **logo original** (cuando Emmanuel lo pase en SVG o en PNG de 1024).
 
 **Hecho el 04/11** — el aviso «sin subir» ya no cuenta lo retenido ni lo firmado por otra

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, esRecargo, productoVisible, type HistorialProducto } from '../db/db'
+import { db, esRecargo, productoVisible, type EntradaHistorial } from '../db/db'
+import { productosEditadosEnElMes } from '../lib/historialLegible'
 import { mesActualISO, mesLindo, numero } from '../lib/formato'
 import { useAuditoria } from '../lib/useAuditoria'
 import { estadoPermiso, pedirPermiso, recordarUrgentes } from '../lib/recordatorios'
@@ -41,20 +42,24 @@ export default function MiActividad() {
     ).length
   }, [productos, email, mes])
 
+  // De la tabla `historial`: la vieja, `historialProductos`, no se escribe
+  // desde la version 6, y este numero quedaba siempre en cero (06/11).
   const historialMes = useLiveQuery(
     () =>
       email
-        ? db.historialProductos
+        ? db.historial
             .where('cuando')
-            .between(new Date(`${mes}-01`).getTime(), new Date(`${mes}-31T23:59:59`).getTime())
-            .filter((h) => h.quien === email)
+            // Del 1 del mes al 1 del siguiente: «${mes}-31» no existe en
+            // todos los meses, y hay navegadores que lo toman como invalido.
+            .between(inicioDeMes(mes, 0), inicioDeMes(mes, 1), true, false)
+            .filter((h) => h.quien === email && h.tabla === 'productos')
             .toArray()
-        : Promise.resolve<HistorialProducto[]>([]),
+        : Promise.resolve<EntradaHistorial[]>([]),
     [email, mes],
   )
   const actualizadosEsteMes = useMemo(
-    () => new Set((historialMes ?? []).map((h) => h.codigo)).size,
-    [historialMes],
+    () => (email ? productosEditadosEnElMes(historialMes ?? [], email, mes) : 0),
+    [historialMes, email, mes],
   )
 
   const ventas = useLiveQuery(
@@ -148,4 +153,10 @@ export default function MiActividad() {
       </div>
     </>
   )
+}
+
+/** El primer instante del mes (yyyy-mm), corrido tantos meses, en hora local. */
+function inicioDeMes(mes: string, corrido: number): number {
+  const [a, m] = mes.split('-').map(Number)
+  return new Date(a, m - 1 + corrido, 1).getTime()
 }
