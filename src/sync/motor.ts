@@ -89,6 +89,9 @@ const TABLAS: NombreTabla[] = [
   // que un dispositivo que estuvo desconectado no vuelva a subir lo que
   // se borro mientras no miraba.
   'borrados',
+  // Los conteos de la caja grande (06/11): el punto de partida de su
+  // saldo tiene que ser el mismo en todos los aparatos.
+  'arqueosCuenta',
 ]
 
 /**

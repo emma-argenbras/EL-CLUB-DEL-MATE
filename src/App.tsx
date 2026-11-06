@@ -31,6 +31,7 @@ import UnirProveedores from './paginas/UnirProveedores'
 import RevisionProveedores from './paginas/RevisionProveedores'
 import TurnosDelDia from './paginas/TurnosDelDia'
 import SinSubir from './paginas/SinSubir'
+import CajaGrande from './paginas/CajaGrande'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
@@ -256,6 +257,10 @@ export default function App() {
           <Route
             path="/proveedores"
             element={puedeVer('proveedores') ? <Proveedores /> : <Navigate to="/mi-actividad" replace />}
+          />
+          <Route
+            path="/caja-grande"
+            element={alMando ? <CajaGrande /> : <Navigate to="/caja" replace />}
           />
           <Route
             path="/gastos"
