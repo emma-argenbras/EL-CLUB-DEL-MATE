@@ -960,6 +960,15 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'proveedores',
   },
   {
+    id: 'caja-grande',
+    categoria: 'Gastos',
+    pregunta: '¿Dónde veo la caja grande y cuánta plata tiene?',
+    respuesta:
+      'En Gastos, arriba de todo, «Ver caja grande». La ven Emmanuel y Sandra.\n\nLa primera vez hay que contarla: «Contar la caja grande», cargás los billetes y guardás. Desde ahí la app lleva la cuenta sola: le suma los pases desde el cajón del turno y los ingresos, y le resta los gastos pagados con ella y los depósitos. Lo que la movió desde el último conteo aparece en una lista.\n\nConviene contarla de vez en cuando, por ejemplo una vez por semana. Como en el cierre del turno, primero se cuenta y después se ve cuánto debería haber. Si no da justo, falta anotar algo: un gasto pagado con esa plata, un pase, un depósito.\n\nPara un depósito al banco o un pase a Mercado Pago: «Depositar o pasar plata». No es un gasto, la plata sigue siendo del negocio. Los pases desde el cajón del turno se siguen cargando en Caja, en Egresos.\n\nAbajo está la caja virtual: lo cobrado hoy y en el mes con débito, crédito, transferencia y QR, que va al banco o a Mercado Pago.',
+    palabrasClave: ['caja grande', 'saldo', 'contar', 'deposito', 'banco', 'mercado pago', 'caja virtual', 'tres cajas'],
+    requiereSeccion: 'gastos',
+  },
+  {
     id: 'pago-de-donde-sale',
     categoria: 'Proveedores',
     pregunta: 'Le pagué a un proveedor con plata del cajón, ¿cómo lo cargo?',

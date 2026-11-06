@@ -1796,6 +1796,31 @@ se ve lo esperado ni el botón de cerrar; con $ 10.000 contados sobre $ 55.000 e
 aparecen el recuento y la pista de la venta de $ 45.000 en efectivo; sin motivo no cierra;
 queda guardado el primer conteo y el motivo.
 
+## La caja grande, con saldo (06/11)
+
+Punto 13 del pedido del 06/11: «la grande, ¿dónde se ve?». La app anotaba lo que entraba y
+salía de la caja grande, pero nunca calculó cuánto había. Ahora tiene su pantalla (Gastos →
+«Ver caja grande», para quien está al mando):
+
+- **Saldo** (`saldoDeCuenta`, `src/lib/cajaGrande.ts`): el último conteo, más los pases desde
+  el cajón y los ingresos, menos los gastos pagados con ella y los depósitos, cargados
+  después de ese conteo. Sin ningún conteo no hay saldo: la primera vez se cuenta.
+- **Conteos** en una tabla nueva que sincroniza, `arqueosCuenta` (versión 8 de la base
+  local), con lo contado y lo que debería haber. Como el cierre, primero se cuenta y después
+  se ve. Los últimos conteos quedan a la vista con su diferencia.
+- **Pases entre cuentas**: un tipo de movimiento nuevo, `PASE_ENTRE_CUENTAS`, con `cuenta`
+  (de dónde sale) y `cuentaDestino` (a dónde entra). No es gasto ni ingreso: ningún cálculo
+  de gastos ni de resultado lo cuenta, porque todos filtran por tipos explícitos.
+- **Caja virtual**: lo cobrado hoy y en el mes sin efectivo, por medio de pago.
+
+La tabla nueva está también en el respaldo nocturno (`scripts/respaldar-firestore.ts`, en
+la rama). La regla general del servidor ya la cubre.
+
+Probado: 8 pruebas (rotas a propósito: contar un gasto del banco en la caja grande caen 2;
+contar movimientos de antes del conteo caen 2), y contra los emuladores en dos aparatos:
+la Mac cuenta $ 200.000 y deposita $ 50.000 al banco; el servidor tiene el conteo y el
+pase; la otra compu ve $ 150.000; ningún aviso de «sin subir».
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño

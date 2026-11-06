@@ -32,6 +32,7 @@ const ETIQUETA_TABLA: Record<NombreTabla, string> = {
   historialProductos: 'Historial (viejo)',
   historial: 'Historial',
   borrados: 'Borrados',
+  arqueosCuenta: 'Conteos de caja grande',
 }
 
 const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
