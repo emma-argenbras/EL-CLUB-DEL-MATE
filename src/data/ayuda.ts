@@ -117,7 +117,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Panel y pendientes',
     pregunta: '¿Qué cosas revisa la app sola?',
     respuesta:
-      'Caja: turnos que quedaron abiertos sin cerrar, cierres con diferencia de caja, y días del mes que no tienen caja cargada.\n\nProductos: los que se venden al costo o por debajo, los que se quedaron sin stock, los que tienen el costo vencido, los que no tienen proveedor asignado, y los pedidos de archivado esperando autorización.\n\nProveedores: a quiénes se les debe plata y cuánto.\n\nGastos: si falta cargar un gasto habitual que el mes pasado sí se pagó (alquiler, luz, sueldos, contador).\n\nSistema: si el dispositivo dejó de sincronizar con la nube.',
+      'Caja: turnos que quedaron abiertos sin cerrar, cierres con diferencia de caja, y días del mes que no tienen caja cargada (los domingos no se reclaman: el local está cerrado).\n\nProductos: los que se venden al costo o por debajo, los que se quedaron sin stock, los que tienen el costo vencido, los que no tienen proveedor asignado, y los pedidos de archivado esperando autorización.\n\nProveedores: a quiénes se les debe plata y cuánto.\n\nGastos: si falta cargar un gasto habitual que el mes pasado sí se pagó (alquiler, luz, sueldos, contador).\n\nSistema: si el dispositivo dejó de sincronizar con la nube.',
     palabrasClave: ['que revisa', 'controles', 'chequeos', 'auditoria'],
     requiereSeccion: 'panel',
   },
@@ -382,6 +382,15 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
 
+  {
+    id: 'ruedita-numeros',
+    categoria: 'Caja',
+    pregunta: 'Cargué la cantidad de billetes, bajé en la pantalla con la ruedita y el número cambió o quedó en cero. ¿Qué pasó?',
+    respuesta:
+      'Era un problema de la compu: un campo de número con el cursor adentro cambia su valor si se gira la ruedita del mouse (o se desliza en el panel táctil) encima. Así un conteo podía quedar distinto, o en cero, sin que nadie lo viera.\n\nDesde la versión del 06/11 no pasa más: si girás la ruedita sobre un número, el número queda como estaba y la pantalla baja. Vale para todos los números de la app, no solo para el conteo.\n\nSi tenés una diferencia de caja de antes y sospechás que fue esto, decíselo a Emmanuel cuando le dé el visto bueno.',
+    palabrasClave: ['ruedita', 'scroll', 'mouse', 'se borro el numero', 'quedo en cero', 'conteo', 'billetes', 'cambio solo'],
+    requiereSeccion: 'caja',
+  },
   {
     id: 'cierre-con-diferencia',
     categoria: 'Caja',
@@ -886,7 +895,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Caja',
     pregunta: 'El Panel dice que un turno está cargado más de una vez. ¿Qué pasó y qué hago?',
     respuesta:
-      'Hay dos turnos para la misma fecha y el mismo horario (dos «29/10 mañana», por ejemplo). Pasa cuando dos aparatos cargan el mismo turno sin verse: uno estaba sin señal o con la app atrasada, desde el otro se volvió a cargar, y cuando el primero se conectó subió el suyo al lado.\n\nEs un problema porque Caja muestra uno solo de los dos, pero los reportes suman las ventas de los dos, así que ese día figura vendido de más.\n\nEntrá a Turnos del día (desde el aviso, o desde Ajustes) y elegí la fecha: aparecen los dos turnos, con cuántas ventas tiene cada uno y por cuánto. Si uno es copia del otro, borralo: te pide el motivo y queda en el historial. Si cada uno tiene ventas distintas, primero pasá las ventas de uno al otro desde Caja, y recién después borrá el que quedó vacío.\n\nDesde la versión del 31/10 la app frena esto antes de que pase: ver «Hay cargas de este aparato que no se subieron».',
+      'Hay dos turnos para la misma fecha y el mismo horario (dos «29/10 mañana», por ejemplo). Pasa cuando dos aparatos cargan el mismo turno sin verse: uno estaba sin señal o con la app atrasada, desde el otro se volvió a cargar, y cuando el primero se conectó subió el suyo al lado.\n\nEs un problema porque Caja muestra uno solo de los dos, pero los reportes suman las ventas de los dos, así que ese día figura vendido de más.\n\nEntrá a Turnos del día (desde el aviso, o desde Ajustes) y elegí la fecha: aparecen los dos turnos, con cuántas ventas tiene cada uno y por cuánto. Si uno es copia del otro, borralo: te pide el motivo y queda en el historial. Si cada uno tiene ventas distintas, primero pasá las ventas de uno al otro desde Caja, y recién después borrá el que quedó vacío.\n\nDesde la versión del 31/10 la app frena esto antes de que pase: ver «Hay cargas de este aparato que no se subieron». Y desde la del 06/11, el aviso no cuenta los turnos retenidos en ese aparato: esos están solo ahí y se resuelven en Ajustes → «Cargas retenidas».',
     palabrasClave: ['turno repetido', 'duplicado', 'dos turnos', 'dos veces', 'turnos del dia', 'sumado doble'],
     soloOwner: true,
     requiereSeccion: 'caja',
@@ -904,7 +913,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Sincronización y respaldo',
     pregunta: 'Apareció un cartel: «Hay cargas de este aparato que no se subieron, a propósito». ¿Qué pasó?',
     respuesta:
-      'Este aparato tenía guardado un turno con sus ventas que nunca había llegado al servidor (estuvo sin señal, o con la app fallando), y mientras tanto ese mismo turno —misma fecha y mismo horario— se cargó desde otro aparato. Al conectarse, la app lo notó y frenó la subida: si subía el suyo al lado del otro, el día quedaba vendido dos veces.\n\nNo se perdió nada y no se duplicó nada: el turno sigue guardado en este aparato, y el servidor tiene el que se cargó desde el otro.\n\nQué hacer: avisale a Emmanuel o a Sandra. Lo resuelven desde Ajustes de este mismo aparato, en «Cargas retenidas», donde cada turno retenido tiene dos botones: «Ya está cargado: descartar» (se borra de este aparato nada más, el servidor no cambia) y «Falta de verdad: subirlo» (se sube igual, y quedan dos turnos para esa fecha, que después se ven en Turnos del día). Mientras tanto podés seguir trabajando normal.\n\nEste freno actúa sobre la subida que hace la app al iniciar sesión. Lo que se carga con la sesión ya abierta y sin señal se sube solo al volver la señal, como siempre.',
+      'Este aparato tenía guardado un turno con sus ventas que nunca había llegado al servidor (estuvo sin señal, o con la app fallando), y mientras tanto ese mismo turno —misma fecha y mismo horario— se cargó desde otro aparato. Al conectarse, la app lo notó y frenó la subida: si subía el suyo al lado del otro, el día quedaba vendido dos veces.\n\nNo se perdió nada y no se duplicó nada: el turno sigue guardado en este aparato, y el servidor tiene el que se cargó desde el otro.\n\nQué hacer: avisale a Emmanuel o a Sandra. Lo resuelven desde Ajustes de este mismo aparato, en «Cargas retenidas», donde cada turno retenido tiene dos botones: «Ya está cargado: descartar» (se borra de este aparato nada más, el servidor no cambia) y «Falta de verdad: subirlo» (se sube igual, y quedan dos turnos para esa fecha, que después se ven en Turnos del día). Mientras tanto podés seguir trabajando normal.\n\nCuando son muchos —una importación vieja de la planilla, por ejemplo— la tarjeta los compara uno por uno con el turno que tiene el servidor: mismas ventas, mismos montos, mismos medios de pago y mismos egresos. Los que coinciden en todo se pueden sacar de este aparato de una sola vez con «Sacar de este aparato las copias exactas»: la app dice cuántos turnos y ventas son antes de hacerlo, el servidor no cambia, y queda un renglón en el historial con el motivo. Los que no coinciden quedan en la lista para mirarlos de a uno. El Panel no cuenta lo retenido como turnos repetidos: está solo en este aparato.\n\nEste freno actúa sobre la subida que hace la app al iniciar sesión. Lo que se carga con la sesión ya abierta y sin señal se sube solo al volver la señal, como siempre.',
     palabrasClave: ['retenido', 'no se subieron', 'a proposito', 'cargas retenidas', 'duplicar', 'turno repetido'],
   },
   {

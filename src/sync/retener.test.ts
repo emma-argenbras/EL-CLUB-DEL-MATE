@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Jornada, Movimiento, Venta } from '../db/db'
-import { cuelgaDeRetenido, decidirRetenidos, textoDeRetenidos } from './retener'
+import {
+  compararConServidor,
+  cuelgaDeRetenido,
+  decidirRetenidos,
+  textoDeRetenidos,
+  type TurnoRetenido,
+} from './retener'
 
 function jornada(id: string, fecha: string, turno: 'M' | 'T'): Jornada {
   return {
@@ -70,5 +76,52 @@ describe('textoDeRetenidos', () => {
     expect(texto).toContain('2 turnos con 3 ventas')
     expect(texto).toContain('29/10 mañana, 30/10 tarde')
     expect(texto).toContain('No se duplicó nada')
+  })
+})
+
+describe('textoDeRetenidos con muchos turnos', () => {
+  it('406 turnos no se listan uno por uno: se dice el tramo, con los miles separados', () => {
+    const turnos: TurnoRetenido[] = Array.from({ length: 406 }, (_, i) => ({
+      id: `t${i}`,
+      fecha: i === 0 ? '2026-02-01' : i === 405 ? '2026-08-31' : '2026-05-10',
+      turno: i === 405 ? 'T' : 'M',
+      idEnServidor: `s${i}`,
+      ventas: i < 79 ? 5 : 4,
+      totalVentas: 1000,
+      movimientos: 0,
+    }))
+    const texto = textoDeRetenidos(turnos)
+    expect(texto).toContain('406 turnos con 1.703 ventas')
+    expect(texto).toContain('del 01/02 mañana al 31/08 tarde')
+    expect(texto).not.toContain('10/05')
+    expect(texto.length).toBeLessThan(250)
+  })
+})
+
+describe('compararConServidor: copia exacta o algo distinto', () => {
+  const v = (codigo: string, total: number, medioPago: 'EFECTIVO' | 'DEBITO' = 'EFECTIVO') => ({
+    codigo, cantidad: 1, total, medioPago,
+  })
+  const egreso = (monto: number, concepto = 'Bolsas') => ({ tipo: 'EGRESO_CAJA' as const, concepto, monto })
+
+  it('las mismas ventas y egresos en otro orden: es una copia', () => {
+    expect(
+      compararConServidor(
+        { ventas: [v('TM015', 45000), v('YB01', 5000)], movimientos: [egreso(500)] },
+        { ventas: [v('YB01', 5000), v('TM015', 45000)], movimientos: [egreso(500, ' bolsas ')] },
+      ),
+    ).toBe('igual')
+  })
+
+  it('un monto distinto, una venta de mas o otro medio de pago: no es copia', () => {
+    const aca = { ventas: [v('TM015', 45000)], movimientos: [] }
+    expect(compararConServidor(aca, { ventas: [v('TM015', 45500)], movimientos: [] })).toBe('distinto')
+    expect(compararConServidor(aca, { ventas: [v('TM015', 45000), v('TM015', 45000)], movimientos: [] })).toBe('distinto')
+    expect(compararConServidor(aca, { ventas: [v('TM015', 45000, 'DEBITO')], movimientos: [] })).toBe('distinto')
+    expect(compararConServidor(aca, { ventas: [v('TM015', 45000)], movimientos: [egreso(500)] })).toBe('distinto')
+  })
+
+  it('si el turno del servidor todavia no llego a este aparato, no se puede decir', () => {
+    expect(compararConServidor({ ventas: [], movimientos: [] }, null)).toBe('sin-servidor')
   })
 })

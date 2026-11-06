@@ -83,15 +83,74 @@ export function cuelgaDeRetenido(
   return false
 }
 
+const nombreDeTurno = (t: Pick<TurnoRetenido, 'fecha' | 'turno'>) =>
+  `${t.fecha.slice(8, 10)}/${t.fecha.slice(5, 7)} ${t.turno === 'M' ? 'mañana' : 'tarde'}`
+
+const numero = (n: number) => n.toLocaleString('es-AR')
+
 export function textoDeRetenidos(turnos: TurnoRetenido[]): string {
   const ventas = turnos.reduce((s, t) => s + t.ventas, 0)
-  const cuales = turnos
-    .map((t) => `${t.fecha.slice(8, 10)}/${t.fecha.slice(5, 7)} ${t.turno === 'M' ? 'mañana' : 'tarde'}`)
-    .join(', ')
+  // Hasta tres se nombran; mas, se dice el tramo. El 06/11 la Mac de
+  // Emmanuel retuvo 406 turnos y el cartel los listaba uno por uno: una
+  // pared roja que tapaba la pantalla y no se podia leer.
+  const cuales =
+    turnos.length <= 3
+      ? turnos.map(nombreDeTurno).join(', ')
+      : `del ${nombreDeTurno(turnos[0])} al ${nombreDeTurno(turnos[turnos.length - 1])}`
   return (
-    `Este aparato tiene ${turnos.length} ${turnos.length === 1 ? 'turno' : 'turnos'} con ${ventas} ` +
+    `Este aparato tiene ${numero(turnos.length)} ${turnos.length === 1 ? 'turno' : 'turnos'} con ${numero(ventas)} ` +
     `${ventas === 1 ? 'venta' : 'ventas'} que no se subieron, porque el servidor ya tiene ` +
     `${turnos.length === 1 ? 'ese turno cargado' : 'esos turnos cargados'} desde otro aparato (${cuales}). ` +
     'No se duplicó nada.'
   )
+}
+
+/* ------------------------------------------------------------------ */
+/* ¿Es una copia de lo que ya esta en el servidor?                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Un turno retenido puede ser una copia exacta del que tiene el servidor
+ * o algo distinto. El caso de la Mac de Emmanuel (06/11): hasta el 15/10
+ * cada aparato importaba por su cuenta los meses viejos de la planilla,
+ * con sus propios numeros de turno, asi que la Mac tenia su copia de
+ * febrero a agosto y el servidor la de otro aparato. Son 406 turnos:
+ * resolverlos de a uno no es una opcion, pero tirarlos a ciegas tampoco,
+ * porque una version vieja del importador pudo dejar datos distintos.
+ *
+ * Por eso se compara el contenido, no solo la fecha: las mismas ventas
+ * (producto, cantidad, total y medio de pago) y los mismos movimientos
+ * (tipo, concepto y monto), sin importar el orden ni los numeros
+ * internos. Solo lo que coincide entero se ofrece sacar de un saque.
+ */
+export type Coincidencia = 'igual' | 'distinto' | 'sin-servidor'
+
+type VentaComparable = Pick<Venta, 'codigo' | 'cantidad' | 'total' | 'medioPago'>
+type MovimientoComparable = Pick<Movimiento, 'tipo' | 'concepto' | 'monto'>
+
+const centavos = (n: number) => Math.round(Number(n) * 100)
+
+export function firmaDeVentas(ventas: VentaComparable[]): string {
+  return ventas
+    .map((v) => `${v.codigo}|${v.cantidad}|${centavos(v.total)}|${v.medioPago}`)
+    .sort()
+    .join('\n')
+}
+
+export function firmaDeMovimientos(movimientos: MovimientoComparable[]): string {
+  return movimientos
+    .map((m) => `${m.tipo}|${(m.concepto ?? '').trim().toLowerCase()}|${centavos(m.monto)}`)
+    .sort()
+    .join('\n')
+}
+
+export function compararConServidor(
+  aca: { ventas: VentaComparable[]; movimientos: MovimientoComparable[] },
+  servidor: { ventas: VentaComparable[]; movimientos: MovimientoComparable[] } | null,
+): Coincidencia {
+  if (!servidor) return 'sin-servidor'
+  return firmaDeVentas(aca.ventas) === firmaDeVentas(servidor.ventas) &&
+    firmaDeMovimientos(aca.movimientos) === firmaDeMovimientos(servidor.movimientos)
+    ? 'igual'
+    : 'distinto'
 }

@@ -5,6 +5,9 @@ import App from './App'
 import ErrorBoundary from './componentes/ErrorBoundary'
 import { ProveedorActualizacion } from './componentes/ActualizarApp'
 import './estilos.css'
+import { protegerNumerosDeLaRuedita } from './lib/ruedita'
+
+protegerNumerosDeLaRuedita(document)
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

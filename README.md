@@ -1685,6 +1685,58 @@ publicada, salieron exactamente esos dos números.
     venta borrada, y queda en cero sin perder nada. La PC no cuenta lo retenido, y el turno
     que no puede crear queda en el aparato con el motivo, contando 1.
 
+## Lo que pasó el 06/11: 406 turnos retenidos y la ruedita del mouse
+
+Emmanuel abrió la app en su Mac después de varios días y aparecieron un cartel rojo con
+406 turnos y 1.819 ventas retenidos (del 01/02 al 31/08), un aviso de «406 turnos cargados
+más de una vez», y todo muy chiquito. Lo chiquito era el zoom de Chrome en esa ventana,
+entre 25 y 33 % (se vuelve con ⌘ 0). Lo demás:
+
+### De dónde salían los 406 turnos
+
+Hasta el 15/10, cada aparato que abría la app importaba por su cuenta los meses viejos de
+la planilla (`sincronizarMesImportado`, desde los `historico-*.seed.json` que entonces se
+publicaban), y a cada turno le ponía un número nuevo. La Mac tenía su copia de febrero a
+agosto y el servidor tiene la de otro aparato: mismo día y horario, otro número. Sin el
+freno del 31/10 ("Lo que no se sube"), febrero a agosto habrían quedado duplicados en el
+servidor. Desde el 15/10 esos archivos ya no se publican, así que ningún aparato nuevo
+vuelve a importar.
+
+### Lo que cambia
+
+- **El cartel resume.** Hasta tres turnos se nombran; más, se dice el tramo («del 01/02
+  mañana al 31/08 tarde»). Antes listaba los 406 y tapaba la pantalla.
+- **El Panel no cuenta lo retenido** (`idsRetenidos` en la auditoría): una copia retenida
+  está solo en ese aparato y tiene su propio cartel, no es un turno repetido del negocio.
+  Tampoco reclama los domingos como días sin caja.
+- **Copias exactas, de una vez.** «Cargas retenidas» compara cada turno retenido con el que
+  tiene el servidor para esa fecha y horario: mismas ventas (producto, cantidad, total y
+  medio de pago) y mismos movimientos (tipo, concepto y monto), sin importar el orden
+  (`compararConServidor`). Las que coinciden en todo se sacan del aparato con un botón que
+  antes dice cuántos turnos, ventas y movimientos son. El servidor no cambia, queda un
+  renglón en el historial con el motivo, y la lista entera en `rechazos` (acción
+  `descartar`). Las que no coinciden quedan para mirarlas de a una: una versión vieja del
+  importador pudo dejar datos distintos.
+- **La ruedita del mouse ya no cambia los números** (`src/lib/ruedita.ts`). En la compu, un
+  campo de número con el foco cambiaba su valor al girar la ruedita encima: se cargaba el
+  conteo, se bajaba en la pantalla, y la cantidad de billetes quedaba en cero. Ahora, si la
+  ruedita gira sobre el número que tiene el foco, se le saca el foco: el número queda y la
+  pantalla baja. Vale para todos los campos de número de la app.
+
+### Cómo se probó
+
+- 5 pruebas de la ruedita, 3 del cartel y de la comparación, y 3 del Panel. Rotas a
+  propósito: sin filtrar lo retenido caen 2; contando los domingos caen 2; con la lista
+  entera en el cartel cae 1; comparando solo cantidades cae 1.
+- La ruedita en el navegador, sobre el conteo de apertura, con un Chrome que maneja la
+  ruedita como uno de escritorio: con la versión publicada, cinco giros dejaron el conteo
+  en cero y la pantalla quieta; con el arreglo, el número quedó en 3 y la pantalla bajó.
+- La app entera contra los emuladores, como la Mac de Emmanuel: diez turnos de febrero
+  propios con otros números, uno con un monto distinto. El cartel dice «del 02/02 al
+  11/02», el Panel no los cuenta, la tarjeta separa 9 copias exactas y 1 distinta, y el
+  botón saca las 9 del aparato (18 ventas) sin tocar el servidor, con el renglón del
+  historial y la constancia.
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño
@@ -2190,13 +2242,19 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 04/11/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 06/11/2026. Lo de arriba de la lista es lo que
 sigue.
 
 **Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
 ya no choca con un precio que su celular no había recibido), los ecos de una edición se
 aplican, `creadoPor` se conserva al editar, y la app muestra su versión en Ajustes y en
 el login. Ver "Lo que pasó el 31/10".
+
+**Hecho el 06/11** — la ruedita del mouse ya no cambia los números (el conteo que quedaba
+en cero), el cartel de cargas retenidas resume, el Panel no cuenta lo retenido ni los
+domingos, y las copias exactas retenidas se sacan de una vez. Ver "Lo que pasó el 06/11".
+El análisis de los 22 pedidos del 06/11 y el plan están en el documento «ECDM · Análisis y
+plan de mejoras (noviembre)».
 
 **Hecho el 04/11** — el aviso «sin subir» ya no cuenta lo retenido ni lo firmado por otra
 persona, revisa solo qué es cada cosa y la resuelve, tiene «Ver qué es», y un lote
@@ -2230,6 +2288,12 @@ celular sin dejar datos. Ver "Lo que no se sube".
 
 **En curso**
 
+- [ ] **En la Mac de Emmanuel:** Ajustes → «Cargas retenidas» → «Sacar de este aparato las
+      copias exactas». Las que queden «distintas» se miran de a una antes de decidir.
+- [ ] **Sacar el importador de meses viejos** (`sincronizarMesImportado` y
+      `MESES_HISTORICOS` en `App.tsx`): desde el 15/10 no hay archivos que importar, y si
+      volvieran a publicarse, cada aparato crearía su propia copia con otros números.
+- [ ] **El martes 03/11 no tiene turno en el servidor.** Preguntar si se trabajó con la app.
 - [ ] **Mirar en `rechazos` las constancias con acción `revisar`** que dejen la Mac de
       Sandra y la PC de Gabriela al actualizar: dicen qué era cada cosa que el aviso
       contaba. Y antes, las de acción `guardar` de los últimos días, por si algún lote se

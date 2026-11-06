@@ -138,7 +138,8 @@ describe('auditar: caja', () => {
       'caja-dias-sin-cargar',
     )
     // Del 2 al 10: el dia de hoy (11) no cuenta, todavia puede cargarse.
-    expect(h?.cantidad).toBe(9)
+    // Son 9 dias, pero el 2 y el 9 de agosto de 2026 son domingo.
+    expect(h?.cantidad).toBe(7)
   })
 
   it('detecta las diferencias de caja de los cierres del mes', () => {
@@ -471,6 +472,50 @@ describe('el mismo turno cargado dos veces', () => {
     expect(h?.cantidad).toBe(1)
     expect(h?.detalle).toContain('10/07/2026 tarde')
     expect(h?.detalle).toContain('las 2 copias de más')
+  })
+})
+
+describe('lo retenido en este aparato no cuenta en el Panel', () => {
+  it('una copia retenida no es un turno repetido: esta solo aca, con su propio cartel', () => {
+    const conCopia = datos({
+      jornadas: [...datos().jornadas, jornada({ id: 'copia-3m', fecha: '2026-08-03', turno: 'M' })],
+    })
+    expect(buscar(auditar(conCopia), 'caja-turnos-repetidos')).toBeDefined()
+    expect(
+      buscar(auditar({ ...conCopia, idsRetenidos: new Set(['copia-3m']) }), 'caja-turnos-repetidos'),
+    ).toBeUndefined()
+  })
+
+  it('tampoco cuenta como turno abierto ni sus ventas en los avisos del mes', () => {
+    const abierta = jornada({ id: 'copia-abierta', fecha: '2026-08-02', turno: 'T', estado: 'abierto' })
+    const conCopia = datos({ jornadas: [...datos().jornadas, abierta] })
+    expect(buscar(auditar(conCopia), 'caja-turnos-abiertos')).toBeDefined()
+    expect(
+      buscar(auditar({ ...conCopia, idsRetenidos: new Set(['copia-abierta']) }), 'caja-turnos-abiertos'),
+    ).toBeUndefined()
+  })
+})
+
+describe('los domingos no se reclaman como dias sin caja', () => {
+  it('noviembre 2026: el domingo 1 no falta, el martes 3 si', () => {
+    const h = buscar(
+      auditar(
+        datos({
+          mes: '2026-11',
+          hoy: '2026-11-05',
+          ultimaSync: Date.parse('2026-11-05T12:00:00'),
+          jornadas: [
+            jornada({ id: 'a', fecha: '2026-11-02' }),
+            jornada({ id: 'b', fecha: '2026-11-04' }),
+          ],
+          ventas: [],
+        }),
+      ),
+      'caja-dias-sin-cargar',
+    )
+    expect(h?.cantidad).toBe(1)
+    expect(h?.detalle).toContain('2026-11-03')
+    expect(h?.detalle).not.toContain('2026-11-01')
   })
 })
 
