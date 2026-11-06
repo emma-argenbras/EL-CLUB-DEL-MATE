@@ -26,7 +26,6 @@ import {
   asegurarProveedor,
   db,
   productoVisible,
-  type HistorialProducto,
   type Producto,
   type Proveedor,
 } from '../db/db'
@@ -43,6 +42,7 @@ import {
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 import { asociarFantasma, fichaParecida, productosDelFantasma } from '../db/asociarFantasmas'
 import { comprasDeProducto } from '../db/ingresoMercaderia'
+import { cambiosDelProducto, comoSeLee, etiquetaCampo } from '../lib/historialLegible'
 import {
   estadoDelProveedor,
   fantasmasDeLosProductos,
@@ -53,6 +53,8 @@ import {
 import { useSesion } from '../sync/useSesion'
 import { estaAlMando } from '../sync/permisos'
 import { CompartirCatalogo, CompartirProducto } from '../componentes/BotonWhatsApp'
+import FichaProducto from '../componentes/FichaProducto'
+import { useEsCompu } from '../lib/useEsCompu'
 
 /** Las alertas que se pueden usar para filtrar el catalogo. */
 type Filtro =
@@ -111,6 +113,10 @@ export default function Productos() {
   const [consulta, setConsulta] = useState('')
   const [editando, setEditando] = useState<Producto | null>(null)
   const [creando, setCreando] = useState(false)
+  // En la compu, tocar un producto abre su ficha (opcion B, 06/11); desde
+  // ahi, «Editar» abre el formulario, y al salir se vuelve a la ficha.
+  const esCompu = useEsCompu()
+  const [ficha, setFicha] = useState<string | null>(null)
   // Un solo filtro por vez. Antes era un booleano por alerta y cada
   // boton tenia que acordarse de apagar todos los demas a mano; con
   // cinco alertas eso ya no cerraba.
@@ -280,6 +286,17 @@ export default function Productos() {
           setEditando(null)
           setCreando(false)
         }}
+      />
+    )
+  }
+
+  if (ficha) {
+    return (
+      <FichaProducto
+        codigo={ficha}
+        alMando={esOwner}
+        onVolver={() => setFicha(null)}
+        onEditar={(p) => setEditando(p)}
       />
     )
   }
@@ -596,7 +613,11 @@ export default function Productos() {
                 <li
                   className="item"
                   key={p.codigo}
-                  onClick={() => !verArchivados && setEditando(p)}
+                  onClick={() => {
+                    if (verArchivados) return
+                    if (esCompu) setFicha(p.codigo)
+                    else setEditando(p)
+                  }}
                 >
                   <div style={{ minWidth: 0 }}>
                     <div className="item-titulo">{p.descripcion}</div>
@@ -738,11 +759,13 @@ function FormularioProducto({
   const [mensaje, setMensaje] = useState('')
 
   const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
+  // De la tabla `historial`: la vieja, `historialProductos`, no se escribe
+  // desde la version 6, y esta tarjeta mostraba solo lo de antes (06/11).
   const historial = useLiveQuery(
-    () =>
+    async () =>
       producto
-        ? db.historialProductos.where('codigo').equals(producto.codigo).reverse().sortBy('cuando')
-        : Promise.resolve([] as HistorialProducto[]),
+        ? cambiosDelProducto(await db.historial.where('[tabla+clave]').equals(['productos', producto.codigo]).toArray())
+        : [],
     [producto?.codigo],
   )
   // Las compras de este producto (historial por codigo, punto 17 del 06/11).
@@ -1160,8 +1183,8 @@ function FormularioProducto({
             {historial.slice(0, 10).map((h) => (
               <li className="item-ayuda" key={h.id} style={{ padding: '8px 0' }}>
                 <div className="item-sub">
-                  <strong>{h.quienNombre}</strong> cambió <strong>{h.campo}</strong>:{' '}
-                  {String(h.valorAnterior ?? '—')} → {String(h.valorNuevo ?? '—')}
+                  <strong>{h.quienNombre}</strong> cambió <strong>{etiquetaCampo(h.campo)}</strong>:{' '}
+                  {comoSeLee(h.valorAnterior, h.campo)} → {comoSeLee(h.valorNuevo, h.campo)}
                   <br />
                   {fechaLinda(new Date(h.cuando).toISOString().slice(0, 10))}
                 </div>

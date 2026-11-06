@@ -65,7 +65,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Primeros pasos',
     pregunta: '¿Por qué en la compu la app se ve distinta que en el celular?',
     respuesta:
-      'Porque la pantalla es más ancha y se aprovecha: el menú pasa arriba, con todas las secciones a la vista, y el contenido usa más lugar. En el Panel, por ejemplo, arriba aparece lo de hoy en cuatro recuadros, los avisos en tres columnas y las ventas de la semana en barras. En la Caja, la búsqueda, el ticket y el cobro quedan uno al lado del otro.\n\nEs la misma app, con los mismos datos y los mismos botones: solo cambia cómo se acomoda. En el celular sigue todo igual que siempre.\n\nSi en la compu ves el menú abajo, como en el celular, es que la ventana quedó angosta o el zoom está muy grande. Agrandá la ventana, o volvé el zoom a su tamaño normal: en la Mac, ⌘ y 0 (cero); en Windows, Ctrl y 0.',
+      'Porque la pantalla es más ancha y se aprovecha: el menú pasa arriba, con todas las secciones a la vista, y el contenido usa más lugar. En el Panel, por ejemplo, arriba aparece lo de hoy en cuatro recuadros, los avisos en tres columnas y las ventas de la semana en barras. En la Caja, la búsqueda, el ticket y el cobro quedan uno al lado del otro. Y en Productos, tocar uno abre su ficha.\n\nEs la misma app, con los mismos datos y los mismos botones: solo cambia cómo se acomoda. En el celular sigue todo igual que siempre.\n\nSi en la compu ves el menú abajo, como en el celular, es que la ventana quedó angosta o el zoom está muy grande. Agrandá la ventana, o volvé el zoom a su tamaño normal: en la Mac, ⌘ y 0 (cero); en Windows, Ctrl y 0.',
     palabrasClave: ['computadora', 'notebook', 'pantalla grande', 'menu arriba', 'diseño', 'se ve distinto', 'zoom'],
   },
   {
@@ -572,6 +572,15 @@ export const AYUDA: EntradaAyuda[] = [
     pregunta: '¿Cómo busco un producto en el catálogo?',
     respuesta:
       'Entrá a Productos y escribí en el buscador de arriba: podés poner el código o parte del nombre. Tocando un producto de la lista se abre para editarlo.',
+    requiereSeccion: 'productos',
+  },
+  {
+    id: 'ficha-producto-compu',
+    categoria: 'Productos',
+    pregunta: '¿Qué es la ficha del producto en la compu?',
+    respuesta:
+      'En la compu, tocar un producto de la lista abre su ficha: todo lo que se sabe de él, en una pantalla.\n\nArriba, el nombre, el código, el proveedor y el precio de venta, con marcas como «4 EN STOCK» o «CONVIENE REMARCAR». Al lado, «Compartir por WhatsApp» y «Editar», que abre el formulario de siempre. Al salir del formulario se vuelve a la ficha.\n\nDebajo hay tres recuadros:\n• Precio y margen: el costo, la rentabilidad buscada y lo que deja hoy.\n• Stock y ventas: cuántos hay, cuántos se vendieron en los últimos 30 días, para cuánto alcanzan a ese ritmo y cuándo fue la última venta.\n• Historial: los últimos cambios, con quién y cuándo.\n\nAbajo de todo están las compras, con el costo, el flete y el remito de cada una.\n\nSi el precio quedó atrás de lo que pide su rentabilidad, aparece «Su rentabilidad pide $ X». El dueño y la encargada tienen ahí el botón «Poner $ X»: pregunta antes y queda en el historial. En el celular, tocar un producto sigue abriendo el formulario directo.',
+    palabrasClave: ['ficha', 'detalle del producto', 'compu', 'remarcar', 'poner precio', 'vendidos en 30 dias', 'alcanza para', 'compras del producto'],
     requiereSeccion: 'productos',
   },
   {
