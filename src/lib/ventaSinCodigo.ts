@@ -84,6 +84,45 @@ export function esComodin(p: Producto): boolean {
   )
 }
 
+/**
+ * Si al vender este producto hay que escribir que salio: los marcados
+ * como genericos y los comodines (punto 15 del pedido del 06/11). Antes
+ * el buscador solo advertia, y la venta quedaba como «SALDOS – DE TODO»
+ * sin decir que se habia vendido.
+ */
+export function pideDescripcionAlVender(p: Producto): boolean {
+  return p.generico === true || esComodin(p)
+}
+
+/**
+ * La descripcion con que se guarda la venta: la del producto, o lo que se
+ * escribio si es generico. Si lo escrito no dice que es, el problema.
+ */
+export function descripcionParaVender(
+  p: Producto,
+  queSalio: string,
+): { descripcion: string } | { problema: string } {
+  if (!pideDescripcionAlVender(p)) return { descripcion: p.descripcion }
+  const problema = problemaDescripcionSuelta(queSalio)
+  if (problema) return { problema }
+  return { descripcion: queSalio.trim() }
+}
+
+/** Lo que se escribio otras veces al vender este generico, lo mas nuevo primero. */
+export function descripcionesAnteriores(codigo: string, ventas: Venta[], cuantas = 20): string[] {
+  const vistas = new Set<string>()
+  const lista: string[] = []
+  for (const v of [...ventas].sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora))) {
+    if (v.codigo !== codigo) continue
+    const clave = normalizar(v.descripcion).trim()
+    if (!clave || vistas.has(clave)) continue
+    vistas.add(clave)
+    lista.push(v.descripcion.trim())
+    if (lista.length >= cuantas) break
+  }
+  return lista
+}
+
 /** Los productos comodín que tienen ventas, con cuántas y por cuánto. */
 export function comodinesConVentas(
   productos: Producto[],

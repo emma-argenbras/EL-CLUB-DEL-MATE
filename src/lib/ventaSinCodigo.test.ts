@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { Producto, Venta } from '../db/db'
 import {
   comodinesConVentas,
+  descripcionesAnteriores,
+  descripcionParaVender,
   esComodin,
+  pideDescripcionAlVender,
   problemaDescripcionSuelta,
   ventasSinCodigo,
 } from './ventaSinCodigo'
@@ -90,5 +93,51 @@ describe('los productos comodin', () => {
 
   it('un comodin sin ventas no molesta', () => {
     expect(comodinesConVentas([SALDOS], [])).toEqual([])
+  })
+})
+
+describe('los genericos piden que salio al venderlos (06/11)', () => {
+  const producto = (extra: Partial<Producto> = {}): Producto => ({
+    codigo: 'TM015', descripcion: 'MATE TORPEDO', proveedor: 'MOHICANO', proveedorId: 'mohicano',
+    fechaCompra: null, precioCompra: 20000, rentabilidad: 1, precioVenta: 45000, fechaPrecioVenta: null,
+    busqueda: 'tm015 mate torpedo', stock: null, activo: true, ...extra,
+  })
+  const saldos = producto({
+    codigo: 'SALDOS', descripcion: 'SALDOS – DE TODO', proveedor: null, proveedorId: null,
+    precioCompra: null, precioVenta: null,
+  })
+
+  it('un producto comun se vende con su descripcion, sin preguntar', () => {
+    expect(pideDescripcionAlVender(producto())).toBe(false)
+    expect(descripcionParaVender(producto(), '')).toEqual({ descripcion: 'MATE TORPEDO' })
+  })
+
+  it('el comodin pide que salio, aunque no tenga la marca', () => {
+    expect(pideDescripcionAlVender(saldos)).toBe(true)
+    expect(descripcionParaVender(saldos, ' bombilla de alpaca ')).toEqual({ descripcion: 'bombilla de alpaca' })
+  })
+
+  it('un producto marcado como generico tambien, aunque tenga proveedor y precio', () => {
+    expect(pideDescripcionAlVender(producto({ generico: true }))).toBe(true)
+  })
+
+  it('«saldos» o vacio no alcanza: no dice que salio', () => {
+    expect(descripcionParaVender(saldos, 'saldos')).toHaveProperty('problema')
+    expect(descripcionParaVender(saldos, '')).toHaveProperty('problema')
+  })
+
+  it('sugiere lo que se escribio otras veces, sin repetir y lo mas nuevo primero', () => {
+    const v = (id: string, fecha: string, descripcion: string, codigo = 'SALDOS') => ({
+      id, jornadaId: 'j', fecha, hora: '10:00', codigo, descripcion, cantidad: 1, precioUnitario: 1,
+      costoUnitario: null, medioPago: 'EFECTIVO' as const, total: 1, vendedor: null,
+    })
+    expect(
+      descripcionesAnteriores('SALDOS', [
+        v('1', '2026-11-01', 'bombilla de alpaca'),
+        v('2', '2026-11-03', 'Yerbera de cuero'),
+        v('3', '2026-11-04', 'Bombilla de alpaca'),
+        v('4', '2026-11-05', 'mate imperial', 'TM015'),
+      ]),
+    ).toEqual(['Bombilla de alpaca', 'Yerbera de cuero'])
   })
 })

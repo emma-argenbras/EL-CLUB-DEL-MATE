@@ -383,6 +383,15 @@ export const AYUDA: EntradaAyuda[] = [
   },
 
   {
+    id: 'vender-saldo-generico',
+    categoria: 'Caja',
+    pregunta: 'Vendo algo de «SALDOS – DE TODO» o un producto viejo sin código propio, ¿qué pongo?',
+    respuesta:
+      'Elegí el producto genérico como siempre (por ejemplo «SALDOS – DE TODO»). Desde el 06/11, Caja te pide «¿Qué salió?»: escribí qué se vendió, por ejemplo «bombilla de alpaca», y el precio. Sin eso no deja agregar la venta, y «saldos» o «varios» no alcanzan, porque no dicen qué salió.\n\nLa venta queda guardada con el código del genérico y con lo que escribiste, así después se sabe qué se vendió como saldo. Lo que se escribió otras veces aparece como sugerencia.\n\nLos productos sin proveedor, sin costo y sin precio (los comodines) lo piden solos. Cualquier otro producto se puede marcar en Productos, al editarlo, con «Producto genérico: pide qué salió al venderlo».',
+    palabrasClave: ['saldo', 'saldos', 'de todo', 'generico', 'comodin', 'producto viejo', 'que salio', 'descripcion'],
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'ruedita-numeros',
     categoria: 'Caja',
     pregunta: 'Cargué la cantidad de billetes, bajé en la pantalla con la ruedita y el número cambió o quedó en cero. ¿Qué pasó?',
