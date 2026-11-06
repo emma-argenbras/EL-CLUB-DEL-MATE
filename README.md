@@ -1662,6 +1662,31 @@ solo si se marca). Las ventas ya cargadas con SALDOS y DIF no se tocan.
 Probado: 5 pruebas (rotas a propósito: sin mirar la marca cae 1; aceptando «saldos» cae
 1), y una venta de SALDOS en el navegador, guardada como «bombilla de alpaca».
 
+## El cierre de caja: conteo ciego, recuento y pistas (06/11)
+
+Punto 5 del pedido del 06/11. Hay 9 cierres con diferencia esperando visto bueno, por
+$ 644.700, y la mayoría se explica después, mirando el día a mano. El cierre ahora hace
+esa mirada en el momento:
+
+- **Conteo ciego.** Mientras se cuenta no se ve cuánto debería haber; aparece con «Ya
+  conté: ver cómo da». Lo contado en ese momento queda en el turno (`primerConteo`), y si
+  después se recuenta y cambia, el dueño ve los dos números en la lista de vistos buenos.
+- **Recuento.** Desde $ 2.000 de diferencia, la app pide recontar los billetes grandes.
+- **Pistas** (`pistasDeLaDiferencia`, `src/lib/diferenciaCaja.ts`). Busca en el turno
+  movimientos por el mismo monto: si falta plata, una venta en efectivo (¿fue por
+  transferencia?) o una venta cargada dos veces; si sobra, una venta con tarjeta o
+  transferencia (¿fue en efectivo?), un egreso o un pase que quizás no salió del cajón. Y si
+  la diferencia es justo uno a cinco billetes grandes, pregunta por esos billetes.
+- **Motivo con categoría** (`motivoDiferencia`): error de conteo, vuelto, venta mal cargada,
+  egreso sin cargar, pase sin cargar o «No sé», en la misma pantalla y no en un cartel.
+  Con eso, más adelante, sale un reporte por motivo y por persona.
+
+Probado: 8 pruebas (rotas a propósito: tomar una venta en efectivo como explicación de un
+sobrante cae 1; el umbral corrido cae 1), y un cierre en el navegador: sin «Ya conté» no
+se ve lo esperado ni el botón de cerrar; con $ 10.000 contados sobre $ 55.000 esperados
+aparecen el recuento y la pista de la venta de $ 45.000 en efectivo; sin motivo no cierra;
+queda guardado el primer conteo y el motivo.
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño
