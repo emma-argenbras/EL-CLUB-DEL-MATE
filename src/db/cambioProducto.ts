@@ -1,4 +1,4 @@
-import { conMotivo, db, nuevoId, type Jornada, type MedioPago, type Producto, type Venta } from './db'
+import { CODIGO_RECARGO, cobrosDe, conMotivo, db, nuevoId, type Jornada, type MedioPago, type Producto, type Venta } from './db'
 import { borrarVenta } from './borrarVenta'
 
 /**
@@ -40,9 +40,25 @@ function redondear(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-/** Un renglon de la lista del turno: una venta, o un cambio entero. */
+/** Como se pago un ticket, sumado por medio y tarjeta. */
+export interface PagoResumido {
+  medio: MedioPago
+  monto: number
+  /** «Consumax 3 pagos», o null si no fue con un plan de tarjeta. */
+  detalle: string | null
+}
+
+/** Un renglon de la lista del turno: una venta, un cambio entero o un ticket entero. */
 export type RenglonDelTurno =
   | { tipo: 'venta'; venta: Venta }
+  | {
+      tipo: 'ticket'
+      ticketId: string
+      filas: Venta[]
+      total: number
+      hora: string
+      pagos: PagoResumido[]
+    }
   | {
       tipo: 'cambio'
       cambioId: string
@@ -63,7 +79,26 @@ export type RenglonDelTurno =
 export function agruparCambios(ventas: Venta[]): RenglonDelTurno[] {
   const renglones: RenglonDelTurno[] = []
   const cambios = new Map<string, Extract<RenglonDelTurno, { tipo: 'cambio' }>>()
+  const tickets = new Map<string, Extract<RenglonDelTurno, { tipo: 'ticket' }>>()
   for (const v of ventas) {
+    // Un ticket con varios productos va junto, en un solo renglon (06/11).
+    if (v.ticketId && !v.cambioId) {
+      let ticket = tickets.get(v.ticketId)
+      if (!ticket) {
+        ticket = { tipo: 'ticket', ticketId: v.ticketId, filas: [], total: 0, hora: v.hora, pagos: [] }
+        tickets.set(v.ticketId, ticket)
+        renglones.push(ticket)
+      }
+      ticket.filas.push(v)
+      ticket.total = redondear(ticket.total + v.total)
+      for (const c of cobrosDe(v)) {
+        const detalle = c.tarjeta && c.plan ? `${c.tarjeta} ${c.plan}` : null
+        const igual = ticket.pagos.find((x) => x.medio === c.medio && x.detalle === detalle)
+        if (igual) igual.monto = redondear(igual.monto + c.monto)
+        else ticket.pagos.push({ medio: c.medio, monto: c.monto, detalle })
+      }
+      continue
+    }
     if (!v.cambioId) {
       renglones.push({ tipo: 'venta', venta: v })
       continue
@@ -88,6 +123,20 @@ export function agruparCambios(ventas: Venta[]): RenglonDelTurno[] {
       cambio.medioPago = v.medioPago
     }
     cambio.diferencia = redondear(cambio.diferencia + v.total)
+  }
+  // Cada aparato trae los renglones en otro orden: el ticket se ve igual en
+  // todos con los productos por nombre, el recargo al final y el efectivo
+  // primero entre los pagos.
+  for (const t of tickets.values()) {
+    t.filas.sort(
+      (a, b) =>
+        Number(a.codigo === CODIGO_RECARGO) - Number(b.codigo === CODIGO_RECARGO) ||
+        a.descripcion.localeCompare(b.descripcion, 'es'),
+    )
+    t.pagos.sort(
+      (a, b) =>
+        Number(b.medio === 'EFECTIVO') - Number(a.medio === 'EFECTIVO') || b.monto - a.monto,
+    )
   }
   return renglones
 }

@@ -78,4 +78,19 @@ describe('la caja virtual', () => {
       { medio: 'TRANSFERENCIA', total: 5000 },
     ])
   })
+
+  it('un renglón pagado una parte en efectivo y otra con tarjeta suma solo la parte de la tarjeta (06/11)', () => {
+    expect(
+      cajaVirtual([
+        {
+          medioPago: 'EFECTIVO',
+          total: 20000,
+          pagos: [
+            { medio: 'EFECTIVO', monto: 12000 },
+            { medio: 'CREDITO', monto: 8000, tarjeta: 'Consumax', plan: '3 pagos', cuotas: 3, recargoPct: 15 },
+          ],
+        },
+      ]),
+    ).toEqual([{ medio: 'CREDITO', total: 8000 }])
+  })
 })

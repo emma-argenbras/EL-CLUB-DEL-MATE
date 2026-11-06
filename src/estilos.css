@@ -570,6 +570,58 @@ button:disabled {
   color: var(--amarillo);
 }
 
+.chip-ticket {
+  background: #f6e7d8;
+  color: var(--calabaza);
+}
+
+/* ---------- Ticket con varios productos (06/11) ---------- */
+
+.ticket-lista {
+  margin-top: 10px;
+}
+
+.ticket-renglon {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.ticket-subtotal {
+  padding: 10px 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket-pago {
+  padding: 8px 10px 2px;
+  margin-bottom: 8px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.ticket-totales {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radio);
+  background: var(--crema);
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket-totales > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.ticket-total {
+  margin-top: 4px;
+  padding-top: 6px !important;
+  border-top: 1px solid var(--borde);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
 /* ---------- Buscador con sugerencias ---------- */
 
 .buscador {

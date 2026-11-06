@@ -437,8 +437,47 @@ export interface Venta {
    */
   cambioId?: string | null
   cambio?: 'vuelve' | 'lleva' | null
+  /**
+   * Si este renglon es parte de un ticket con varios productos (06/11, ver
+   * ticket.ts): todos los renglones del ticket comparten el id.
+   */
+  ticketId?: string | null
+  /**
+   * Como se pago ESTE renglon, cuando no fue con un solo medio, o cuando
+   * fue con una tarjeta y un plan. La suma da el total del renglon. Sin
+   * esto, el renglon se pago entero con `medioPago` (ver cobrosDe).
+   */
+  pagos?: PagoDeVenta[] | null
   creadoEn?: number
   actualizadoEn?: number
+}
+
+/** Una parte del pago de un renglon de venta. */
+export interface PagoDeVenta {
+  medio: MedioPago
+  monto: number
+  /** Con tarjeta: cual y en que plan, como se cobro. */
+  tarjeta?: string | null
+  plan?: string | null
+  cuotas?: number | null
+  recargoPct?: number | null
+}
+
+/**
+ * Lo que se cobro por un renglon, por medio de pago. Es lo que usan las
+ * cuentas de plata (el efectivo esperado del turno, lo que va al banco):
+ * con un ticket pagado con dos medios, el medio del renglon no alcanza.
+ */
+export function cobrosDe(v: Pick<Venta, 'medioPago' | 'total' | 'pagos'>): PagoDeVenta[] {
+  return v.pagos && v.pagos.length > 0 ? v.pagos : [{ medio: v.medioPago, monto: v.total }]
+}
+
+/** El codigo de los renglones de recargo por pagar con tarjeta. */
+export const CODIGO_RECARGO = 'REC-TARJETA'
+
+/** El renglon del recargo de una tarjeta: no es un producto, no va en los rankings. */
+export function esRecargo(v: Pick<Venta, 'codigo'>): boolean {
+  return v.codigo === CODIGO_RECARGO
 }
 
 export type TipoMovimiento =
