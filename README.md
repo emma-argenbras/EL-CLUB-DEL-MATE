@@ -1945,6 +1945,56 @@ Contra los emuladores:
 La segunda mitad del punto 14, la reposición sugerida por proveedor, necesita que el stock
 esté controlado: hoy la mayoría de los productos no lo lleva.
 
+## La compu: opción B (06/11)
+
+Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
+los diseños: en una pantalla ancha, el menú pasa arriba y el Panel se vuelve un tablero.
+**El celular no cambia nada.** Sale en tres partes; esta es la primera.
+
+**Desde 1024 píxeles de ancho** (`@media (min-width: 1024px)`, al final de `estilos.css`):
+- El menú de abajo se esconde. Arriba aparecen el círculo «ECDM», el nombre y las mismas
+  secciones del menú de siempre, con iconos de trazo (`src/componentes/Icono.tsx`) en lugar
+  de emojis, que se ven distinto en cada aparato. La sección abierta va en verde, subrayada.
+- Fondo gris verdoso, tarjetas blancas con borde y sin sombra, el contenido hasta 1080
+  píxeles de ancho. El Panel usa hasta 1320 (`PANTALLAS_ANCHAS` en `App.tsx`): las otras
+  pantallas todavía no están acomodadas para tanto ancho, y estiradas se leen peor.
+- Las otras pantallas toman los colores nuevos y nada más. Su acomodo para la compu viene
+  después, de a una.
+
+**El Panel en la compu:**
+- Arriba, la fecha, el saludo con el nombre y «Ir a la caja» (solo a quien tiene la Caja).
+- Cuatro recuadros con lo de hoy (`src/lib/tablero.ts`):
+  - lo vendido y cuántas operaciones (un ticket o un cambio cuenta como una);
+  - el efectivo que debería haber en el cajón del turno abierto;
+  - lo cobrado con tarjeta, transferencia o QR;
+  - para quien está al mando, el saldo de la caja grande, que lleva a contarla; para el
+    resto, cuántos avisos hay para hoy.
+- Los avisos en tres columnas, una por plazo.
+- Las ventas de la semana en barras, de lunes a sábado, con hoy resaltado, y los turnos de
+  hoy: quién, desde qué hora y si ya cerró.
+- El puntaje de la revisión queda abajo; en el celular sigue arriba, como siempre.
+
+**Y un hueco del conteo ciego, arreglado.** La Caja muestra arriba «Efectivo esperado en
+caja», y eso quedaba a la vista mientras se contaba en «Cierre». Ahora, en esa pestaña y con
+el turno abierto, dice «se ve después de contar». Lo esperado aparece recién con «Ya conté»,
+como estaba pensado.
+
+Probado:
+- 5 pruebas del tablero, rotas a propósito de 12 maneras y las 12 en rojo:
+  - el saludo de las 12 y de las 20;
+  - la semana que arranca el domingo, o un día corrida;
+  - el filtro del día y el domingo en las barras;
+  - el cajón con los turnos cerrados, con ventas de otro turno o sin los egresos;
+  - los renglones contados como operaciones;
+  - un cero en vez de «no hay turno»;
+  - el banco igual a todo lo vendido.
+- En el navegador, a 1440 y a 390 de ancho, con datos de un día:
+  - en la compu, el menú arriba y el de abajo escondido, sin corrimiento horizontal;
+  - en el celular, todo como antes.
+- El conteo ciego, en el navegador: con el turno abierto y $ 55.000 esperados, en «Cierre»
+  el número no aparece en ninguna parte de la pantalla hasta «Ya conté». Con el arreglo
+  sacado, el mismo control da que se ve.
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño
@@ -2464,8 +2514,10 @@ en cero), el cartel de cargas retenidas resume, el Panel no cuenta lo retenido n
 domingos, y las copias exactas retenidas se sacan de una vez. Ver "Lo que pasó el 06/11".
 Después, en el día: los avisos por plazo y el cambio en una línea, los saldos que piden qué
 salió, el cierre con conteo ciego, la caja grande con saldo, y el ticket con varios
-productos y las tarjetas con recargo. El análisis de los 22 pedidos del 06/11 y el plan
-están en el documento «ECDM · Análisis y plan de mejoras (noviembre)».
+productos y las tarjetas con recargo. Más tarde: el ingreso de mercadería, la agenda de
+vencimientos, los pedidos de insumos y la primera parte de la visual nueva en la compu. El
+análisis de los 22 pedidos del 06/11 y el plan están en el documento «ECDM · Análisis y
+plan de mejoras (noviembre)».
 
 **Para que decida Emmanuel (encontrado el 06/11):** un pago a proveedor genera un gasto
 variable de categoría PROVEEDORES, y el resultado del mes ya resta el costo de la mercadería
@@ -2496,8 +2548,10 @@ el contador y con los datos reales cuánto cambia.
       categoría y en qué formato quiere los datos el contador).
 - [ ] **ARCA**: factura C desde la app, con el certificado guardado en el servidor (no en
       el celular).
-- [ ] La **visual en la compu** y el **logo original** (cuando Emmanuel lo pase en SVG o en
-      PNG de 1024).
+- [ ] La **visual en la compu** (opción B). Hecho: el menú arriba y el Panel como tablero
+      (ver «La compu: opción B»). Siguen la Caja en tres columnas y la ficha del producto;
+      después, el resto de las pantallas, de a una.
+- [ ] El **logo original** (cuando Emmanuel lo pase en SVG o en PNG de 1024).
 
 **Hecho el 04/11** — el aviso «sin subir» ya no cuenta lo retenido ni lo firmado por otra
 persona, revisa solo qué es cada cosa y la resuelve, tiene «Ver qué es», y un lote

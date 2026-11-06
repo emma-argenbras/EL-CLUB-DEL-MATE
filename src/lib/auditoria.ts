@@ -782,7 +782,7 @@ function auditarPedidos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
     nivel: 'importante',
     titulo:
       faltan.length === 1
-        ? `Falta ${faltan[0].que} en el local`
+        ? `Falta en el local: ${faltan[0].que}`
         : `Faltan ${faltan.length} cosas en el local`,
     detalle: `${faltan
       .slice(0, 5)

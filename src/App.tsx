@@ -37,17 +37,31 @@ import Pedidos from './paginas/Pedidos'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
+import Icono, { type NombreIcono } from './componentes/Icono'
 
 // Cada seccion configurable (ver SECCIONES_CONFIGURABLES en db.ts) mas su
 // ruta e icono de menu. Un owner las ve todas siempre; a un empleado un
 // owner le puede prender o apagar cada una desde Ajustes.
-const NAV_POR_SECCION: Record<SeccionId, { ruta: string; icono: string; texto: string }> = {
-  panel: { ruta: '/panel', icono: '🧭', texto: 'Panel' },
-  caja: { ruta: '/caja', icono: '🧉', texto: 'Caja' },
-  productos: { ruta: '/productos', icono: '🏷️', texto: 'Productos' },
-  proveedores: { ruta: '/proveedores', icono: '🚚', texto: 'Provee.' },
-  gastos: { ruta: '/gastos', icono: '💸', texto: 'Gastos' },
-  reportes: { ruta: '/reportes', icono: '📊', texto: 'Reportes' },
+// `dibujo` y `textoLargo` son para el menu de arriba de la compu (opcion B,
+// 06/11); el celular sigue con el emoji y el texto corto abajo.
+interface ItemMenu {
+  ruta: string
+  icono: string
+  texto: string
+  textoLargo: string
+  dibujo: NombreIcono
+}
+
+/** Las pantallas que ya tienen su diseño de compu (opcion B). */
+const PANTALLAS_ANCHAS = ['/panel']
+
+const NAV_POR_SECCION: Record<SeccionId, ItemMenu> = {
+  panel: { ruta: '/panel', icono: '🧭', texto: 'Panel', textoLargo: 'Panel', dibujo: 'panel' },
+  caja: { ruta: '/caja', icono: '🧉', texto: 'Caja', textoLargo: 'Caja', dibujo: 'caja' },
+  productos: { ruta: '/productos', icono: '🏷️', texto: 'Productos', textoLargo: 'Productos', dibujo: 'productos' },
+  proveedores: { ruta: '/proveedores', icono: '🚚', texto: 'Provee.', textoLargo: 'Proveedores', dibujo: 'proveedores' },
+  gastos: { ruta: '/gastos', icono: '💸', texto: 'Gastos', textoLargo: 'Gastos', dibujo: 'gastos' },
+  reportes: { ruta: '/reportes', icono: '📊', texto: 'Reportes', textoLargo: 'Reportes', dibujo: 'reportes' },
 }
 
 // El importador de los meses de la planilla vieja se saco el 06/11. Los
@@ -69,7 +83,12 @@ export default function App() {
   // salon abriria un instante en el Panel --con los avisos-- y recien
   // despues saltaria al buscador.
   const modoConsulta = useLiveQuery(() => leerModoConsulta(), [])
-  const enConsulta = useLocation().pathname === '/consulta'
+  const ruta = useLocation().pathname
+  const enConsulta = ruta === '/consulta'
+  // Las pantallas ya rehechas para la compu (opcion B, 06/11) usan todo el
+  // ancho; las demas, uno mas angosto hasta que les toque, asi los
+  // formularios no quedan estirados de punta a punta.
+  const anchoCompleto = PANTALLAS_ANCHAS.some((r) => ruta.startsWith(r))
   const estadoNube = useEstadoNube()
 
   useEffect(() => {
@@ -121,11 +140,11 @@ export default function App() {
   const visibles = seccionesVisibles(sesion.perfil)
   const puedeVer = (s: SeccionId) => visibles.includes(s)
 
-  const secciones = [
+  const secciones: ItemMenu[] = [
     ...SECCIONES_CONFIGURABLES.filter(puedeVer).map((s) => NAV_POR_SECCION[s]),
     ...(alMando
-      ? [{ ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes' }]
-      : [{ ruta: '/mi-actividad', icono: '⭐', texto: 'Mi día' }]),
+      ? [{ ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes', textoLargo: 'Ajustes', dibujo: 'ajustes' as const }]
+      : [{ ruta: '/mi-actividad', icono: '⭐', texto: 'Mi día', textoLargo: 'Mi día', dibujo: 'midia' as const }]),
   ]
 
   return (
@@ -134,6 +153,27 @@ export default function App() {
 
       <header className="cabecera">
         <span className="marca">🧉 El Club del Mate</span>
+        {/* En la compu (opcion B, 06/11): la marca y las secciones van en
+            esta misma barra, arriba; el menu de abajo se esconde. En el
+            celular no se ven: sigue todo como estaba. */}
+        <span className="marca-escritorio">
+          <span className="marca-circulo" aria-hidden="true">ECDM</span>
+          El Club del Mate
+        </span>
+        {!modoConsulta && !enConsulta && (
+          <nav className="menu-escritorio" aria-label="Secciones">
+            {secciones.map((s) => (
+              <NavLink
+                key={s.ruta}
+                to={s.ruta}
+                className={({ isActive }) => (isActive ? 'pestana-menu activo' : 'pestana-menu')}
+              >
+                <Icono nombre={s.dibujo} />
+                {s.textoLargo}
+              </NavLink>
+            ))}
+          </nav>
+        )}
         <div className="acciones-cabecera">
           {nubeConfigurada && sesion.perfil && (
             <button
@@ -218,7 +258,7 @@ export default function App() {
 
       {error && <div className="aviso aviso-error">No se pudo cargar el catálogo: {error}</div>}
 
-      <main className="contenido">
+      <main className={anchoCompleto ? 'contenido contenido-ancho' : 'contenido'}>
         <Routes>
           <Route
             path="/"
