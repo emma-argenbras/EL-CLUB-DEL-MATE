@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, esRecargo, productoVisible, type HistorialProducto } from '../db/db'
 import { mesActualISO, mesLindo, numero } from '../lib/formato'
@@ -89,6 +90,16 @@ export default function MiActividad() {
       )}
 
       {cargando ? <p className="vacio">Revisando…</p> : <ListaHallazgos hallazgos={hallazgos} />}
+
+      <div className="tarjeta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 12 }}>
+        <div>
+          <p className="tarjeta-titulo" style={{ margin: 0 }}>🧻 Pedidos de insumos</p>
+          <div className="item-sub">¿Falta algo en el local? Anotalo y se compra.</div>
+        </div>
+        <Link className="boton-chico" to="/pedidos" style={{ flex: 'none' }}>
+          Ver
+        </Link>
+      </div>
 
       {permiso === 'default' && (
         <div className="tarjeta" style={{ marginTop: 12 }}>

@@ -2,6 +2,7 @@ import type {
   Jornada,
   Movimiento,
   MovimientoProveedor,
+  PedidoInsumo,
   Producto,
   Proveedor,
   SeccionId,
@@ -82,6 +83,8 @@ export interface DatosAuditoria {
   cuentaCorriente: MovimientoProveedor[]
   /** La agenda de pagos que se repiten (06/11). Opcional: sin ella no se controla. */
   vencimientos?: Vencimiento[]
+  /** Los pedidos de insumos (06/11). Opcional, como la agenda. */
+  pedidos?: PedidoInsumo[]
   estadoNube: 'sin-configurar' | 'desconectado' | 'conectando' | 'sincronizado' | 'error'
   errorNube: string | null
   /**
@@ -769,6 +772,30 @@ function auditarVencimientos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void
   }
 }
 
+function auditarPedidos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
+  const faltan = (datos.pedidos ?? []).filter((p) => p.estado === 'pendiente').sort((a, b) => a.cuando - b.cuando)
+  if (faltan.length === 0) return
+  const dias = (p: PedidoInsumo) => Math.max(0, Math.floor((Date.parse(`${datos.hoy}T23:59:59`) - p.cuando) / 86_400_000))
+  hallazgos.push({
+    id: 'pedidos-insumos',
+    modulo: 'gastos',
+    nivel: 'importante',
+    titulo:
+      faltan.length === 1
+        ? `Falta ${faltan[0].que} en el local`
+        : `Faltan ${faltan.length} cosas en el local`,
+    detalle: `${faltan
+      .slice(0, 5)
+      .map((p) => `${p.que}${p.cantidad ? ` (${p.cantidad})` : ''}: ${p.pidioNombre ? `lo anotó ${p.pidioNombre}` : 'anotado'} ${dias(p) === 0 ? 'hoy' : dias(p) === 1 ? 'ayer' : `hace ${dias(p)} días`}`)
+      .join(' · ')}${faltan.length > 5 ? ` · y ${faltan.length - 5} más` : ''}.`,
+    comoSeResuelve: 'En Pedidos, marcalo «Pedido» cuando lo encargues y «Recibido» cuando llegue.',
+    ruta: '/pedidos',
+    cantidad: faltan.length,
+    soloOwner: true,
+    requiereSeccion: 'gastos',
+  })
+}
+
 function auditarGastos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   // Lo que ya esta en la agenda de vencimientos lo avisa la agenda, antes
   // de que venza: no hace falta avisarlo dos veces.
@@ -888,6 +915,7 @@ export function auditar(datosCompletos: DatosAuditoria): Hallazgo[] {
   auditarProveedores(datos, hallazgos)
   auditarGastos(datos, hallazgos)
   auditarVencimientos(datos, hallazgos)
+  auditarPedidos(datos, hallazgos)
   auditarSistema(datos, hallazgos)
 
   return hallazgos.sort((a, b) => {
@@ -1129,6 +1157,14 @@ export const CONTROLES: {
     modulo: 'gastos',
     que: 'Los pagos de la agenda que vencen en los próximos días',
     bien: 'Nada de la agenda vence en los próximos días',
+    soloOwner: true,
+    requiereSeccion: 'gastos',
+  },
+  {
+    id: 'pedidos-insumos',
+    modulo: 'gastos',
+    que: 'Lo que anotaron que falta en el local',
+    bien: 'No hay nada anotado sin pedir',
     soloOwner: true,
     requiereSeccion: 'gastos',
   },

@@ -87,6 +87,18 @@ export default function Gastos() {
         </div>
       )}
 
+      {alMando && (
+        <div className="tarjeta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div>
+            <p className="tarjeta-titulo" style={{ margin: 0 }}>🧻 Pedidos de insumos</p>
+            <div className="item-sub">Lo que anotaron que falta en el local.</div>
+          </div>
+          <Link className="boton-chico" to="/pedidos">
+            Ver pedidos
+          </Link>
+        </div>
+      )}
+
       <div className="tarjeta">
         <label htmlFor="mes-gastos">Mes</label>
         <input

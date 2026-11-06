@@ -95,6 +95,9 @@ const TABLAS: NombreTabla[] = [
   // La agenda de vencimientos (06/11): la carga Emmanuel una vez y la
   // ven todos los que pagan.
   'vencimientos',
+  // Los pedidos de insumos (06/11): los anota cualquiera, los resuelve
+  // quien compra.
+  'pedidos',
 ]
 
 /**

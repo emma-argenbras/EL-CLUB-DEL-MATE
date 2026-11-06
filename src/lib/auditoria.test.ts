@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Jornada, Movimiento, MovimientoProveedor, Producto, Vencimiento, Venta } from '../db/db'
+import type { Jornada, Movimiento, MovimientoProveedor, PedidoInsumo, Producto, Vencimiento, Venta } from '../db/db'
 import {
   auditar,
   CONTROLES,
@@ -315,6 +315,36 @@ describe('la agenda de vencimientos (06/11)', () => {
     )
     expect(buscar(hallazgos, 'gastos-habituales-faltantes')).toBeUndefined()
     expect(buscar(hallazgos, 'vencimientos-proximos')).toBeDefined()
+  })
+})
+
+describe('los pedidos de insumos (06/11)', () => {
+  const pedido = (id: string, estado: 'pendiente' | 'pedido' | 'recibido', cuando: number): PedidoInsumo => ({
+    id, que: id, cantidad: null, nota: null, estado, pidio: null, pidioNombre: 'Gabriela', cuando,
+    resolvio: null, resolvioNombre: null, resueltoEn: null,
+  })
+
+  it('lo que falta y nadie pidió: para esta semana, a quien compra, lo más viejo primero', () => {
+    const h = buscar(
+      auditar(
+        datos({
+          hoy: '2026-08-11',
+          pedidos: [
+            pedido('Bolsas', 'pendiente', Date.parse('2026-08-11T10:00:00')),
+            pedido('Papel', 'pendiente', Date.parse('2026-08-08T10:00:00')),
+            pedido('Lavandina', 'pedido', Date.parse('2026-08-01T10:00:00')),
+          ],
+        }),
+      ),
+      'pedidos-insumos',
+    )
+    expect([h?.nivel, h?.soloOwner, h?.titulo, h?.cantidad]).toEqual(['importante', true, 'Faltan 2 cosas en el local', 2])
+    expect(h?.detalle).toBe('Papel: lo anotó Gabriela hace 3 días · Bolsas: lo anotó Gabriela hoy.')
+  })
+
+  it('si todo está pedido o recibido, no avisa', () => {
+    const hallazgos = auditar(datos({ pedidos: [pedido('Papel', 'pedido', 1), pedido('Bolsas', 'recibido', 2)] }))
+    expect(buscar(hallazgos, 'pedidos-insumos')).toBeUndefined()
   })
 })
 

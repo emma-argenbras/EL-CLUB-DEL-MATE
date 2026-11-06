@@ -1908,6 +1908,45 @@ y la pantalla es solo para quien está al mando; ahora no.
 
 ---
 
+## Los pedidos de insumos (06/11)
+
+Punto 14 del pedido del 06/11, la primera mitad: lo que falta en el local (bolsas, papel,
+rollos de ticket, limpieza).
+
+**Una lista compartida**, tabla nueva `pedidos` (versión 10, sincroniza, con historial y en el
+respaldo nocturno de la rama):
+- Cualquiera anota qué falta, con cantidad y nota opcionales. Lo que ya está anotado y
+  abierto no se anota dos veces: se compara sin mayúsculas ni acentos.
+- Quien está al mando lo pasa a «Pedido», «Recibido» o «Descartado», y queda quién y cuándo.
+- Quien lo anotó puede decir «Ya no hace falta» mientras nadie lo pidió.
+
+**Dónde está.** La pantalla `/pedidos` es para todos. Se entra desde Caja (abajo de todo,
+con cuántas cosas hay anotadas), desde Mi día y desde Gastos. El Panel avisa a quien está al
+mando en «Esta semana»: «Faltan 2 cosas en el local», con quién lo anotó y hace cuánto, lo
+más viejo primero.
+
+Probado: 5 pruebas de los pedidos y 2 del aviso. Cada una se rompió a propósito y se puso en
+rojo:
+- el repetido sin acentos;
+- lo recibido que se vuelve a anotar;
+- quién lo pasó;
+- el orden;
+- lo pedido que no avisa;
+- el aviso ordenado;
+- solo a quien compra.
+
+Contra los emuladores:
+- Gabriela, con solo Caja, anota desde la caja; el repetido no pasa y ella solo puede decir
+  «Ya no hace falta».
+- Emmanuel lo ve en el Panel y lo pasa a pedido y a recibido, con historial.
+- Gabriela ve en qué anda cada cosa.
+- Cero rechazos y nada «sin subir».
+
+La segunda mitad del punto 14, la reposición sugerida por proveedor, necesita que el stock
+esté controlado: hoy la mayoría de los productos no lo lleva.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -2445,9 +2484,10 @@ el contador y con los datos reales cuánto cambia.
       necesita cambio de reglas y el OK de Emmanuel (y quién puede ponerlo).
 - [x] **Ingreso de mercadería** con remito, **prorrateo del flete** en el costo, y las
       compras de cada producto en su ficha (ver «El ingreso de mercadería»).
+- [x] **Pedidos de insumos** (ver «Los pedidos de insumos»).
 - [ ] **Pago a proveedor en un solo paso** contra sus facturas, condición de IVA del
-      proveedor (falta saber cómo factura cada uno y qué es «medio IVA»), pedidos de
-      insumos y reposición.
+      proveedor (falta saber cómo factura cada uno y qué es «medio IVA»), y la reposición
+      sugerida por proveedor (necesita stock controlado).
 - [x] **Vencimientos**: la agenda con avisos y «marcar pagado» (ver «La agenda de
       vencimientos»). Falta que Emmanuel cargue los suyos: qué, qué día y cuánto, más o menos.
 - [ ] **Flujo de fondos**: lo que hay, más lo que se va a cobrar, menos lo que vence, semana
