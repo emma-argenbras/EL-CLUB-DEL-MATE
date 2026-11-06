@@ -1,4 +1,4 @@
-import type { MotivoDiferencia, Movimiento, Venta } from '../db/db'
+import { esRecargo, type MotivoDiferencia, type Movimiento, type Venta } from '../db/db'
 import { plata } from './formato'
 
 /**
@@ -49,13 +49,18 @@ const igual = (a: number, b: number) => Math.abs(a - b) < 1
  */
 export function pistasDeLaDiferencia(
   diferencia: number,
-  ventas: Pick<Venta, 'id' | 'codigo' | 'descripcion' | 'hora' | 'total' | 'medioPago' | 'cambioId'>[],
+  ventas: (Pick<Venta, 'id' | 'codigo' | 'descripcion' | 'hora' | 'total' | 'medioPago' | 'cambioId'> &
+    Partial<Pick<Venta, 'pagos'>>)[],
   movimientos: Pick<Movimiento, 'tipo' | 'concepto' | 'monto'>[],
 ): string[] {
   if (igual(diferencia, 0)) return []
   const monto = Math.abs(diferencia)
   const pistas: string[] = []
-  const sueltas = ventas.filter((v) => !v.cambioId)
+  // Un renglon pagado con dos medios no tiene un medio para preguntar.
+  // Y el recargo de una tarjeta no es una venta que se pueda haber cargado mal.
+  const sueltas = ventas.filter(
+    (v) => !v.cambioId && !((v.pagos?.length ?? 0) > 1) && !esRecargo(v),
+  )
 
   if (diferencia < 0) {
     for (const v of sueltas) {

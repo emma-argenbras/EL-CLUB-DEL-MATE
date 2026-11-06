@@ -1,4 +1,4 @@
-import type { ArqueoCuenta, CuentaDePago, Movimiento, Venta } from '../db/db'
+import { cobrosDe, type ArqueoCuenta, type CuentaDePago, type Movimiento, type Venta } from '../db/db'
 
 /**
  * El saldo de la caja grande (punto 13 del pedido del 06/11: «la grande
@@ -69,11 +69,15 @@ export function saldoDeCuenta(
 }
 
 /** La caja virtual: lo cobrado que no es efectivo, por medio de pago. */
-export function cajaVirtual(ventas: Pick<Venta, 'medioPago' | 'total'>[]): { medio: Venta['medioPago']; total: number }[] {
+export function cajaVirtual(
+  ventas: Pick<Venta, 'medioPago' | 'total' | 'pagos'>[],
+): { medio: Venta['medioPago']; total: number }[] {
   const porMedio = new Map<Venta['medioPago'], number>()
   for (const v of ventas) {
-    if (v.medioPago === 'EFECTIVO') continue
-    porMedio.set(v.medioPago, (porMedio.get(v.medioPago) ?? 0) + v.total)
+    for (const c of cobrosDe(v)) {
+      if (c.medio === 'EFECTIVO') continue
+      porMedio.set(c.medio, (porMedio.get(c.medio) ?? 0) + c.monto)
+    }
   }
   return [...porMedio.entries()]
     .map(([medio, total]) => ({ medio, total: Math.round(total * 100) / 100 }))

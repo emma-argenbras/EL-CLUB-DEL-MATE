@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, productoVisible, type HistorialProducto } from '../db/db'
+import { db, esRecargo, productoVisible, type HistorialProducto } from '../db/db'
 import { mesActualISO, mesLindo, numero } from '../lib/formato'
 import { useAuditoria } from '../lib/useAuditoria'
 import { estadoPermiso, pedirPermiso, recordarUrgentes } from '../lib/recordatorios'
@@ -63,6 +63,7 @@ export default function MiActividad() {
   const masVendidos = useMemo(() => {
     const mapa = new Map<string, { desc: string; unidades: number }>()
     for (const v of ventas ?? []) {
+      if (esRecargo(v)) continue
       const clave = v.codigo || v.descripcion
       const actual = mapa.get(clave) ?? { desc: v.descripcion, unidades: 0 }
       actual.unidades += v.cantidad

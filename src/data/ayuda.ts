@@ -291,11 +291,38 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'caja',
   },
   {
+    id: 'ticket-varios-productos',
+    categoria: 'Caja',
+    pregunta: 'Un cliente se lleva varios productos, o paga una parte en efectivo y otra con tarjeta, ¿cómo lo cargo?',
+    respuesta:
+      'En Caja, pestaña "Ventas", tocá "🧾 Varios productos". Buscá cada producto: cada uno que elijas se suma al ticket (si elegís el mismo dos veces, suma uno a la cantidad). En cada renglón podés corregir la cantidad y el precio, o tocar «Sacar». Si ya habías elegido un producto en la venta común, «+ Se lleva otro producto» lo pasa al ticket.\n\nAbajo, en «Cómo paga», el monto se completa solo con el total. Si paga con dos medios: escribí lo del primero (por ejemplo, $ 30.000 en efectivo), tocá «+ Otro medio de pago» y el segundo se completa con lo que falta. Con tarjeta de crédito elegí la tarjeta y el plan (ver la pregunta de Consumax y Club del Este). Si paga en efectivo, en «Paga con» ponés con cuánto paga y te dice el vuelto.\n\nTocá «Registrar ticket». En la lista del turno se ve en una sola línea, marcada «TICKET», con los productos y cómo se pagó. Cuenta como una operación. El stock baja de cada producto, y el efectivo y el banco del turno suman cada parte por su medio.\n\nDurante 30 segundos se puede deshacer. Después, «Borrar» o «Pasar a mañana/tarde» en esa línea hacen todo el ticket junto: no se puede borrar o mover un solo producto de un ticket.',
+    palabrasClave: ['ticket', 'varios productos', 'carrito', 'cliente', 'pago mixto', 'dos medios', 'parte efectivo', 'parte tarjeta', 'vuelto'],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'tarjeta-con-recargo',
+    categoria: 'Caja',
+    pregunta: 'Me pagan con Consumax o Club del Este, ¿cómo cobro el recargo?',
+    respuesta:
+      'Al elegir CREDITO como medio de pago, la app pide «Tarjeta y plan»: Crédito bancaria (sin recargo), Consumax o Club del Este en 1 pago (5 % de recargo) o en 3 pagos (15 %). Hay que elegirla en cada venta con crédito, así no se olvida un recargo ni queda puesto el del cliente anterior. Con débito no hay que elegir nada.\n\nCon recargo, la app te dice cuánto es y cuánto cobrar en el posnet: por ejemplo, un mate de $ 40.000 con Consumax en 3 pagos es «Recargo 15 %: $ 6.000. En el posnet cobrá $ 46.000». El botón dice el total con recargo.\n\nEl recargo queda como un renglón más del ticket («Recargo Consumax 3 pagos»), así lo vendido suma lo que se cobró y el banco del turno da con lo que pasó por el posnet. No aparece en los productos más vendidos.',
+    palabrasClave: ['consumax', 'club del este', 'recargo', 'cuotas', '3 pagos', 'tarjeta local', 'posnet', 'credito', 'plan'],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'recargos-tarjeta-config',
+    categoria: 'Caja',
+    pregunta: '¿De dónde salen los recargos de las tarjetas y cómo se cambian?',
+    respuesta:
+      'Son los que pasó Emmanuel el 06/11: Consumax y Club del Este, 5 % en 1 pago y 15 % en 3 pagos; las tarjetas bancarias y el débito, sin recargo. Por ahora están fijos en la app: para cambiar un porcentaje o sumar una tarjeta, pedíselo a Claude. Cuando estén los datos de las liquidaciones (cuánto se queda cada procesadora y en cuántos días acredita), pasan a una pantalla para editarlos y se arma «Tarjetas a cobrar».\n\nOjo legal: la ley de tarjetas de crédito (25.065) pide no cobrar distinto con tarjeta de crédito que en efectivo. Cómo se presenta el recargo (como recargo, o como precio de lista con descuento en efectivo) conviene definirlo con el contador. La app solo registra lo que se cobró.',
+    palabrasClave: ['recargo', 'porcentaje', 'consumax', 'club del este', 'ley', '25065', 'contador'],
+    soloOwner: true,
+  },
+  {
     id: 'deshacer-venta',
     categoria: 'Caja',
     pregunta: 'Cargué mal una venta, ¿cómo la saco?',
     respuesta:
-      'Si te diste cuenta enseguida: después de tocar "Agregar" aparece arriba "Cargada: …" con un botón "Deshacer" que cuenta 30 segundos. Tocándolo, la venta se borra y el stock vuelve, sin preguntar nada más. Después la cargás bien.\n\nSi ya pasó ese tiempo: en "Ventas del turno", tocá "Borrar" en el renglón de esa venta. Te pide confirmar.\n\nEn los dos casos queda anotado en el historial con tu nombre, y la venta borrada no vuelve a aparecer aunque otro celular la tuviera guardada.',
+      'Si te diste cuenta enseguida: después de tocar "Agregar" aparece arriba "Cargada: …" con un botón "Deshacer" que cuenta 30 segundos. Tocándolo, la venta se borra y el stock vuelve, sin preguntar nada más. Después la cargás bien.\n\nSi ya pasó ese tiempo: en "Ventas del turno", tocá "Borrar" en el renglón de esa venta. Te pide confirmar.\n\nEn los dos casos queda anotado en el historial con tu nombre, y la venta borrada no vuelve a aparecer aunque otro celular la tuviera guardada.\n\nUn ticket con varios productos, o una venta con recargo de tarjeta, se deshace o se borra entero.',
     palabrasClave: ['deshacer', 'venta equivocada', 'borrar venta', 'me equivoque', 'sacar venta'],
     requiereSeccion: 'caja',
   },
@@ -851,7 +878,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Caja',
     pregunta: 'Cargué una venta en el turno equivocado, ¿cómo la paso al otro?',
     respuesta:
-      'En la lista de ventas del turno, cada venta tiene un botón "Pasar a mañana" o "Pasar a tarde", según cuál sea el otro turno del día. La plata deja de contar en esta caja y pasa a contar en la otra, y queda registrado en el historial.\n\nSolo se puede entre turnos del MISMO día, y solo si los dos están abiertos. Si alguno está cerrado, la app te va a decir que lo reabras primero: un turno cerrado se cerró contando una plata, y meterle o sacarle una venta después haría que ese conteo ya no corresponda. Reabriéndolo, el cierre se vuelve a contar con la plata de verdad.',
+      'En la lista de ventas del turno, cada venta tiene un botón "Pasar a mañana" o "Pasar a tarde", según cuál sea el otro turno del día. La plata deja de contar en esta caja y pasa a contar en la otra, y queda registrado en el historial.\n\nSolo se puede entre turnos del MISMO día, y solo si los dos están abiertos. Si alguno está cerrado, la app te va a decir que lo reabras primero: un turno cerrado se cerró contando una plata, y meterle o sacarle una venta después haría que ese conteo ya no corresponda. Reabriéndolo, el cierre se vuelve a contar con la plata de verdad.\n\nUn ticket con varios productos pasa entero, con su recargo si tiene.',
     palabrasClave: ['pasar venta', 'turno equivocado', 'mover venta', 'mañana', 'tarde'],
     requiereSeccion: 'caja',
   },

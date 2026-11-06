@@ -5,6 +5,8 @@ import {
   type Producto,
   type Venta,
   MEDIOS_BANCO,
+  cobrosDe,
+  esRecargo,
 } from '../db/db'
 
 /**
@@ -84,9 +86,14 @@ export function resumirJornada(
   let ventasSinCosto = 0
 
   for (const v of ventas) {
-    if (v.medioPago === 'EFECTIVO') efectivo += v.total
-    else if (MEDIOS_BANCO.includes(v.medioPago)) banco += v.total
-    unidades += v.cantidad
+    // Por lo que se cobro, no por el medio del renglon: un ticket pagado
+    // con dos medios reparte el renglon entre los dos (ver cobrosDe).
+    for (const c of cobrosDe(v)) {
+      if (c.medio === 'EFECTIVO') efectivo += c.monto
+      else if (MEDIOS_BANCO.includes(c.medio)) banco += c.monto
+    }
+    // El recargo de tarjeta es plata, no mercaderia: no suma unidades.
+    if (!esRecargo(v)) unidades += v.cantidad
     if (v.costoUnitario === null || v.costoUnitario === undefined) ventasSinCosto += 1
     else costoMercaderia += v.costoUnitario * v.cantidad
   }
@@ -174,6 +181,7 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
   let ventasSueltas = 0
   const cambios = new Set<string>()
   let diferenciaCambios = 0
+  const tickets = new Set<string>()
 
   for (const v of ventas) {
     // Un cambio son dos renglones (el que vuelve, en negativo, y el que
@@ -182,12 +190,17 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
     if (v.cambioId) {
       cambios.add(v.cambioId)
       diferenciaCambios += v.total
+    } else if (v.ticketId) {
+      // Un ticket es una operacion, tenga los productos que tenga.
+      tickets.add(v.ticketId)
     } else {
       ventasSueltas += 1
     }
-    if (v.medioPago === 'EFECTIVO') ventasEfectivo += v.total
-    else ventasBanco += v.total
-    unidades += v.cantidad
+    for (const c of cobrosDe(v)) {
+      if (c.medio === 'EFECTIVO') ventasEfectivo += c.monto
+      else ventasBanco += c.monto
+    }
+    if (!esRecargo(v)) unidades += v.cantidad
     dias.add(v.fecha)
     if (v.costoUnitario === null || v.costoUnitario === undefined) {
       ventasSinCosto += 1
@@ -215,7 +228,7 @@ export function resumirMes(ventas: Venta[], movimientos: Movimiento[]): ResumenM
     ventasBanco,
     ventasTotales,
     unidades,
-    operaciones: ventasSueltas + cambios.size,
+    operaciones: ventasSueltas + cambios.size + tickets.size,
     costoMercaderia,
     margenContribucion,
     margenContribucionPorcentual:

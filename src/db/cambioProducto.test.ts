@@ -206,3 +206,53 @@ describe('agruparCambios: la lista del turno con cada cambio en una linea', () =
     ).toBe(2)
   })
 })
+
+describe('agruparCambios: un ticket en una linea (06/11)', () => {
+  const venta = (id: string, extra: Partial<Venta> = {}): Venta => ({
+    id, jornadaId: 'j', fecha: '2026-11-06', hora: '11:00', codigo: 'A', descripcion: 'MATE',
+    cantidad: 1, precioUnitario: 1000, costoUnitario: null, medioPago: 'EFECTIVO', total: 1000,
+    vendedor: null, ...extra,
+  })
+
+  it('los renglones del ticket van juntos, con el total y los pagos sumados por medio', () => {
+    const r = agruparCambios([
+      venta('suelta'),
+      venta('t-a', { ticketId: 't1', total: 40000, pagos: [{ medio: 'EFECTIVO', monto: 30000 }, { medio: 'DEBITO', monto: 10000 }] }),
+      venta('t-b', { ticketId: 't1', total: 10000, medioPago: 'DEBITO', pagos: [{ medio: 'DEBITO', monto: 10000 }] }),
+    ])
+    expect(r.map((x) => x.tipo)).toEqual(['venta', 'ticket'])
+    const ticket = r[1]
+    if (ticket.tipo !== 'ticket') throw new Error('se esperaba un ticket')
+    expect(ticket.total).toBe(50000)
+    expect(ticket.filas).toHaveLength(2)
+    expect(ticket.pagos).toEqual([
+      { medio: 'EFECTIVO', monto: 30000, detalle: null },
+      { medio: 'DEBITO', monto: 20000, detalle: null },
+    ])
+  })
+
+  it('con tarjeta y plan, el pago dice cuál', () => {
+    const [ticket] = agruparCambios([
+      venta('t-a', { ticketId: 't2', total: 40000, medioPago: 'CREDITO', pagos: [{ medio: 'CREDITO', monto: 40000, tarjeta: 'Consumax', plan: '3 pagos' }] }),
+      venta('rec', { ticketId: 't2', codigo: 'REC-TARJETA', total: 6000, medioPago: 'CREDITO', pagos: [{ medio: 'CREDITO', monto: 6000, tarjeta: 'Consumax', plan: '3 pagos' }] }),
+    ])
+    if (ticket.tipo !== 'ticket') throw new Error('se esperaba un ticket')
+    expect(ticket.pagos).toEqual([{ medio: 'CREDITO', monto: 46000, detalle: 'Consumax 3 pagos' }])
+  })
+
+  it('se ve igual en todos los aparatos: efectivo primero, productos por nombre y el recargo al final', () => {
+    // Asi lo trae otro aparato: en cualquier orden.
+    const [ticket] = agruparCambios([
+      venta('rec', { ticketId: 't3', codigo: 'REC-TARJETA', descripcion: 'Recargo Consumax 1 pago (5 %)', total: 500, medioPago: 'CREDITO', pagos: [{ medio: 'CREDITO', monto: 500, tarjeta: 'Consumax', plan: '1 pago' }] }),
+      venta('t-b', { ticketId: 't3', descripcion: 'YERBERA', total: 10000, medioPago: 'CREDITO', pagos: [{ medio: 'CREDITO', monto: 10000, tarjeta: 'Consumax', plan: '1 pago' }] }),
+      venta('t-a', { ticketId: 't3', descripcion: 'BOMBILLA', total: 2000 }),
+    ])
+    if (ticket.tipo !== 'ticket') throw new Error('se esperaba un ticket')
+    expect(ticket.filas.map((f) => f.descripcion)).toEqual(['BOMBILLA', 'YERBERA', 'Recargo Consumax 1 pago (5 %)'])
+    expect(ticket.pagos.map((p) => p.medio)).toEqual(['EFECTIVO', 'CREDITO'])
+  })
+
+  it('un ticket cuenta como una operacion', () => {
+    expect(contarOperaciones([venta('a', { ticketId: 't' }), venta('b', { ticketId: 't' }), venta('c')])).toBe(2)
+  })
+})
