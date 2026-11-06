@@ -963,3 +963,28 @@ th.num {
   display: block;
   margin: 22px auto 0;
 }
+
+/* ---------- Avisos: detalle plegado y avance (06/11) ---------- */
+
+.detalle-aviso {
+  margin-top: 6px;
+}
+
+.detalle-aviso summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--tinta-suave);
+}
+
+.barra-avance {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--borde);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.barra-avance > div {
+  height: 100%;
+  background: var(--verde-claro);
+}

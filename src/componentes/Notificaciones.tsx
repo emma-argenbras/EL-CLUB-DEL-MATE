@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuditoria } from '../lib/useAuditoria'
 import { recordarUrgentes } from '../lib/recordatorios'
+import { agruparPorPlazo, contarParaHoy, TITULO_PLAZO } from '../lib/agruparAvisos'
 
 /**
  * Campana de avisos: la cara corta de la auditoria automatica.
@@ -32,13 +33,14 @@ export default function Notificaciones() {
     recordarUrgentes(hallazgos)
   }, [cargando, hallazgos])
 
-  const urgentes = hallazgos.filter((h) => h.nivel === 'critico').length
+  // La campana cuenta solo lo de hoy (06/11): lo demas esta adentro.
+  const paraHoy = contarParaHoy(hallazgos)
 
   return (
     <div className="notificaciones" ref={contenedor}>
       <button className="campana" onClick={() => setAbierto((a) => !a)} aria-label="Notificaciones">
         🔔
-        {hallazgos.length > 0 && <span className="campana-contador">{hallazgos.length}</span>}
+        {paraHoy > 0 && <span className="campana-contador">{paraHoy}</span>}
       </button>
 
       {abierto && (
@@ -49,26 +51,34 @@ export default function Notificaciones() {
             </p>
           ) : (
             <>
-              <ul className="lista">
-                {hallazgos.slice(0, 8).map((h) => (
-                  <li
-                    className="item notificacion"
-                    key={h.id}
-                    onClick={() => {
-                      navegar(h.ruta)
-                      setAbierto(false)
-                    }}
-                  >
-                    <div>
-                      <div className="item-titulo">
-                        {h.nivel === 'critico' ? '⚠️ ' : ''}
-                        {h.titulo}
-                      </div>
-                      <div className="item-sub">{h.comoSeResuelve}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {agruparPorPlazo(hallazgos).map(({ plazo, hallazgos: delPlazo }) =>
+                plazo === 'cuandoPuedas' ? (
+                  <p className="silencio" key={plazo} style={{ padding: '8px 12px', margin: 0 }}>
+                    {TITULO_PLAZO[plazo]}: {delPlazo.length}{' '}
+                    {delPlazo.length === 1 ? 'aviso' : 'avisos'} de mantenimiento, en el Panel.
+                  </p>
+                ) : (
+                  <div key={plazo}>
+                    <p className="tarjeta-titulo" style={{ padding: '10px 12px 0', margin: 0 }}>
+                      {TITULO_PLAZO[plazo]} · {delPlazo.length}
+                    </p>
+                    <ul className="lista">
+                      {delPlazo.slice(0, 6).map((h) => (
+                        <li
+                          className="item notificacion"
+                          key={h.id}
+                          onClick={() => {
+                            navegar(h.ruta)
+                            setAbierto(false)
+                          }}
+                        >
+                          <div className="item-titulo">{h.titulo}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ),
+              )}
               <button
                 className="boton-chico"
                 style={{ width: '100%', marginTop: 8 }}
@@ -78,7 +88,6 @@ export default function Notificaciones() {
                 }}
               >
                 Ver todo en el Panel
-                {urgentes > 0 ? ` · ${urgentes} urgente${urgentes === 1 ? '' : 's'}` : ''}
               </button>
             </>
           )}

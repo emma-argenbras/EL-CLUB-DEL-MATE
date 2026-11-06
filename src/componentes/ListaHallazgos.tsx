@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { posponerHallazgo } from '../lib/useAuditoria'
-import type { Hallazgo, NivelHallazgo } from '../lib/auditoria'
+import { ETIQUETA_MODULO, type Hallazgo, type NivelHallazgo } from '../lib/auditoria'
+import { avanceDe } from '../lib/agruparAvisos'
 
 const CLASE_AVISO: Record<NivelHallazgo, string> = {
   critico: 'aviso aviso-error',
@@ -42,6 +43,8 @@ export default function ListaHallazgos({
   onIr?: () => void
   conPosponer?: boolean
 }) {
+  // El detalle y el «que hacer» van plegados: la lista se lee de un
+  // vistazo, y el que quiere saber mas lo abre (06/11).
   const navegar = useNavigate()
 
   return (
@@ -54,10 +57,22 @@ export default function ListaHallazgos({
               {ETIQUETA_NIVEL[h.nivel]}
             </span>
           </div>
-          <p style={{ margin: '6px 0 0' }}>{h.detalle}</p>
-          <p className="silencio" style={{ margin: '6px 0 0' }}>
-            <strong>Qué hacer:</strong> {h.comoSeResuelve}
-          </p>
+          <div className="item-sub" style={{ marginTop: 2 }}>{ETIQUETA_MODULO[h.modulo]}</div>
+          {avanceDe(h) !== null && (
+            <>
+              <div className="barra-avance" aria-hidden="true">
+                <div style={{ width: `${avanceDe(h)}%` }} />
+              </div>
+              <div className="item-sub">{avanceDe(h)} % al día</div>
+            </>
+          )}
+          <details className="detalle-aviso">
+            <summary>Por qué y qué hacer</summary>
+            <p style={{ margin: '6px 0 0' }}>{h.detalle}</p>
+            <p className="silencio" style={{ margin: '6px 0 0' }}>
+              <strong>Qué hacer:</strong> {h.comoSeResuelve}
+            </p>
+          </details>
           <div className="botonera" style={{ marginTop: 10 }}>
             <button
               className="boton-chico"
