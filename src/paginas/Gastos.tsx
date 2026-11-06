@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useSesion } from '../sync/useSesion'
+import { estaAlMando } from '../sync/permisos'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -25,6 +28,7 @@ const FIJOS_POR_DEFECTO: CategoriaGasto[] = [
 ]
 
 export default function Gastos() {
+  const alMando = estaAlMando(useSesion().perfil)
   const [mes, setMes] = useState(mesActualISO())
   const [mostrarForm, setMostrarForm] = useState(false)
 
@@ -58,6 +62,18 @@ export default function Gastos() {
   return (
     <>
       <h2>Gastos</h2>
+
+      {alMando && (
+        <div className="tarjeta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div>
+            <p className="tarjeta-titulo" style={{ margin: 0 }}>Caja grande</p>
+            <div className="item-sub">Saldo, conteos, depósitos y la caja virtual.</div>
+          </div>
+          <Link className="boton-chico" to="/caja-grande">
+            Ver caja grande
+          </Link>
+        </div>
+      )}
 
       <div className="tarjeta">
         <label htmlFor="mes-gastos">Mes</label>

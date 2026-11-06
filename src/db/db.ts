@@ -384,6 +384,28 @@ export type MotivoDiferencia =
   | 'pase-sin-cargar'
   | 'no-se'
 
+/**
+ * Un conteo de una cuenta del negocio, por ahora la caja grande (06/11).
+ * Es el punto de partida del saldo: lo que se conto, mas lo que entro y
+ * menos lo que salio despues (ver lib/cajaGrande.ts).
+ */
+export interface ArqueoCuenta {
+  id: string
+  cuenta: CuentaDePago
+  fecha: string
+  hora: string
+  /** Momento exacto del conteo: separa lo que entra en el saldo de lo que ya estaba. */
+  cuando: number
+  contado: number
+  /** Lo que la app calculaba que habia, o null si fue el primer conteo. */
+  esperado: number | null
+  quien: string | null
+  quienNombre: string | null
+  nota: string | null
+  creadoEn?: number
+  actualizadoEn?: number
+}
+
 /** Cantidad de billetes por denominacion + un monto suelto de monedas. */
 export interface Arqueo {
   billetes: Record<string, number>
@@ -428,6 +450,13 @@ export type TipoMovimiento =
   | 'GASTO_CAJA_GRANDE'
   /** Aporte de plata a la caja grande que no viene de ventas. */
   | 'INGRESO_CAJA_GRANDE'
+  /**
+   * Plata que pasa de una cuenta del negocio a otra: un deposito de la
+   * caja grande al banco, una transferencia del banco a Mercado Pago. No
+   * es gasto ni ingreso: sale de `cuenta` y entra en `cuentaDestino`
+   * (06/11, ver lib/cajaGrande.ts).
+   */
+  | 'PASE_ENTRE_CUENTAS'
 
 export const CATEGORIAS_GASTO = [
   'ALQUILER',
@@ -487,6 +516,8 @@ export interface Movimiento {
    * clasificar.
    */
   cuenta?: CuentaDePago | null
+  /** Solo en PASE_ENTRE_CUENTAS: a que cuenta entra la plata. */
+  cuentaDestino?: CuentaDePago | null
   concepto: string
   monto: number
   categoria: CategoriaGasto | null
@@ -580,6 +611,7 @@ export type NombreTabla =
   | 'movimientosProveedor'
   | 'historial'
   | 'borrados'
+  | 'arqueosCuenta'
 
 /**
  * 'guardar' manda el documento entero (altas y la subida inicial).
@@ -685,6 +717,7 @@ class BaseECDM extends Dexie {
   historial!: Table<EntradaHistorial, string>
   movimientosProveedor!: Table<MovimientoProveedor, string>
   borrados!: Table<Borrado, string>
+  arqueosCuenta!: Table<ArqueoCuenta, string>
 
   constructor() {
     super('el-club-del-mate')
@@ -883,6 +916,11 @@ class BaseECDM extends Dexie {
       borrados: 'id, cuando, tabla',
     })
 
+    // Los conteos de las cuentas del negocio (la caja grande, 06/11).
+    this.version(8).stores({
+      arqueosCuenta: 'id, cuenta, cuando',
+    })
+
     // Que campos se anotan cuando cambian, por tabla. El resto
     // (busqueda, actualizadoEn, los derivados) son ruido: ya se ven en
     // otro lado o no los decidio una persona.
@@ -923,7 +961,7 @@ class BaseECDM extends Dexie {
       // otro cuando se cargo en el equivocado, y eso mueve plata de una
       // caja a la otra: tiene que quedar escrito.
       ventas: ['codigo', 'descripcion', 'cantidad', 'precioUnitario', 'medioPago', 'jornadaId'],
-      movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable', 'cuenta'],
+      movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable', 'cuenta', 'cuentaDestino'],
       proveedores: [
         'nombre',
         'contacto',
@@ -949,6 +987,8 @@ class BaseECDM extends Dexie {
       // La constancia de un borrado no se edita: el renglon del
       // historial ya lo deja escrito el borrado en si.
       borrados: [],
+      // Un conteo no se edita: se cuenta otra vez. El alta queda como 'creo'.
+      arqueosCuenta: ['contado', 'nota'],
     }
 
     /**
@@ -975,6 +1015,8 @@ class BaseECDM extends Dexie {
           return `${texto('tipo') === 'PAGO' ? 'Pago a' : 'Compra a'} proveedor`
         case 'usuarios':
           return texto('nombre') || texto('email') || clave
+        case 'arqueosCuenta':
+          return `Conteo de ${texto('cuenta') === 'cajaGrande' ? 'la caja grande' : texto('cuenta')} del ${texto('fecha')}`
         default:
           return clave
       }
@@ -1007,6 +1049,7 @@ class BaseECDM extends Dexie {
       'movimientosProveedor',
       'historial',
       'borrados',
+      'arqueosCuenta',
     ] as const) {
       const tabla: Table<Record<string, unknown>, string> = this.table(nombre)
 
