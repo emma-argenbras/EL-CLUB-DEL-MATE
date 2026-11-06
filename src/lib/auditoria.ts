@@ -508,7 +508,7 @@ function auditarProductos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
       id: 'productos-precio-atrasado',
       modulo: 'productos',
       nivel: 'importante',
-      titulo: `${atrasados.length} ${plural(atrasados.length, 'producto está', 'productos están')} más baratos de lo que dice su rentabilidad`,
+      titulo: `${atrasados.length} ${plural(atrasados.length, 'producto está más barato', 'productos están más baratos')} de lo que dice su rentabilidad`,
       detalle: `Sumando todos, se están dejando de cobrar ${plata(falta)} por unidad vendida. No es que falte actualizar una fecha: con el costo y la rentabilidad que ya tienen cargados, el precio debería ser más alto.`,
       comoSeResuelve:
         'Abrí cada uno: la app te muestra el precio que sale de su rentabilidad y lo podés poner de una.',

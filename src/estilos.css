@@ -420,13 +420,28 @@ button:disabled {
   font-size: 0.8rem;
 }
 
+/* Un enlace que va a otra pantalla, con forma de boton (06/11). Sin esto
+   se veia como un link subrayado al lado de los botones. */
+a.boton-chico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--borde);
+  background: var(--papel);
+  color: var(--tinta);
+  text-decoration: none;
+}
+
 .botonera {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.botonera > button {
+.botonera > button,
+.botonera > a.boton-chico {
   flex: 1;
 }
 
