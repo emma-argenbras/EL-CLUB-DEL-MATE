@@ -42,8 +42,10 @@ import {
 import { aClaveDeNube, aClaveLocal } from './claves'
 import { aplicarCambiosRemotos, type FalloAlRecibir } from './aplicarRemotos'
 import {
+  compararConServidor,
   cuelgaDeRetenido,
   decidirRetenidos,
+  type Coincidencia,
   type SubidaRetenida,
   type TurnoRetenido,
 } from './retener'
@@ -610,6 +612,112 @@ export async function subirTurnoRetenido(id: string): Promise<number> {
   ])
   await anotarRetenidos((await leerRetenidos()).filter((t) => t.id !== id))
   return 1 + ventas.length + movimientos.length
+}
+
+/**
+ * Para cada turno retenido: si es una copia exacta del turno que el
+ * servidor ya tiene para esa fecha y horario (ver compararConServidor en
+ * retener.ts). Se compara contra la copia del servidor que este aparato
+ * ya bajo; si todavia no llego, la respuesta es 'sin-servidor'.
+ */
+export async function compararRetenidos(
+  turnos: TurnoRetenido[],
+): Promise<Map<string, Coincidencia>> {
+  const ids = turnos.flatMap((t) => [t.id, t.idEnServidor])
+  const [ventas, movimientos, jornadasServidor] = await Promise.all([
+    db.ventas.where('jornadaId').anyOf(ids).toArray(),
+    db.movimientos.where('jornadaId').anyOf(ids).toArray(),
+    db.jornadas.bulkGet(turnos.map((t) => t.idEnServidor)),
+  ])
+  const ventasDe = new Map<string, Venta[]>()
+  for (const v of ventas) ventasDe.set(v.jornadaId, [...(ventasDe.get(v.jornadaId) ?? []), v])
+  const movimientosDe = new Map<string, Movimiento[]>()
+  for (const m of movimientos) {
+    if (!m.jornadaId) continue
+    movimientosDe.set(m.jornadaId, [...(movimientosDe.get(m.jornadaId) ?? []), m])
+  }
+  const resultado = new Map<string, Coincidencia>()
+  turnos.forEach((t, i) => {
+    const hayServidor = jornadasServidor.at(i) !== undefined
+    resultado.set(
+      t.id,
+      compararConServidor(
+        { ventas: ventasDe.get(t.id) ?? [], movimientos: movimientosDe.get(t.id) ?? [] },
+        hayServidor
+          ? {
+              ventas: ventasDe.get(t.idEnServidor) ?? [],
+              movimientos: movimientosDe.get(t.idEnServidor) ?? [],
+            }
+          : null,
+      ),
+    )
+  })
+  return resultado
+}
+
+/**
+ * Saca de ESTE aparato los turnos retenidos que son copias exactas de lo
+ * que ya tiene el servidor, con sus ventas y movimientos. Se vuelve a
+ * comparar en el momento: si algo cambio desde que se mostro la cuenta,
+ * ese turno se deja. El servidor no se toca.
+ *
+ * Es una operacion sobre muchos registros, asi que deja un renglon en el
+ * historial con cuantos y por que, y la lista entera en `rechazos`
+ * (accion 'descartar'), para poder ver despues que se saco.
+ */
+export async function descartarCopiasRetenidas(
+  motivo: string,
+): Promise<{ turnos: number; ventas: number; movimientos: number }> {
+  const retenidos = await leerRetenidos()
+  const comparacion = await compararRetenidos(retenidos)
+  const copias = retenidos.filter((t) => comparacion.get(t.id) === 'igual')
+  if (copias.length === 0) return { turnos: 0, ventas: 0, movimientos: 0 }
+  const ids = copias.map((t) => t.id)
+
+  let ventas = 0
+  let movimientos = 0
+  await comoRemoto(async () => {
+    await db.transaction('rw', db.jornadas, db.ventas, db.movimientos, async () => {
+      ventas = await db.ventas.where('jornadaId').anyOf(ids).delete()
+      movimientos = await db.movimientos.where('jornadaId').anyOf(ids).delete()
+      await db.jornadas.bulkDelete(ids)
+    })
+  })
+  const quedan = retenidos.filter((t) => !ids.includes(t.id))
+  await anotarRetenidos(quedan)
+
+  const texto =
+    `Se sacaron de un aparato ${copias.length} turnos retenidos con ${ventas} ventas y ` +
+    `${movimientos} movimientos: copias exactas de turnos que ya estaban en el servidor ` +
+    `(del ${copias[0].fecha} al ${copias[copias.length - 1].fecha}). El servidor no cambió.`
+  const autor = autorDeLaSesion(obtenerSesion())
+  if (autor) {
+    // Un renglon que se ve en Historial, a nombre de quien lo hizo. Va
+    // por la base local como cualquier renglon, asi sube y lo ven todos.
+    // Si no se pudiera anotar, lo sacado ya esta sacado: queda la
+    // constancia de abajo.
+    await db.historial.add({
+      id: nuevoId(),
+      tabla: 'jornadas',
+      clave: 'copias-retenidas',
+      accion: 'borro',
+      queEs: `${copias.length} turnos retenidos de este aparato (copias exactas del servidor)`,
+      campo: null,
+      valorAnterior: `${copias.length} turnos, ${ventas} ventas, ${movimientos} movimientos`,
+      valorNuevo: null,
+      quien: autor.email,
+      quienNombre: autor.nombre,
+      quienRol: autor.rol ?? null,
+      cuando: Date.now(),
+      motivo,
+    }).catch((e) => console.warn('No se pudo anotar en el historial:', e))
+  }
+  await dejarConstanciaDelRechazo('jornadas', '-', 'descartar', texto, null, 'entro', undefined, {
+    motivo,
+    turnos: copias.map((t) => ({ id: t.id, fecha: t.fecha, turno: t.turno, idEnServidor: t.idEnServidor, ventas: t.ventas, total: t.totalVentas })),
+  })
+  await controlarSinSubir(false)
+  return { turnos: copias.length, ventas, movimientos }
 }
 
 /**

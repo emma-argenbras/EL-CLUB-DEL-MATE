@@ -137,6 +137,7 @@ export function useAuditoria(): ResultadoAuditoria {
       ultimaSync: datos.ultimaSync,
       hoy,
       mes,
+      idsRetenidos: new Set(nube.retenidos.map((t) => t.id)),
     }
     const todos = auditar(entrada)
 
@@ -151,7 +152,7 @@ export function useAuditoria(): ResultadoAuditoria {
     }
     // secciones se recrea en cada render; se compara por contenido.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datos, nube.estado, nube.error, esOwner, secciones.join(','), hoy, mes])
+  }, [datos, nube.estado, nube.error, nube.retenidos, esOwner, secciones.join(','), hoy, mes])
 }
 
 /** Guarda un hallazgo para que no moleste hasta la fecha indicada. */

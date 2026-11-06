@@ -84,6 +84,13 @@ export interface DatosAuditoria {
   /** Fecha (yyyy-mm-dd) de hoy y mes (yyyy-mm) que se audita. */
   hoy: string
   mes: string
+  /**
+   * Turnos de este aparato que la subida inicial retuvo (ver
+   * sync/retener.ts): no estan en el servidor y tienen su propio cartel.
+   * El Panel no los cuenta. El 06/11 la Mac de Emmanuel tenia 406 copias
+   * retenidas y el Panel las sumaba como «turnos cargados mas de una vez».
+   */
+  idsRetenidos?: Set<string>
 }
 
 const ORDEN_NIVEL: Record<NivelHallazgo, number> = { critico: 0, importante: 1, aviso: 2 }
@@ -238,6 +245,9 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
     const fecha = `${datos.mes}-${String(dia).padStart(2, '0')}`
     // Date.parse rechaza los dias que no existen en ese mes (30 de febrero).
     if (Number.isNaN(Date.parse(`${fecha}T00:00:00`))) continue
+    // Los domingos el local esta cerrado: no se reclaman. Si un domingo
+    // se abre, el turno cargado se cuenta igual que cualquier otro.
+    if (new Date(`${fecha}T12:00:00`).getDay() === 0) continue
     if (!conJornada.has(fecha)) faltantes.push(fecha)
   }
 
@@ -784,8 +794,24 @@ function auditarSistema(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   }
 }
 
+/** Los datos sin los turnos retenidos en este aparato, ni sus ventas y movimientos. */
+function sinLoRetenido(datos: DatosAuditoria): DatosAuditoria {
+  const ids = datos.idsRetenidos
+  if (!ids || ids.size === 0) return datos
+  const afuera = <T extends { jornadaId: string | null }>(filas: T[]) =>
+    filas.filter((f) => !(f.jornadaId && ids.has(f.jornadaId)))
+  return {
+    ...datos,
+    jornadas: datos.jornadas.filter((j) => !ids.has(j.id)),
+    ventas: afuera(datos.ventas),
+    movimientos: afuera(datos.movimientos),
+    movimientosMesAnterior: afuera(datos.movimientosMesAnterior),
+  }
+}
+
 /** Revisa todo el negocio y devuelve los hallazgos, del mas grave al menos. */
-export function auditar(datos: DatosAuditoria): Hallazgo[] {
+export function auditar(datosCompletos: DatosAuditoria): Hallazgo[] {
+  const datos = sinLoRetenido(datosCompletos)
   const hallazgos: Hallazgo[] = []
   auditarCaja(datos, hallazgos)
   auditarProductos(datos, hallazgos)
