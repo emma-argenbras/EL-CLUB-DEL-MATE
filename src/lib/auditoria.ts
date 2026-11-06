@@ -52,6 +52,12 @@ export interface Hallazgo {
   cantidad?: number
   /** Plata involucrada, cuando el hallazgo tiene un monto claro. */
   monto?: number
+  /**
+   * De cuantos: «532 de 1337». Con esto el aviso se muestra como un
+   * avance («Precios al dia: 60 %») en vez de como una alarma, que es lo
+   * que es un trabajo de mantenimiento que se hace de a poco.
+   */
+  total?: number
   /** Habla de ganancias del negocio: un empleado no lo ve. */
   soloOwner?: boolean
   /** Sin esa seccion habilitada no lo puede resolver, asi que no se le muestra. */
@@ -528,6 +534,7 @@ function auditarProductos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
         'Empezá por los que más se venden. Al abrir cada uno vas a ver desde cuándo tiene ese precio.',
       ruta: '/productos?precioViejo=1',
       cantidad: precioViejo.length,
+      total: visibles.length,
       requiereSeccion: 'productos',
     })
   }
@@ -546,6 +553,7 @@ function auditarProductos(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
         'Actualizá primero los que más se venden. Desde Proveedores se puede subir todos los costos de un proveedor de una vez.',
       ruta: '/productos?alertas=1',
       cantidad: vencidos.length,
+      total: visibles.length,
       requiereSeccion: 'productos',
     })
   }

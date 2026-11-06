@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Jornada } from '../db/db'
 import { borrarJornada, resumenJornada } from '../db/borrarJornada'
+import { contarOperaciones } from '../db/cambioProducto'
 import { fechaLinda, hoyISO, plata } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
 
@@ -73,7 +74,8 @@ export default function TurnosDelDia() {
       const resumen = await resumenJornada(jornada.id)
       filas.push({
         jornada,
-        ventas: resumen?.ventas.length ?? 0,
+        // Un cambio cuenta como una operacion, no como dos renglones.
+        ventas: resumen ? contarOperaciones(resumen.ventas) : 0,
         totalVendido: resumen?.totalVendido ?? 0,
         movimientos: resumen?.movimientos.length ?? 0,
         duplicado: (cuantos.get(jornada.turno) ?? 0) > 1,
