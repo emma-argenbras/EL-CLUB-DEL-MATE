@@ -42,6 +42,7 @@ import {
 } from '../lib/calculos'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata, porcentaje } from '../lib/formato'
 import { asociarFantasma, fichaParecida, productosDelFantasma } from '../db/asociarFantasmas'
+import { comprasDeProducto } from '../db/ingresoMercaderia'
 import {
   estadoDelProveedor,
   fantasmasDeLosProductos,
@@ -744,6 +745,14 @@ function FormularioProducto({
         : Promise.resolve([] as HistorialProducto[]),
     [producto?.codigo],
   )
+  // Las compras de este producto (historial por codigo, punto 17 del 06/11).
+  const compras = useLiveQuery(
+    async () =>
+      producto
+        ? comprasDeProducto(producto.codigo, await db.movimientosProveedor.where('tipo').equals('compra').toArray())
+        : [],
+    [producto?.codigo],
+  )
 
   const compraNum = leerNumero(precioCompra)
   const ventaNum = leerNumero(precioVenta)
@@ -1112,6 +1121,37 @@ function FormularioProducto({
           queda guardada con eso. Los comodines sin proveedor, costo ni precio ya lo piden solos.
         </p>
       </div>
+
+      {compras && compras.length > 0 && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Compras ({compras.length})</p>
+          <ul className="lista">
+            {compras.slice(0, 8).map((c, i) => (
+              <li className="item" key={`${c.fecha}-${i}`}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="item-titulo">
+                    {(proveedores ?? []).find((x) => x.id === c.proveedorId)?.nombre ?? c.proveedorId}
+                  </div>
+                  <div className="item-sub">
+                    {fechaLinda(c.fecha)} · {c.cantidad} u.{c.comprobante ? ` · ${c.comprobante}` : ''}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div className="item-monto">{plata(c.costoUnitario)}</div>
+                  {c.costoConFlete != null && (
+                    <div className="item-sub">con flete {plata(c.costoConFlete)}</div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {compras.length > 8 && (
+            <p className="silencio" style={{ marginBottom: 0 }}>
+              Y {compras.length - 8} más antes.
+            </p>
+          )}
+        </div>
+      )}
 
       {historial && historial.length > 0 && (
         <div className="tarjeta">

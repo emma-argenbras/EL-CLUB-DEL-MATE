@@ -612,7 +612,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: 'Un producto dice "SIN STOCK", ¿qué significa y qué hago?',
     respuesta:
-      'Significa que ese producto lleva control de stock y llegó a cero (o a un número negativo). Aparece con un cartel rojo en Productos, en la campana 🔔 y en "Mi día", y desde ahí podés filtrar para ver todos los que están así de una sola vez.\n\nPara reponerlo: registrá la compra al proveedor desde Proveedores → el proveedor → "+ Registrar compra". El stock se suma solo y el cartel desaparece.\n\nSi el número quedó en negativo, quiere decir que se vendió más de lo que la app creía que había (por ejemplo, llegó mercadería y no se registró la compra). No es un error grave: se acomoda solo en cuanto registres la compra que faltaba.',
+      'Significa que ese producto lleva control de stock y llegó a cero (o a un número negativo). Aparece con un cartel rojo en Productos, en la campana 🔔 y en "Mi día", y desde ahí podés filtrar para ver todos los que están así de una sola vez.\n\nPara reponerlo: cargá lo que llegó en Proveedores → «📦 Ingreso de mercadería». El stock se suma solo y el cartel desaparece.\n\nSi el número quedó en negativo, quiere decir que se vendió más de lo que la app creía que había (por ejemplo, llegó mercadería y no se registró la compra). No es un error grave: se acomoda solo en cuanto registres la compra que faltaba.',
     palabrasClave: ['sin stock', 'agotado', 'se acabo', 'reponer', 'faltante', 'stock negativo'],
     requiereSeccion: 'productos',
   },
@@ -703,7 +703,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: '¿Por qué un producto tiene el stock en negativo?',
     respuesta:
-      'Porque se vendieron más unidades de las que figuraban cargadas. La app no frena la venta —primero está atender al cliente—, pero deja el número en negativo para que se note.\n\nGeneralmente es una de dos: falta registrar una compra al proveedor (llegó mercadería y no se cargó), o el conteo de stock quedó mal de antes.\n\nSe arregla contando lo que hay en el local y corrigiendo el número, o registrando la compra que faltaba desde Proveedores, que suma el stock sola.',
+      'Porque se vendieron más unidades de las que figuraban cargadas. La app no frena la venta —primero está atender al cliente—, pero deja el número en negativo para que se note.\n\nGeneralmente es una de dos: falta registrar una compra al proveedor (llegó mercadería y no se cargó), o el conteo de stock quedó mal de antes.\n\nSe arregla contando lo que hay en el local y corrigiendo el número, o cargando lo que faltaba en Proveedores → «📦 Ingreso de mercadería», que suma el stock solo.',
     palabrasClave: ['stock negativo', 'menos de cero', 'stock mal'],
     requiereSeccion: 'productos',
   },
@@ -753,10 +753,19 @@ export const AYUDA: EntradaAyuda[] = [
   {
     id: 'registrar-compra',
     categoria: 'Proveedores',
-    pregunta: '¿Cómo registro una compra que le hice a un proveedor?',
+    pregunta: 'Llegó mercadería, ¿cómo la cargo?',
     respuesta:
-      'Entrá al proveedor y tocá "+ Registrar compra", dentro de "Cuenta corriente". Elegí la fecha, y por cada producto que compraste agregá una línea: el producto, la cantidad y el costo unitario (se precarga solo con el último costo cargado, se puede cambiar). Podés agregar todos los productos que necesites con "+ Agregar producto". Al guardar, tres cosas pasan solas: se suma esa cantidad al stock de cada producto, se actualiza su costo y su fecha de compra (deja de figurar como "costo desactualizado"), y el total de la compra queda anotado en la cuenta corriente del proveedor como algo que se le debe.\n\nSi tenés que dejarla a medias —se cierra la app, se apaga el celular, tocás "Actualizar"—, no se pierde: la próxima vez que abras "+ Registrar compra" de ese proveedor, aparece como estaba, con un aviso de que se recuperó. Si preferís arrancar de cero, tocá "Empezar de nuevo". El borrador queda solo en ese dispositivo y se borra al guardar o al cancelar la compra.',
-    palabrasClave: ['compra', 'ingreso de mercaderia', 'reponer stock', 'cargar compra'],
+      'Desde el 06/11 se carga en «📦 Ingreso de mercadería»: está arriba de todo en Proveedores, y adentro de cada proveedor como «📦 Registrar compra (ingreso)».\n\nElegí el proveedor y, si tenés el remito o la factura, anotá el número. Después buscá cada producto por código o nombre (ya no hay que elegirlo de una lista con todo el catálogo) y cargá cuántos llegaron y el costo por unidad de la factura, sin el flete. Cada renglón muestra la última compra de ese producto (cuándo, a quién y a cuánto) y el costo arranca con ese. Si un producto no existe, «+ Producto nuevo» lo da de alta con el proveedor puesto.\n\nAl tocar «Confirmar ingreso» pasan tres cosas juntas: sube el stock de cada producto, su costo pasa a ser el de esta compra (con el flete, si vino), y la mercadería queda en la cuenta del proveedor como algo que se le debe. Queda en el historial como «Ingreso de mercadería de…», con el número de remito.\n\nAl final la app muestra qué productos subieron de costo y si su precio de venta quedó por debajo de su rentabilidad. Emmanuel y Sandra los pueden remarcar ahí mismo, de un toque (la app pregunta antes diciendo cuántos). Si lo carga otra persona, ellos los ven en el Panel.\n\nEn Productos, la ficha de cada producto muestra sus compras: a quién, cuándo, cuántas, a qué costo y con qué flete.\n\nSi tenés que dejarlo a medias —se cierra la app, se apaga el celular, tocás "Actualizar"—, no se pierde: al volver a «Ingreso de mercadería» aparece en «A medio cargar en este aparato». El borrador queda solo en ese aparato y se borra al confirmar o al cancelar.',
+    palabrasClave: ['compra', 'ingreso de mercaderia', 'llego mercaderia', 'remito', 'factura', 'reponer stock', 'cargar compra', 'registrar compra'],
+    requiereSeccion: 'proveedores',
+  },
+  {
+    id: 'flete-en-el-costo',
+    categoria: 'Proveedores',
+    pregunta: 'La mercadería vino por transporte, ¿dónde pongo el flete?',
+    respuesta:
+      'En el ingreso de mercadería, marcá «Vino con flete» y poné cuánto salió (y el transporte, si querés). La app lo reparte entre los productos y lo suma a su costo, así el costo de cada uno es lo que de verdad cuesta tenerlo en el local, y el margen y el precio sugerido salen bien.\n\nHay dos formas de repartirlo:\n• Por costo (la que viene puesta): cada producto carga según lo que vale. Un mate de $ 40.000 carga diez veces más flete que una bombilla de $ 4.000.\n• Por unidades: cada unidad carga lo mismo. Sirve cuando los productos son parecidos.\n\nEn cada renglón se ve cuánto flete le tocó y el costo final por unidad, y abajo, el costo puesto en el local.\n\nEl flete no es deuda del proveedor: a él se le debe solo la mercadería. Si el flete se pagó en efectivo al recibir, cargalo como egreso del cajón como siempre, así el cierre da.',
+    palabrasClave: ['flete', 'transporte', 'encomienda', 'prorrateo', 'costo puesto', 'envio'],
     requiereSeccion: 'proveedores',
   },
   {

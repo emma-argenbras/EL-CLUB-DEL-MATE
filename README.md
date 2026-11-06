@@ -1769,6 +1769,72 @@ ningún aviso de «sin subir».
 
 ---
 
+## El ingreso de mercadería, con el flete en el costo (06/11)
+
+Puntos 10 y 11 del pedido del 06/11, y el historial de compra por código del 17. Hasta acá
+la compra se cargaba adentro del proveedor eligiendo cada producto de un desplegable con
+los 1.300 del catálogo, y el flete no tenía dónde ir.
+
+**La pantalla** (`/ingreso`, `IngresoMercaderia.tsx`): Proveedores → «📦 Ingreso de
+mercadería», o desde la ficha del proveedor, que ya la abre con él elegido (`?proveedor=`,
+así recargar no lo pierde). Se busca cada producto con el mismo buscador de Caja, se carga
+cuántos llegaron y el costo de la factura, y cada renglón dice la última compra (cuándo, a
+quién, a cuánto). El formulario viejo de compra se sacó: había dos formas de hacer lo mismo.
+
+**Sin tabla nueva** (`src/db/ingresoMercaderia.ts`): sigue siendo un movimiento de proveedor
+de tipo «compra», con tres campos opcionales nuevos: `flete` (`{monto, criterio,
+transportista}`), `comprobante` (remito o factura) y, en cada renglón, `costoConFlete`.
+
+**Qué es cada monto.** Al proveedor se le debe la mercadería sin flete (`monto`); el flete lo
+cobra el transporte. El costo que queda en cada producto es el de la factura más su parte del
+flete: es el que usan el margen y el precio sugerido.
+
+**El reparto** (`repartirFlete`): por costo (cada producto carga según lo que vale, el que
+va por defecto) o por unidades (cada unidad carga lo mismo). Es lo que los sistemas grandes
+llaman «costos de importación»; Odoo ofrece cinco criterios y para el local alcanzan dos. La
+parte de cada renglón suma exacto el flete, al centavo (método del mayor resto). Si todo vino
+bonificado (costo cero), por costo reparte por unidades.
+
+**Remarcar.** Al confirmar, la app lista lo que subió de costo y si el precio quedó por
+debajo de su rentabilidad, con la misma vara que el aviso del Panel (`precioAtrasado`: 5 % de
+tolerancia, un descontinuado no se remarca). Quien está al mando remarca ahí, con pregunta
+que dice cuántos y motivo en el historial; una empleada ve que hay para remarcar y que el
+dueño lo ve en el Panel. Las reglas ya lo cubrían: cualquiera activo carga stock y costo;
+el precio de venta, solo al mando.
+
+**El borrador** (`borradorCompra.ts`) guarda también el remito y el flete, y la pantalla lista
+lo que quedó a medio cargar en el aparato.
+
+**Las compras de cada producto** (`comprasDeProducto`): en la ficha del producto, en
+Productos, la lista de sus compras con proveedor, fecha, cantidad, costo, costo con flete y
+remito. Es el historial por código del punto 17.
+
+Probado: 15 pruebas del ingreso y 3 más del borrador. Cada una se rompió a propósito y se
+puso en rojo:
+- el resto al centavo;
+- el bonificado;
+- el costo con flete y la deuda sin flete;
+- el motivo y un `undefined` en el flete;
+- remarcar lo igual y remarcar sin tolerancia;
+- el orden de las compras;
+- el costo vacío;
+- el borrador sin renglones y la lista de borradores.
+
+En el navegador: un ingreso de 3 mates y 10 bombillas con $ 10.000 de flete por costo
+($ 6.000 y $ 4.000; $ 22.000 y $ 4.400 por unidad), el borrador al recargar, el remarcado, y
+la cuenta del proveedor. Contra los emuladores, una empleada carga el ingreso, y en el
+servidor quedan:
+- la compra con su flete, el stock y los costos;
+- el historial con el motivo y su nombre;
+- cero rechazos.
+
+Del lado del dueño: ve el aviso en el Panel, carga otro ingreso y remarca. El precio llega a
+la otra compu.
+
+De paso: el aviso del Panel decía «1 producto está más baratos»; ahora concuerda.
+
+---
+
 ## Cerrar un turno tarde: lo autoriza el dueño
 
 Cerrar el turno que se acaba de trabajar es rutina y nunca se frena. Cerrar uno que
@@ -2288,6 +2354,14 @@ salió, el cierre con conteo ciego, la caja grande con saldo, y el ticket con va
 productos y las tarjetas con recargo. El análisis de los 22 pedidos del 06/11 y el plan
 están en el documento «ECDM · Análisis y plan de mejoras (noviembre)».
 
+**Para que decida Emmanuel (encontrado el 06/11):** un pago a proveedor genera un gasto
+variable de categoría PROVEEDORES, y el resultado del mes ya resta el costo de la mercadería
+vendida. La mercadería se resta dos veces. Con el flete adentro del costo pasa lo mismo si el
+flete se carga como gasto. Lo que proponen los sistemas de gestión: el pago a un proveedor de
+mercadería (y el flete) mueve plata pero no es gasto del mes, porque ya está en el costo de
+lo vendido; los insumos (bolsas, limpieza) sí son gasto. Antes de tocar la cuenta, mirar con
+el contador y con los datos reales cuánto cambia.
+
 **Lo que sigue del plan del 06/11**, en orden:
 
 - [ ] **Tarjetas a cobrar**: lo vendido con cada tarjeta, cuándo se acredita y cuánto se
@@ -2295,9 +2369,11 @@ están en el documento «ECDM · Análisis y plan de mejoras (noviembre)».
       de cada tarjeta, los días de acreditación y el porcentaje que descuentan.
 - [ ] **Precio de oferta o liquidación por producto.** Toca `productos` en el servidor:
       necesita cambio de reglas y el OK de Emmanuel (y quién puede ponerlo).
-- [ ] **Ingreso de mercadería** con remito, **prorrateo del flete** en el costo, **pago a
-      proveedor en un solo paso** desde la caja chica o la grande, condición de IVA del
-      proveedor y compras por código. Pedidos de insumos y reposición.
+- [x] **Ingreso de mercadería** con remito, **prorrateo del flete** en el costo, y las
+      compras de cada producto en su ficha (ver «El ingreso de mercadería»).
+- [ ] **Pago a proveedor en un solo paso** contra sus facturas, condición de IVA del
+      proveedor (falta saber cómo factura cada uno y qué es «medio IVA»), pedidos de
+      insumos y reposición.
 - [ ] **Vencimientos** (alquiler, luz, internet, contador, monotributo, tarjetas) y
       proyección de plata; **cierre de mes** con la carpeta para el contador y el tope del
       monotributo.
