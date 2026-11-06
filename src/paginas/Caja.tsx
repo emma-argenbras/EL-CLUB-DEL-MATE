@@ -19,7 +19,6 @@ import { arqueoVacio, esCierreTardio, resumirJornada, sinStock, totalArqueo } fr
 import { fechaLinda, haceCuanto, hoyISO, horaAhora, leerNumero, plata } from '../lib/formato'
 import ArqueoCaja from '../componentes/ArqueoCaja'
 import BuscadorProducto from '../componentes/BuscadorProducto'
-import FormularioCambio from '../componentes/FormularioCambio'
 import FormularioTicket, { type InicioTicket } from '../componentes/FormularioTicket'
 import {
   borrarTicket,
@@ -30,6 +29,7 @@ import {
 } from '../db/ticket'
 import { nombreDelPlan, planAlElegirMedio, planesDe, planPorId, recargoDe } from '../lib/tarjetas'
 import { egresoIgual, preguntaEgresoRepetido } from '../lib/egresoRepetido'
+import FormularioCambio from '../componentes/FormularioCambio'
 import {
   ETIQUETA_MOTIVO,
   MOTIVOS_DIFERENCIA,
