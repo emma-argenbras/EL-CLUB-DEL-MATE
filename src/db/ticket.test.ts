@@ -5,7 +5,9 @@ import {
   armarTicket,
   borrarTicket,
   moverTicket,
+  comoVentaSola,
   problemaDelTicket,
+  registrarCobro,
   registrarTicket,
   repartirPagos,
   totalesDelTicket,
@@ -171,6 +173,50 @@ describe('registrar y borrar el ticket', () => {
     await db.jornadas.update('j1', { estado: 'cerrado' })
     await expect(moverTicket({ jornadaId: 'j2', ticketId }, 'j1')).rejects.toThrow(/cerrado/)
     expect(await db.ventas.where('jornadaId').equals('j2').count()).toBe(3)
+  })
+})
+
+describe('la caja de la compu cobra desde el ticket', () => {
+  it('un producto con un solo medio y sin recargo queda como venta común, sin ticket', async () => {
+    const mate = prod('TM015', 40000, 18000, 3)
+    await db.productos.put(mate)
+    const r = await registrarCobro(JORNADA, [renglon(mate, 2)], [{ medio: 'DEBITO', monto: 80000, planId: 'debito' }], '11:00')
+    expect(r.ticketId).toBeNull()
+    const ventas = await db.ventas.toArray()
+    expect(ventas).toHaveLength(1)
+    expect(ventas[0].id).toBe(r.ventaId)
+    // Igual que una venta de las de siempre: ni ticketId ni pagos.
+    expect('ticketId' in ventas[0]).toBe(false)
+    expect('pagos' in ventas[0]).toBe(false)
+    expect(ventas[0]).toMatchObject({ codigo: 'TM015', cantidad: 2, total: 80000, medioPago: 'DEBITO', costoUnitario: 18000 })
+    expect((await db.productos.get('TM015'))?.stock).toBe(1)
+  })
+
+  it('con recargo, con dos medios o con dos productos sigue siendo ticket', async () => {
+    const mate = prod('TM015', 40000, 18000, null)
+    const conRecargo = await registrarCobro(JORNADA, [renglon(mate)], [{ medio: 'CREDITO', monto: 40000, planId: 'consumax-3' }], '11:00')
+    const dosMedios = await registrarCobro(
+      JORNADA,
+      [renglon(mate)],
+      [{ medio: 'EFECTIVO', monto: 10000 }, { medio: 'DEBITO', monto: 30000, planId: 'debito' }],
+      '11:05',
+    )
+    const dosProductos = await registrarCobro(JORNADA, [renglon(mate), renglon(prod('XX', 5000, null, null))], [{ medio: 'EFECTIVO', monto: 45000 }], '11:10')
+    for (const r of [conRecargo, dosMedios, dosProductos]) {
+      expect(r.ventaId).toBeNull()
+      expect(r.ticketId).toBeTruthy()
+    }
+    const porTicket = (id: string | null) => db.ventas.filter((v) => v.ticketId === id).count()
+    expect(await porTicket(conRecargo.ticketId)).toBe(2) // el producto y el recargo
+    expect(await porTicket(dosMedios.ticketId)).toBe(1)
+    expect(await porTicket(dosProductos.ticketId)).toBe(2)
+  })
+
+  it('comoVentaSola no toca lo que arma el ticket', () => {
+    const filas = armarTicket(JORNADA, [renglon(prod('A', 1000, 1, null))], [{ medio: 'EFECTIVO', monto: 1000 }], '11:00', ids(1))
+    const sola = comoVentaSola(filas)
+    expect(sola?.id).toBe('r0')
+    expect(filas[0].ticketId).toBe('t1')
   })
 })
 

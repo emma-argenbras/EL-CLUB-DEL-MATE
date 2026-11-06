@@ -1949,7 +1949,8 @@ esté controlado: hoy la mayoría de los productos no lo lleva.
 
 Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
 los diseños: en una pantalla ancha, el menú pasa arriba y el Panel se vuelve un tablero.
-**El celular no cambia nada.** Sale en tres partes; esta es la primera.
+**El celular no cambia nada.** Sale en tres partes: el menú y el Panel, la Caja, y la ficha
+del producto.
 
 **Desde 1024 píxeles de ancho** (`@media (min-width: 1024px)`, al final de `estilos.css`):
 - El menú de abajo se esconde. Arriba aparecen el círculo «ECDM», el nombre y las mismas
@@ -1994,6 +1995,48 @@ Probado:
 - El conteo ciego, en el navegador: con el turno abierto y $ 55.000 esperados, en «Cierre»
   el número no aparece en ninguna parte de la pantalla hasta «Ya conté». Con el arreglo
   sacado, el mismo control da que se ve.
+
+### La Caja en tres columnas (segunda parte)
+
+En la compu (`useEsCompu`, la misma medida que el `@media`), la pestaña «Ventas» de la Caja
+cobra todo desde el ticket:
+- **Buscar producto**, con «Lo más vendido de la semana»: los seis que más salieron en los
+  últimos siete días, contados por cuántas ventas y no por unidades
+  (`src/lib/masVendidos.ts`).
+- **Ticket**, con − y + para la cantidad y el precio a mano.
+- **Cobro**: los mismos medios, tarjetas, recargo y vuelto que el ticket del celular. Al
+  registrar, el formulario queda vacío para el próximo cliente.
+- Abajo, **las ventas del turno en una tabla** (hora, qué, cómo pagó, total), con «Pasar a» y
+  «Borrar».
+
+El formulario es el mismo del celular (`FormularioTicket` con `enColumnas`). En el celular no
+cambia nada.
+
+**Una venta de un solo producto no es un ticket.** Si al registrar queda un solo renglón,
+pagado con un solo medio y sin recargo, se guarda sin `ticketId` ni `pagos`, con los mismos
+campos que una venta de siempre (`comoVentaSola` y `registrarCobro`, en `src/db/ticket.ts`).
+Si no, en la compu todo lo vendido diría «TICKET». Vale también para el ticket del celular:
+si se registra con un solo producto, queda como venta común.
+
+Probado:
+- 3 pruebas nuevas del ticket, rotas a propósito de 8 maneras y las 8 en rojo:
+  - sin mirar cuántos renglones, o sin mirar los medios;
+  - el débito como ticket;
+  - que queden el `ticketId` o los `pagos`;
+  - que se toque lo armado;
+  - que se guarde lo armado;
+  - que vuelva siempre como ticket.
+- 2 pruebas de lo más vendido, rotas de 7 maneras y las 7 en rojo.
+- En el navegador, a 1440: el ticket de dos productos queda como ticket, y la venta de uno,
+  como venta común. A 390, la caja de siempre: la venta común, el ticket de un producto que
+  queda como venta, y el de dos que queda como ticket.
+- Contra los emuladores, con la Mac a 1440 y un celular:
+  - una venta en efectivo, un ticket con Consumax 3 pagos y efectivo, y una de débito que se
+    deshace;
+  - en el servidor, la venta sola tiene los campos de siempre y el ticket su recargo;
+  - el stock da lo esperado y el borrado deja su constancia;
+  - el celular ve lo mismo que el servidor;
+  - cero rechazos y nada «sin subir».
 
 ---
 
@@ -2548,8 +2591,8 @@ el contador y con los datos reales cuánto cambia.
       categoría y en qué formato quiere los datos el contador).
 - [ ] **ARCA**: factura C desde la app, con el certificado guardado en el servidor (no en
       el celular).
-- [ ] La **visual en la compu** (opción B). Hecho: el menú arriba y el Panel como tablero
-      (ver «La compu: opción B»). Siguen la Caja en tres columnas y la ficha del producto;
+- [ ] La **visual en la compu** (opción B). Hecho: el menú arriba, el Panel como tablero y
+      la Caja en tres columnas (ver «La compu: opción B»). Sigue la ficha del producto;
       después, el resto de las pantallas, de a una.
 - [ ] El **logo original** (cuando Emmanuel lo pase en SVG o en PNG de 1024).
 

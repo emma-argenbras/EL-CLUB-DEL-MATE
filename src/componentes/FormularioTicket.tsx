@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEDIOS_PAGO, type Jornada, type MedioPago, type Producto } from '../db/db'
 import {
   problemaDelTicket,
-  registrarTicket,
+  registrarCobro,
   totalDelRenglon,
   totalesDelTicket,
   type PagoTicket,
@@ -19,6 +19,7 @@ import {
   pideDescripcionAlVender,
 } from '../lib/ventaSinCodigo'
 import BuscadorProducto from './BuscadorProducto'
+import MasVendidos from './MasVendidos'
 
 /**
  * Cargar un ticket en Caja: un cliente que se lleva varios productos y
@@ -60,16 +61,36 @@ export interface InicioTicket {
   planId: string | null
 }
 
+/**
+ * Lo que quedo registrado: un ticket, o una venta comun si era un solo
+ * producto con un solo medio y sin recargo (ver comoVentaSola en ticket.ts).
+ */
+export interface Registrado {
+  ticketId: string | null
+  ventaId: string | null
+  texto: string
+}
+
 export default function FormularioTicket({
   jornada,
   inicial,
   onListo,
   onCancelar,
+  enColumnas = false,
+  onCambio,
 }: {
   jornada: Jornada
   inicial?: InicioTicket | null
-  onListo: (registrado: { ticketId: string; texto: string }) => void
+  onListo: (registrado: Registrado) => void
   onCancelar: () => void
+  /**
+   * La caja de la compu (opcion B, 06/11): buscar, el ticket y el cobro en
+   * tres columnas, con lo mas vendido a un toque. En el celular, una
+   * columna, como siempre.
+   */
+  enColumnas?: boolean
+  /** En la compu, el boton para pasar a un cambio de producto. */
+  onCambio?: () => void
 }) {
   const [lineas, setLineas] = useState<Linea[]>(() =>
     inicial
@@ -184,11 +205,15 @@ export default function FormularioTicket({
     }
     setGuardando(true)
     try {
-      const r = await registrarTicket(jornada, renglones, pagosTicket, horaAhora())
+      const r = await registrarCobro(jornada, renglones, pagosTicket, horaAhora())
       const n = renglones.length
+      const [primero] = renglones
       onListo({
         ticketId: r.ticketId,
-        texto: `Ticket cargado: ${n} ${n === 1 ? 'producto' : 'productos'} · ${plata(totales.total)}`,
+        ventaId: r.ventaId,
+        texto: r.ventaId
+          ? `${primero.descripcion} · ${primero.cantidad} × ${plata(primero.precioUnitario)}`
+          : `Ticket cargado: ${n} ${n === 1 ? 'producto' : 'productos'} · ${plata(totales.total)}`,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -197,39 +222,27 @@ export default function FormularioTicket({
     }
   }
 
-  return (
-    <>
-      {error && <div className="aviso aviso-error">{error}</div>}
+  const listaRenglones = (
+    <ul className="lista ticket-lista">
+      {lineas.map((l, i) => (
+        <RenglonDelTicket
+          key={l.clave}
+          linea={l}
+          total={totalDelRenglon(renglones[i])}
+          problema={(() => {
+            const d = descripciones[i]
+            return 'problema' in d && l.queSalio.trim() !== '' ? d.problema : null
+          })()}
+          onCambiar={(c) => cambiarLinea(l.clave, c)}
+          onSacar={() => setLineas((ls) => ls.filter((x) => x.clave !== l.clave))}
+          conPasos={enColumnas}
+        />
+      ))}
+    </ul>
+  )
 
-      <BuscadorProducto onElegir={agregar} autoFoco />
-
-      {lineas.length === 0 ? (
-        <p className="silencio" style={{ marginTop: 8 }}>
-          Buscá los productos que se lleva el cliente. Cada uno que elijas se suma al ticket.
-        </p>
-      ) : (
-        <ul className="lista ticket-lista">
-          {lineas.map((l, i) => (
-            <RenglonDelTicket
-              key={l.clave}
-              linea={l}
-              total={totalDelRenglon(renglones[i])}
-              problema={(() => {
-                const d = descripciones[i]
-                return 'problema' in d && l.queSalio.trim() !== '' ? d.problema : null
-              })()}
-              onCambiar={(c) => cambiarLinea(l.clave, c)}
-              onSacar={() => setLineas((ls) => ls.filter((x) => x.clave !== l.clave))}
-            />
-          ))}
-        </ul>
-      )}
-
-      {lineas.length > 0 && (
+  const cobro = (
         <>
-          <p className="silencio" style={{ margin: '14px 0 6px', fontWeight: 600 }}>
-            Cómo paga
-          </p>
           {pagos.map((p, i) => {
             const planes = planesDe(p.medio)
             const plan = planPorId(p.planId)
@@ -360,6 +373,89 @@ export default function FormularioTicket({
           </div>
           {problema && <p className="item-sub negativo">{problema}</p>}
         </>
+  )
+
+  if (enColumnas) {
+    const unidades = renglones.reduce((s, r) => s + (r.cantidad > 0 ? r.cantidad : 0), 0)
+    return (
+      <>
+        {error && <div className="aviso aviso-error">{error}</div>}
+        <div className="caja-columnas">
+          <section className="tarjeta caja-columna" aria-label="Buscar producto">
+            <div className="caja-columna-cabecera">
+              <p className="tarjeta-titulo">Buscar producto</p>
+              {onCambio && (
+                <button className="boton-chico" onClick={onCambio}>
+                  ↔ Cambio de producto
+                </button>
+              )}
+            </div>
+            <BuscadorProducto onElegir={agregar} autoFoco />
+            <MasVendidos onElegir={agregar} />
+          </section>
+
+          <section className="tarjeta caja-columna" aria-label="Ticket">
+            <div className="caja-columna-cabecera">
+              <p className="tarjeta-titulo">Ticket</p>
+              {lineas.length > 0 && (
+                <span className="silencio">
+                  {unidades} {unidades === 1 ? 'unidad' : 'unidades'}
+                </span>
+              )}
+            </div>
+            {lineas.length === 0 ? (
+              <p className="silencio">Elegí los productos a la izquierda: cada uno se suma acá.</p>
+            ) : (
+              listaRenglones
+            )}
+            <div className="ticket-pie">
+              <span>Productos</span>
+              <strong>{plata(totales.subtotal)}</strong>
+            </div>
+          </section>
+
+          <section className="tarjeta caja-columna caja-cobro" aria-label="Cobro">
+            <p className="tarjeta-titulo">Cobro</p>
+            {lineas.length === 0 ? <p className="silencio">Primero, los productos.</p> : cobro}
+            <button
+              className="boton-principal"
+              onClick={() => void registrar()}
+              disabled={guardando || lineas.length === 0 || problema !== null}
+            >
+              {guardando ? 'Guardando…' : `Registrar ${plata(totales.total)}`}
+            </button>
+            {lineas.length > 0 && (
+              <button className="boton-chico" onClick={onCancelar}>
+                Vaciar el ticket
+              </button>
+            )}
+          </section>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {error && <div className="aviso aviso-error">{error}</div>}
+
+      <BuscadorProducto onElegir={agregar} autoFoco />
+
+      {lineas.length === 0 ? (
+        <p className="silencio" style={{ marginTop: 8 }}>
+          Buscá los productos que se lleva el cliente. Cada uno que elijas se suma al ticket.
+        </p>
+      ) : (
+        listaRenglones
+      )}
+
+      {lineas.length > 0 && (
+        <>
+          <p className="silencio" style={{ margin: '14px 0 6px', fontWeight: 600 }}>
+            Cómo paga
+          </p>
+          {cobro}
+        </>
       )}
 
       <div className="botonera">
@@ -382,12 +478,15 @@ function RenglonDelTicket({
   problema,
   onCambiar,
   onSacar,
+  conPasos = false,
 }: {
   linea: Linea
   total: number
   problema: string | null
   onCambiar: (c: Partial<Linea>) => void
   onSacar: () => void
+  /** En la compu: la cantidad con − y +, y todo en menos lugar. */
+  conPasos?: boolean
 }) {
   const { producto } = linea
   const generico = pideDescripcionAlVender(producto)
@@ -433,6 +532,49 @@ function RenglonDelTicket({
           {problema && <div className="item-sub negativo">{problema}</div>}
         </div>
       )}
+      {conPasos ? (
+        <div className="ticket-pasos">
+          <div className="pasos">
+            <button
+              type="button"
+              className="paso"
+              aria-label={`Uno menos de ${producto.descripcion}`}
+              disabled={(leerNumero(linea.cantidad) ?? 0) <= 1}
+              onClick={() => onCambiar({ cantidad: String(Math.max(1, (leerNumero(linea.cantidad) ?? 1) - 1)) })}
+            >
+              −
+            </button>
+            <input
+              aria-label={`Cantidad de ${producto.descripcion}`}
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={linea.cantidad}
+              onChange={(e) => onCambiar({ cantidad: e.target.value })}
+            />
+            <button
+              type="button"
+              className="paso"
+              aria-label={`Uno más de ${producto.descripcion}`}
+              onClick={() => onCambiar({ cantidad: String((leerNumero(linea.cantidad) ?? 0) + 1) })}
+            >
+              +
+            </button>
+          </div>
+          <label className="ticket-precio">
+            <span className="silencio">c/u $</span>
+            <input
+              aria-label={`Precio unitario de ${producto.descripcion}`}
+              inputMode="decimal"
+              value={linea.precio}
+              onChange={(e) => onCambiar({ precio: e.target.value })}
+              placeholder="0"
+            />
+          </label>
+          <strong className="ticket-subtotal">{plata(total)}</strong>
+        </div>
+      ) : (
       <div className="grilla grilla-3" style={{ marginTop: 6 }}>
         <div className="campo">
           <label htmlFor={`cant-${linea.clave}`}>Cantidad</label>
@@ -461,6 +603,7 @@ function RenglonDelTicket({
           <div className="ticket-subtotal">{plata(total)}</div>
         </div>
       </div>
+      )}
     </li>
   )
 }
