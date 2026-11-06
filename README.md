@@ -1756,6 +1756,21 @@ Probado: 6 pruebas de los plazos y 3 del cambio (rotas a propósito: contar todo
 campana cae 1; no sumar lo que vuelve caen 2; contar renglones en vez de operaciones cae
 1), y las dos pantallas en el navegador.
 
+## Saldos y genéricos: la venta dice qué salió (06/11)
+
+Punto 15 del pedido del 06/11: al vender un producto genérico, como «SALDOS – DE TODO»,
+Caja pide «¿Qué salió?» y la venta se guarda con eso como descripción, con el código del
+genérico (`descripcionParaVender` en `src/lib/ventaSinCodigo.ts`). Sin descripción, o con
+una que no dice nada («saldos», «varios»), no deja agregar la venta. Lo que se escribió
+otras veces aparece como sugerencia.
+
+Lo piden los comodines (sin proveedor, costo ni precio) y los productos marcados en
+Productos con «Producto genérico: pide qué salió al venderlo» (campo `generico`, que viaja
+solo si se marca). Las ventas ya cargadas con SALDOS y DIF no se tocan.
+
+Probado: 5 pruebas (rotas a propósito: sin mirar la marca cae 1; aceptando «saldos» cae
+1), y una venta de SALDOS en el navegador, guardada como «bombilla de alpaca».
+
 ---
 
 ## Cerrar un turno tarde: lo autoriza el dueño

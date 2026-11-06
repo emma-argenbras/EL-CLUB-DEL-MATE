@@ -728,10 +728,11 @@ function FormularioProducto({
     producto?.stock != null ? String(producto.stock) : '',
   )
   const [descontinuado, setDescontinuado] = useState(producto?.descontinuado ?? false)
+  const [generico, setGenerico] = useState(producto?.generico ?? false)
   const [error, setError] = useState('')
   useCambiosSinGuardar(nuevo ? 'un producto nuevo' : `los cambios de ${producto?.codigo}`, [
     codigo, descripcion, proveedorId, nuevoProveedor, precioCompra, rentabilidad,
-    precioVenta, fechaCompra, stock, descontinuado,
+    precioVenta, fechaCompra, stock, descontinuado, generico,
   ])
   const [mensaje, setMensaje] = useState('')
 
@@ -825,6 +826,9 @@ function FormularioProducto({
         ? { archivado: producto?.archivado ?? false }
         : {}),
       descontinuado,
+      // Se manda solo si se marco, o si ya estaba: un producto que nunca la
+      // tuvo no viaja con un campo nuevo en falso.
+      ...(generico || producto?.generico !== undefined ? { generico } : {}),
     }
     await db.productos.put(registro)
     // Si el codigo fue de un producto que se borro (le cambiaron el
@@ -1084,6 +1088,28 @@ function FormularioProducto({
           Sigue viéndose en el catálogo y se puede seguir vendiendo (por si queda stock), pero
           deja de figurar como "costo desactualizado" — nadie va a actualizar el costo de algo
           que no se vuelve a comprar.
+        </p>
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontWeight: 600,
+            fontSize: '0.92rem',
+            marginTop: 12,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={generico}
+            onChange={(e) => setGenerico(e.target.checked)}
+            style={{ width: 'auto' }}
+          />
+          Producto genérico: pide qué salió al venderlo
+        </label>
+        <p className="silencio" style={{ marginTop: 6, marginBottom: 0 }}>
+          Para productos como «SALDOS – DE TODO»: en Caja, la venta pide escribir qué se vendió y
+          queda guardada con eso. Los comodines sin proveedor, costo ni precio ya lo piden solos.
         </p>
       </div>
 

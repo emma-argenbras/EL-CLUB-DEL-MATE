@@ -20,6 +20,11 @@ import BuscadorProducto from '../componentes/BuscadorProducto'
 import FormularioCambio from '../componentes/FormularioCambio'
 import { egresoIgual, preguntaEgresoRepetido } from '../lib/egresoRepetido'
 import {
+  descripcionesAnteriores,
+  descripcionParaVender,
+  pideDescripcionAlVender,
+} from '../lib/ventaSinCodigo'
+import {
   agruparCambios,
   borrarCambio,
   contarOperaciones,
@@ -417,6 +422,8 @@ function PanelVentas({
   const [cantidad, setCantidad] = useState('1')
   const [precio, setPrecio] = useState('')
   const [medioPago, setMedioPago] = useState<MedioPago>('EFECTIVO')
+  // Lo que salio, cuando el producto es generico («SALDOS – DE TODO»).
+  const [queSalio, setQueSalio] = useState('')
   // Una venta a medio cargar: el producto elegido y todavia sin registrar.
   useSinGuardar('una venta', elegido !== null)
   const sesion = useSesion()
@@ -465,6 +472,7 @@ function PanelVentas({
   }
 
   function seleccionar(producto: Producto) {
+    setQueSalio('')
     setElegido(producto)
     setPrecio(producto.precioVenta ? String(producto.precioVenta) : '')
     setCantidad('1')
@@ -473,9 +481,19 @@ function PanelVentas({
   const cant = leerNumero(cantidad) ?? 0
   const pre = leerNumero(precio) ?? 0
   const total = Math.round(cant * pre * 100) / 100
+  const pideQueSalio = elegido !== null && pideDescripcionAlVender(elegido)
+  const descripcion = elegido ? descripcionParaVender(elegido, queSalio) : null
+  const anteriores = useLiveQuery(
+    async () =>
+      elegido && pideDescripcionAlVender(elegido)
+        ? descripcionesAnteriores(elegido.codigo, await db.ventas.where('codigo').equals(elegido.codigo).toArray())
+        : [],
+    [elegido?.codigo, elegido ? pideDescripcionAlVender(elegido) : false],
+  )
 
   async function registrar() {
     if (!elegido || cant <= 0 || pre <= 0) return
+    if (!descripcion || 'problema' in descripcion) return
     const id = nuevoId()
     await db.transaction('rw', db.ventas, db.productos, async () => {
       await db.ventas.add({
@@ -484,7 +502,7 @@ function PanelVentas({
         fecha: jornada.fecha,
         hora: horaAhora(),
         codigo: elegido.codigo,
-        descripcion: elegido.descripcion,
+        descripcion: descripcion.descripcion,
         cantidad: cant,
         precioUnitario: pre,
         // Congelamos el costo del momento: asi el margen historico no
@@ -500,8 +518,9 @@ function PanelVentas({
       }
     })
     const cuando = Date.now()
-    setUltima({ ventaId: id, texto: `${elegido.descripcion} · ${cant} × ${plata(pre)}`, cuando })
+    setUltima({ ventaId: id, texto: `${descripcion.descripcion} · ${cant} × ${plata(pre)}`, cuando })
     setAhora(cuando)
+    setQueSalio('')
     setElegido(null)
     setPrecio('')
     setCantidad('1')
@@ -595,6 +614,32 @@ function PanelVentas({
                 </button>
               </div>
 
+              {pideQueSalio && (
+                <div className="campo">
+                  <label htmlFor="que-salio">¿Qué salió?</label>
+                  <input
+                    id="que-salio"
+                    list="que-salio-antes"
+                    value={queSalio}
+                    onChange={(e) => setQueSalio(e.target.value)}
+                    placeholder="Por ejemplo: bombilla de alpaca"
+                    autoFocus
+                  />
+                  <datalist id="que-salio-antes">
+                    {(anteriores ?? []).map((d) => (
+                      <option key={d} value={d} />
+                    ))}
+                  </datalist>
+                  {descripcion && 'problema' in descripcion && queSalio.trim() !== '' && (
+                    <div className="item-sub negativo">{descripcion.problema}</div>
+                  )}
+                  <div className="item-sub">
+                    Es un producto genérico: la venta queda con lo que escribas acá, así se sabe qué
+                    se vendió.
+                  </div>
+                </div>
+              )}
+
               <div className="grilla grilla-2">
                 <div className="campo">
                   <label htmlFor="cant">Cantidad</label>
@@ -650,7 +695,11 @@ function PanelVentas({
                 </div>
               )}
 
-              <button className="boton-principal" onClick={registrar} disabled={total <= 0}>
+              <button
+                className="boton-principal"
+                onClick={registrar}
+                disabled={total <= 0 || !descripcion || 'problema' in descripcion}
+              >
                 Agregar {plata(total)}
               </button>
             </>
