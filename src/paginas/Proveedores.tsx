@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   conMotivo,
   db,
   nuevoId,
   productoVisible,
   MEDIOS_PAGO,
-  type ItemCompra,
   type MedioPago,
   type MovimientoProveedor,
   type Producto,
@@ -17,19 +17,15 @@ import { costoDesactualizado } from '../lib/calculos'
 import { ETIQUETA_CUENTA, FORMAS_DE_COMPRA, tipoSegunCuenta, type CuentaDePago } from '../db/db'
 import { idDeProveedor } from '../lib/idProveedor'
 import { enlaceWhatsApp, soloDigitos } from '../lib/whatsapp'
-import { fechaLinda, haceCuanto, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
+import { fechaLinda, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
 import { egresoIgual, preguntaPagoRepetido } from '../lib/egresoRepetido'
-import {
-  descartarBorradorCompra,
-  guardarBorradorCompra,
-  leerBorradorCompra,
-  tieneContenido,
-} from '../lib/borradorCompra'
 import { useSesion } from '../sync/useSesion'
 
 export default function Proveedores() {
+  const [params] = useSearchParams()
   const [consulta, setConsulta] = useState('')
-  const [seleccionado, setSeleccionado] = useState<string | null>(null)
+  // ?ver=<id> abre la ficha directo (lo usa el ingreso de mercaderia).
+  const [seleccionado, setSeleccionado] = useState<string | null>(params.get('ver'))
   const [creando, setCreando] = useState(false)
 
   const proveedores = useLiveQuery(() => db.proveedores.orderBy('nombre').toArray(), [])
@@ -82,6 +78,9 @@ export default function Proveedores() {
           placeholder="Buscar proveedor…"
         />
         <div className="botonera" style={{ marginTop: 10 }}>
+          <Link className="boton-chico" to="/ingreso" style={{ fontWeight: 700 }}>
+            📦 Ingreso de mercadería
+          </Link>
           <button className="boton-principal" onClick={() => setCreando(true)}>
             + Proveedor nuevo
           </button>
@@ -717,7 +716,7 @@ function CuentaCorriente({
   proveedor: Proveedor
   productos: Producto[]
 }) {
-  const [accion, setAccion] = useState<'compra' | 'pago' | null>(null)
+  const [accion, setAccion] = useState<'pago' | null>(null)
 
   const movimientos = useLiveQuery(
     () =>
@@ -782,13 +781,17 @@ function CuentaCorriente({
 
       {accion === null ? (
         <div className="botonera" style={{ marginTop: 10 }}>
-          <button className="boton-principal" onClick={() => setAccion('compra')}>
-            + Registrar compra
-          </button>
+          {/* Desde el 06/11 la compra se carga en el ingreso de mercaderia:
+              buscador en vez de una lista con todo el catalogo, y el flete. */}
+          <Link
+            className="boton-chico"
+            style={{ fontWeight: 700 }}
+            to={`/ingreso?proveedor=${encodeURIComponent(proveedor.id)}`}
+          >
+            📦 Registrar compra (ingreso)
+          </Link>
           <button onClick={() => setAccion('pago')}>+ Registrar pago</button>
         </div>
-      ) : accion === 'compra' ? (
-        <FormularioCompra proveedor={proveedor} productos={productos} onSalir={() => setAccion(null)} />
       ) : (
         <FormularioPago proveedor={proveedor} onSalir={() => setAccion(null)} />
       )}
@@ -803,13 +806,14 @@ function CuentaCorriente({
               <li className="item" key={m.id}>
                 <div style={{ minWidth: 0 }}>
                   <div className="item-titulo">
-                    {m.tipo === 'compra' ? 'Compra' : `Pago · ${m.medioPago}`}
+                    {m.tipo === 'compra' ? `Compra${m.comprobante ? ` · ${m.comprobante}` : ''}` : `Pago · ${m.medioPago}`}
                   </div>
                   <div className="item-sub">
                     {fechaLinda(m.fecha)}
                     {m.tipo === 'compra' && m.items
                       ? ` · ${m.items.length} ${m.items.length === 1 ? 'producto' : 'productos'}`
                       : ''}
+                    {m.flete ? ` · flete ${plata(m.flete.monto)}${m.flete.transportista ? ` (${m.flete.transportista})` : ''}, en el costo` : ''}
                     {m.notas ? ` · ${m.notas}` : ''}
                   </div>
                 </div>
@@ -831,324 +835,6 @@ function CuentaCorriente({
           </ul>
         </div>
       )}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-
-interface LineaCompra {
-  codigo: string
-  cantidad: string
-  costoUnitario: string
-}
-
-function lineaVacia(): LineaCompra {
-  return { codigo: '', cantidad: '1', costoUnitario: '' }
-}
-
-function FormularioCompra({
-  proveedor,
-  productos,
-  onSalir,
-}: {
-  proveedor: Proveedor
-  productos: Producto[]
-  onSalir: () => void
-}) {
-  const sesion = useSesion()
-  const [fecha, setFecha] = useState(hoyISO())
-  const [lineas, setLineas] = useState<LineaCompra[]>([lineaVacia()])
-  const [notas, setNotas] = useState('')
-  const [error, setError] = useState('')
-  // El borrador (ver lib/borradorCompra.ts). `listo` evita que el
-  // formulario vacio pise el borrador antes de haberlo leido.
-  const [listo, setListo] = useState(false)
-  const [recuperadoDe, setRecuperadoDe] = useState<number | null>(null)
-
-  useEffect(() => {
-    let vigente = true
-    void leerBorradorCompra(proveedor.id).then((b) => {
-      if (!vigente) return
-      if (b) {
-        setFecha(b.fecha)
-        setLineas(b.lineas)
-        setNotas(b.notas)
-        setRecuperadoDe(b.guardadoEn)
-      }
-      setListo(true)
-    })
-    return () => {
-      vigente = false
-    }
-  }, [proveedor.id])
-
-  useEffect(() => {
-    if (!listo) return
-    // Un instante de espera: no hace falta escribir en la base con cada
-    // tecla, y si se cierra la app se pierde, como mucho, la ultima.
-    const espera = setTimeout(() => {
-      void guardarBorradorCompra(proveedor.id, { fecha, lineas, notas })
-    }, 300)
-    return () => clearTimeout(espera)
-  }, [listo, proveedor.id, fecha, lineas, notas])
-
-  async function empezarDeNuevo() {
-    await descartarBorradorCompra(proveedor.id)
-    setFecha(hoyISO())
-    setLineas([lineaVacia()])
-    setNotas('')
-    setRecuperadoDe(null)
-  }
-
-  async function cancelar() {
-    if (
-      tieneContenido({ lineas, notas }) &&
-      !confirm('¿Descartar la compra que estás cargando? Se borra lo que escribiste.')
-    ) {
-      return
-    }
-    await descartarBorradorCompra(proveedor.id)
-    onSalir()
-  }
-
-  const disponibles = productos.filter((p) => p.archivado !== true)
-
-  function actualizarLinea(indice: number, cambios: Partial<LineaCompra>) {
-    setLineas((prev) => prev.map((l, i) => (i === indice ? { ...l, ...cambios } : l)))
-  }
-
-  /**
-   * Da de alta un producto sin salir de la compra, con el proveedor ya
-   * puesto.
-   *
-   * Antes habia que cortar la carga, ir a Productos, crearlo, volver y
-   * empezar de nuevo. Cargando a mano eso pasa seguido: casi toda
-   * compra trae algo que todavia no esta en el catalogo.
-   *
-   * El precio de venta queda vacio a proposito: lo pone quien lo
-   * decide, mirando el costo y la rentabilidad, no el apuro de la
-   * carga. El producto aparece despues en el aviso de "sin precio de
-   * venta".
-   */
-  async function crearProductoNuevo(indice: number) {
-    const codigo = prompt('Código del producto nuevo (el que usa el proveedor o el del local):')
-    if (codigo === null) return
-    const cod = codigo.trim().toUpperCase()
-    if (!cod) return
-
-    const existe = await db.productos.get(cod)
-    if (existe) {
-      alert(`Ya existe un producto con el código ${cod}: "${existe.descripcion}". Elegilo de la lista.`)
-      return
-    }
-
-    const descripcion = prompt(`Nombre del producto ${cod}:`)
-    if (descripcion === null) return
-    if (!descripcion.trim()) {
-      alert('Hace falta el nombre.')
-      return
-    }
-
-    await db.productos.add({
-      codigo: cod,
-      descripcion: descripcion.trim(),
-      proveedor: proveedor.nombre,
-      proveedorId: proveedor.id,
-      fechaCompra: null,
-      precioCompra: null,
-      rentabilidad: null,
-      precioVenta: null,
-      fechaPrecioVenta: null,
-      busqueda: normalizar(`${cod} ${descripcion}`),
-      stock: null,
-      activo: true,
-    })
-    // El costo y el stock los deja la compra al guardarse, como con
-    // cualquier otro producto: no hace falta cargarlos dos veces.
-    actualizarLinea(indice, { codigo: cod })
-  }
-
-  function elegirProducto(indice: number, codigo: string) {
-    if (codigo === 'nuevo') {
-      void crearProductoNuevo(indice)
-      return
-    }
-    const producto = disponibles.find((p) => p.codigo === codigo)
-    setLineas((prev) =>
-      prev.map((l, i) =>
-        i === indice
-          ? {
-              ...l,
-              codigo,
-              // Precarga el ultimo costo cargado, para no tener que
-              // volver a escribirlo si no cambio.
-              costoUnitario:
-                l.costoUnitario || (producto?.precioCompra != null ? String(producto.precioCompra) : l.costoUnitario),
-            }
-          : l,
-      ),
-    )
-  }
-
-  const total = lineas.reduce((suma, l) => {
-    const cantidad = leerNumero(l.cantidad) ?? 0
-    const costo = leerNumero(l.costoUnitario) ?? 0
-    return suma + cantidad * costo
-  }, 0)
-
-  async function guardar() {
-    const validas = lineas.filter(
-      (l) => l.codigo && (leerNumero(l.cantidad) ?? 0) > 0 && leerNumero(l.costoUnitario) != null,
-    )
-    if (validas.length === 0) {
-      setError('Agregá al menos un producto con cantidad y costo.')
-      return
-    }
-
-    // Se lee de la base y no de la lista que tiene la pantalla: un
-    // producto recien dado de alta desde aca todavia puede no estar en
-    // esa lista, y antes eso reventaba al guardar. De paso, el stock
-    // que se suma es el de este momento y no el de cuando se abrio el
-    // formulario.
-    const items: ItemCompra[] = []
-    for (const l of validas) {
-      const producto = await db.productos.get(l.codigo)
-      if (!producto) {
-        setError(`No encuentro el producto ${l.codigo}. Volvé a elegirlo de la lista.`)
-        return
-      }
-      items.push({
-        codigo: l.codigo,
-        descripcion: producto.descripcion,
-        cantidad: leerNumero(l.cantidad)!,
-        costoUnitario: leerNumero(l.costoUnitario)!,
-      })
-    }
-    const montoTotal = items.reduce((s, it) => s + it.cantidad * it.costoUnitario, 0)
-
-    await db.transaction('rw', db.movimientosProveedor, db.productos, async () => {
-      const registro: MovimientoProveedor = {
-        id: nuevoId(),
-        proveedorId: proveedor.id,
-        tipo: 'compra',
-        fecha,
-        monto: montoTotal,
-        medioPago: null,
-        items,
-        notas: notas.trim() || null,
-        creadoPor: sesion.email,
-      }
-      await db.movimientosProveedor.add(registro)
-      for (const it of items) {
-        const producto = await db.productos.get(it.codigo)
-        if (!producto) continue
-        const stockNuevo = producto.stock != null ? producto.stock + it.cantidad : it.cantidad
-        await db.productos.update(it.codigo, {
-          stock: stockNuevo,
-          precioCompra: it.costoUnitario,
-          fechaCompra: fecha,
-        })
-      }
-    })
-    await descartarBorradorCompra(proveedor.id)
-    onSalir()
-  }
-
-  return (
-    <div className="tarjeta" style={{ marginTop: 10, background: 'var(--crema)' }}>
-      <p className="tarjeta-titulo">Registrar compra</p>
-      {error && <div className="aviso aviso-error">{error}</div>}
-      {recuperadoDe !== null && (
-        <div className="aviso aviso-ojo">
-          Recuperé la compra que quedó a medio cargar ({haceCuanto(recuperadoDe)}). Revisala y
-          guardala cuando esté completa.{' '}
-          <button className="boton-chico" onClick={() => void empezarDeNuevo()}>
-            Empezar de nuevo
-          </button>
-        </div>
-      )}
-
-      <div className="campo">
-        <label htmlFor="c-fecha">Fecha</label>
-        <input id="c-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-      </div>
-
-      {lineas.map((linea, i) => (
-        <div key={i} className="grilla grilla-2" style={{ marginBottom: 6 }}>
-          <div className="campo">
-            <label htmlFor={`c-prod-${i}`}>Producto</label>
-            <select
-              id={`c-prod-${i}`}
-              value={linea.codigo}
-              onChange={(e) => elegirProducto(i, e.target.value)}
-            >
-              <option value="">Elegir…</option>
-              {disponibles.map((p) => (
-                <option key={p.codigo} value={p.codigo}>
-                  {p.descripcion}
-                </option>
-              ))}
-              <option value="nuevo">+ Producto nuevo…</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div className="campo" style={{ flex: 1 }}>
-              <label htmlFor={`c-cant-${i}`}>Cantidad</label>
-              <input
-                id={`c-cant-${i}`}
-                inputMode="numeric"
-                value={linea.cantidad}
-                onChange={(e) => actualizarLinea(i, { cantidad: e.target.value })}
-              />
-            </div>
-            <div className="campo" style={{ flex: 1 }}>
-              <label htmlFor={`c-costo-${i}`}>Costo c/u</label>
-              <input
-                id={`c-costo-${i}`}
-                inputMode="decimal"
-                value={linea.costoUnitario}
-                onChange={(e) => actualizarLinea(i, { costoUnitario: e.target.value })}
-                placeholder="0"
-              />
-            </div>
-            {lineas.length > 1 && (
-              <button
-                className="boton-chico"
-                style={{ alignSelf: 'flex-end', marginBottom: 2 }}
-                onClick={() => setLineas((prev) => prev.filter((_, idx) => idx !== i))}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
-
-      <button className="boton-chico" onClick={() => setLineas((prev) => [...prev, lineaVacia()])}>
-        + Agregar producto
-      </button>
-
-      <div className="campo" style={{ marginTop: 10 }}>
-        <label htmlFor="c-notas">Notas (opcional)</label>
-        <input id="c-notas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Remito, factura…" />
-      </div>
-
-      <div className="fila destacada">
-        <span className="fila-etiqueta">Total de la compra</span>
-        <span className="fila-valor">{plata(total)}</span>
-      </div>
-      <p className="silencio" style={{ marginTop: 4 }}>
-        Al guardar se suma al stock de cada producto y se actualiza su costo — así deja de figurar
-        como "costo desactualizado".
-      </p>
-
-      <div className="botonera" style={{ marginTop: 10 }}>
-        <button onClick={() => void cancelar()}>Cancelar</button>
-        <button className="boton-principal" onClick={guardar}>
-          Guardar compra
-        </button>
-      </div>
     </div>
   )
 }

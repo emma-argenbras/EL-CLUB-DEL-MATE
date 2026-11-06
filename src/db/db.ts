@@ -218,7 +218,24 @@ export interface ItemCompra {
   codigo: string
   descripcion: string
   cantidad: number
+  /** Lo que cobra el proveedor por unidad: es lo que suma a su cuenta. */
   costoUnitario: number
+  /**
+   * Desde el 06/11: el costo por unidad con el flete repartido. Es el que
+   * queda como costo del producto (ver db/ingresoMercaderia.ts). Sin
+   * flete, o en las compras de antes, no esta y vale costoUnitario.
+   */
+  costoConFlete?: number | null
+}
+
+/** Como se reparte el flete entre los productos del ingreso. */
+export type CriterioFlete = 'costo' | 'unidades'
+
+export interface FleteCompra {
+  monto: number
+  criterio: CriterioFlete
+  /** Quien lo trajo, si se sabe. */
+  transportista: string | null
 }
 
 export type TipoMovimientoProveedor = 'compra' | 'pago'
@@ -241,6 +258,10 @@ export interface MovimientoProveedor {
   medioPago: MedioPago | null
   /** Solo en compras: que productos y cuanto de cada uno. */
   items: ItemCompra[] | null
+  /** Solo en compras, desde el 06/11: el flete, repartido en el costo de los productos. */
+  flete?: FleteCompra | null
+  /** Solo en compras: el numero del remito o de la factura. */
+  comprobante?: string | null
   notas: string | null
   /**
    * Solo en pagos: el gasto que se genero en Gastos por este pago. Se
