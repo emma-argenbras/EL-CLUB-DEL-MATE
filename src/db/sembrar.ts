@@ -4,11 +4,7 @@ import {
   derivarProveedoresDesdeProductos,
   guardarAjuste,
   leerAjuste,
-  nuevoId,
-  type Jornada,
-  type Movimiento,
   type Producto,
-  type Venta,
 } from './db'
 
 const CLAVE_SEMILLA = 'catalogo_sembrado'
@@ -135,113 +131,6 @@ export async function sembrarCatalogo(): Promise<number> {
   return productos.length
 }
 
-interface VentaHistorica extends Omit<Venta, 'id' | 'jornadaId'> {
-  _jornadaIndice: number
-}
-interface MovimientoHistorico extends Omit<Movimiento, 'id' | 'jornadaId'> {
-  _jornadaIndice: number | null
-}
-interface HistoricoMes {
-  mes: string
-  jornadas: Omit<Jornada, 'id'>[]
-  ventas: VentaHistorica[]
-  movimientos: MovimientoHistorico[]
-}
-
-const MARCA_HISTORICO = 'Importado desde la planilla de Google Sheets.'
-
-/**
- * Se sube de numero cuando se corrige el importador y hay que volver a
- * cargar un mes que ya se habia importado. Las jornadas que cargo una
- * persona a mano nunca se tocan, se reconocen porque no tienen la marca.
- */
-const VERSION_IMPORTACION = '4'
-
-/**
- * Trae de la planilla un mes que la app todavia no tiene, o vuelve a
- * traer uno que se habia importado con una version vieja del script.
- *
- * A diferencia de sembrarHistorico (que solo corre en un dispositivo
- * recien instalado), esta funcion sirve con la app ya en uso: va turno
- * por turno y solo toca los que estan marcados como importados. Un turno
- * que abrio y cerro una persona desde la app queda intacto, aunque la
- * planilla tenga ese mismo dia cargado.
- */
-export async function sincronizarMesImportado(mes: string): Promise<{
-  jornadasNuevas: number
-  jornadasActualizadas: number
-  ventas: number
-  movimientos: number
-}> {
-  const resultado = { jornadasNuevas: 0, jornadasActualizadas: 0, ventas: 0, movimientos: 0 }
-  const clave = `historico_${mes}_version`
-  if ((await leerAjuste(clave)) === VERSION_IMPORTACION) return resultado
-
-  const datos = await bajarJSONSiEsta<HistoricoMes>(`historico-${mes}.seed.json`)
-  if (!datos) return resultado
-
-  // Los gastos de caja grande no cuelgan de ningun turno: se reconocen
-  // por fecha + concepto + monto para no cargarlos dos veces.
-  const sueltos = datos.movimientos.filter((m) => m._jornadaIndice === null)
-  const yaCargados = new Set(
-    (await db.movimientos.where('fecha').between(`${mes}-00`, `${mes}-32`).toArray()).map(
-      (m) => `${m.fecha}|${m.concepto}|${m.monto}`,
-    ),
-  )
-
-  await db.transaction('rw', db.jornadas, db.ventas, db.movimientos, async () => {
-    for (const [indice, jornadaSeed] of datos.jornadas.entries()) {
-      const existente = await db.jornadas
-        .where('[fecha+turno]')
-        .equals([jornadaSeed.fecha, jornadaSeed.turno])
-        .first()
-
-      // Turno cargado por una persona desde la app: no se toca nunca.
-      if (existente && existente.notas !== MARCA_HISTORICO) continue
-
-      let jornadaId: string
-      if (existente) {
-        jornadaId = existente.id
-        await db.jornadas.update(jornadaId, {
-          cajaInicial: jornadaSeed.cajaInicial,
-          arqueoApertura: jornadaSeed.arqueoApertura,
-          arqueoCierre: jornadaSeed.arqueoCierre,
-        })
-        // Se reemplaza lo que habia traido la version anterior del script.
-        const viejas = await db.ventas.where('jornadaId').equals(jornadaId).primaryKeys()
-        await db.ventas.bulkDelete(viejas as string[])
-        const viejos = await db.movimientos.where('jornadaId').equals(jornadaId).primaryKeys()
-        await db.movimientos.bulkDelete(viejos as string[])
-        resultado.jornadasActualizadas++
-      } else {
-        jornadaId = nuevoId()
-        await db.jornadas.add({ ...jornadaSeed, id: jornadaId })
-        resultado.jornadasNuevas++
-      }
-
-      const ventas = datos.ventas
-        .filter((v) => v._jornadaIndice === indice)
-        .map(({ _jornadaIndice: _, ...resto }) => ({ ...resto, id: nuevoId(), jornadaId }))
-      await db.ventas.bulkAdd(ventas)
-      resultado.ventas += ventas.length
-
-      const movimientos = datos.movimientos
-        .filter((m) => m._jornadaIndice === indice)
-        .map(({ _jornadaIndice: _, ...resto }) => ({ ...resto, id: nuevoId(), jornadaId }))
-      await db.movimientos.bulkAdd(movimientos)
-      resultado.movimientos += movimientos.length
-    }
-
-    for (const { _jornadaIndice: _, ...gasto } of sueltos) {
-      if (yaCargados.has(`${gasto.fecha}|${gasto.concepto}|${gasto.monto}`)) continue
-      await db.movimientos.add({ ...gasto, id: nuevoId(), jornadaId: null })
-      resultado.movimientos++
-    }
-  })
-
-  await guardarAjuste(clave, VERSION_IMPORTACION)
-  return resultado
-}
 
 /** Campos que puede traer la lista de precios de la planilla. */
 type CampoPrecio = 'precioCompra' | 'fechaCompra' | 'rentabilidad' | 'precioVenta' | 'fechaPrecioVenta'

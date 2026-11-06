@@ -2326,12 +2326,13 @@ entera en `#REF!`), el script cae al catálogo actual
 esas ventas quedarían con costo cero — inflando el margen — y figurando por su
 código pelado en los reportes.
 
-Después hay que agregar el mes a la lista `MESES_HISTORICOS` en `src/App.tsx` para
-que la app lo cargue solo la primera vez que se abre (no pisa datos si ya se
-estaba usando la app para cargar caja real). Si se corrigió el importador y hay
-que **volver a traer** meses ya importados, subí `VERSION_IMPORTACION` en
-`src/db/sembrar.ts`: eso vuelve a cargar los turnos marcados como importados y
-deja intactos los que cargó una persona.
+**La app ya no los carga sola (06/11).** Hasta el 15/10 había que agregar el mes a
+`MESES_HISTORICOS` en `src/App.tsx` y la app lo traía al abrirse
+(`sincronizarMesImportado`). Se sacó: los archivos dejaron de publicarse porque son
+ventas (datos privados), y si volvían, cada aparato creaba su propia copia de esos
+meses con otros ids. Así aparecieron los 406 turnos retenidos en la Mac. Lo histórico
+ya está en el servidor; un mes nuevo de la planilla se sube desde un solo aparato,
+con un script, nunca publicándolo en `public/`.
 
 Las pruebas del parser se corren aparte:
 
@@ -2492,9 +2493,8 @@ celular sin dejar datos. Ver "Lo que no se sube".
 
 - [ ] **En la Mac de Emmanuel:** Ajustes → «Cargas retenidas» → «Sacar de este aparato las
       copias exactas». Las que queden «distintas» se miran de a una antes de decidir.
-- [ ] **Sacar el importador de meses viejos** (`sincronizarMesImportado` y
-      `MESES_HISTORICOS` en `App.tsx`): desde el 15/10 no hay archivos que importar, y si
-      volvieran a publicarse, cada aparato crearía su propia copia con otros números.
+- [x] **Sacar el importador de meses viejos** (`sincronizarMesImportado` y
+      `MESES_HISTORICOS`): hecho el 06/11.
 - [ ] **El martes 03/11 no tiene turno en el servidor.** Preguntar si se trabajó con la app.
 - [ ] **Mirar en `rechazos` las constancias con acción `revisar`** que dejen la Mac de
       Sandra y la PC de Gabriela al actualizar: dicen qué era cada cosa que el aviso
