@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCambiosSinGuardar, useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { Link } from 'react-router-dom'
 import {
   db,
   nuevoId,
@@ -153,7 +154,27 @@ export default function Caja() {
       ) : (
         <TurnoAbierto jornada={jornada} onTurnoCambiado={elegirTurno} />
       )}
+
+      <AccesoPedidos />
     </>
+  )
+}
+
+/** Para anotar lo que falta en el local sin salir de la caja (06/11). */
+function AccesoPedidos() {
+  const faltan = useLiveQuery(() => db.pedidos.where('estado').equals('pendiente').count(), [])
+  return (
+    <div className="tarjeta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+      <div>
+        <p className="tarjeta-titulo" style={{ margin: 0 }}>🧻 ¿Falta algo en el local?</p>
+        <div className="item-sub">
+          Bolsas, papel, rollos de ticket, limpieza{faltan ? ` · ${faltan} anotado${faltan === 1 ? '' : 's'}` : ''}.
+        </div>
+      </div>
+      <Link className="boton-chico" to="/pedidos" style={{ flex: 'none' }}>
+        Anotar
+      </Link>
+    </div>
   )
 }
 

@@ -1007,6 +1007,14 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'gastos',
   },
   {
+    id: 'pedidos-insumos',
+    categoria: 'Caja',
+    pregunta: 'Se terminaron las bolsas o el papel, ¿dónde lo anoto?',
+    respuesta:
+      'En «🧻 Pedidos de insumos»: está abajo de todo en Caja («¿Falta algo en el local?» → «Anotar») y en Mi día. Escribí qué falta y, si querés, la cantidad o una nota (marca, medida), y tocá «Anotar». Si ya lo anotó otra persona, la app te avisa y no lo anota dos veces.\n\nEmmanuel y Sandra lo ven en el Panel y lo marcan «Pedido» cuando lo encargan y «Recibido» cuando llega; en la lista se ve en qué anda cada cosa y quién la pidió. Si anotaste algo que al final no hace falta, tocá «Ya no hace falta».\n\nEs para lo del local (bolsas, papel, rollos de ticket, limpieza). La mercadería para vender se le pide al proveedor.',
+    palabrasClave: ['insumos', 'falta', 'bolsas', 'papel', 'rollos', 'ticket', 'limpieza', 'pedido', 'anotar', 'se termino'],
+  },
+  {
     id: 'vencimientos',
     categoria: 'Gastos',
     pregunta: '¿Cómo hago para que la app me avise antes de que venza el alquiler, la luz o el monotributo?',
