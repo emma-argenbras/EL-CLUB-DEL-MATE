@@ -1,4 +1,4 @@
-import { conMotivo, db, type MovimientoProveedor, type Producto, type Proveedor } from './db'
+import { conMotivo, db, type Borrado, type MovimientoProveedor, type Producto, type Proveedor } from './db'
 
 /**
  * Unir dos fichas de proveedor que son el mismo.
@@ -19,6 +19,17 @@ import { conMotivo, db, type MovimientoProveedor, type Producto, type Proveedor 
  */
 
 export const MOTIVO_UNION = 'Unión de proveedores'
+export const MOTIVO_FICHAS_VACIAS = 'Unión de fichas repetidas vacías'
+
+/**
+ * La constancia de que la ficha se borro a proposito (10/11). Sin ella, un
+ * aparato que estuvo apagado mientras se unian las fichas vuelve a subir la
+ * borrada al abrir la app: la subida inicial sube lo que el servidor no
+ * tiene, salvo lo que figura en `borrados`.
+ */
+function constanciaDeBorrado(id: string, quien: string | null, motivo: string): Borrado {
+  return { id: `proveedores/${id}`, tabla: 'proveedores', clave: id, cuando: Date.now(), quien, motivo }
+}
 
 /** Los campos de la ficha que se pueden rescatar si estan vacios. */
 const RESCATABLES = [
@@ -123,11 +134,12 @@ export type FalloUnion = 'no-existe' | 'es-la-misma'
 export async function unirProveedores(
   idQueda: string,
   idSeAbsorbe: string,
+  quien: string | null = null,
 ): Promise<ResultadoUnion | FalloUnion> {
   if (idQueda === idSeAbsorbe) return 'es-la-misma'
 
   return conMotivo(MOTIVO_UNION, async () =>
-    db.transaction('rw', db.proveedores, db.productos, db.movimientosProveedor, async () => {
+    db.transaction('rw', [db.proveedores, db.productos, db.movimientosProveedor, db.borrados], async () => {
       // Se vuelven a leer adentro de la transaccion: la vista previa se
       // dibujo hace unos segundos y pudo cambiar.
       const [queda, seAbsorbe] = await Promise.all([
@@ -172,10 +184,106 @@ export async function unirProveedores(
       if (queda.activo === false && productos.length > 0) cambios.activo = true
       await db.proveedores.update(queda.id, cambios)
 
-      // 4. Recien ahora, cuando ya no cuelga nada de ella.
+      // 4. Recien ahora, cuando ya no cuelga nada de ella. La constancia
+      //    primero, como en borrarJornada.
+      await db.borrados.put(constanciaDeBorrado(seAbsorbe.id, quien, MOTIVO_UNION))
       await db.proveedores.delete(seAbsorbe.id)
 
       return { productosTocados: productos.length, movimientosTocados: movimientos.length }
     }),
   )
+}
+
+export interface ResultadoFichasVacias {
+  unidas: number
+  /** Las que se dejaron porque cambiaron desde que se armo la lista. */
+  salteadas: { id: string; nombre: string; porque: string }[]
+}
+
+/**
+ * Une de una las fichas repetidas vacias a su gemela (ver
+ * fichasRepetidas.ts): el 10/11 eran 94, todas de la importacion del 18/08.
+ *
+ * Cada una se vuelve a mirar adentro de la transaccion, porque la lista se
+ * mostro antes: si ya no esta, si cambio de nombre o si le cargaron algun
+ * producto, compra o pago, se saltea y se dice. De las que se unen, la
+ * gemela se queda con los datos que tenia vacios (telefono, ciudad, alias
+ * para transferir...) y con sus otros nombres; la vacia se borra con su
+ * constancia. Todo junto: si algo falla, no queda nada a medias.
+ */
+export async function unirFichasVacias(
+  pares: { idVacia: string; idGemela: string }[],
+  quien: string | null,
+): Promise<ResultadoFichasVacias> {
+  return conMotivo(MOTIVO_FICHAS_VACIAS, async () =>
+    db.transaction('rw', [db.proveedores, db.productos, db.movimientosProveedor, db.borrados], async () => {
+      const resultado: ResultadoFichasVacias = { unidas: 0, salteadas: [] }
+      for (const { idVacia, idGemela } of pares) {
+        const [vacia, gemela] = await Promise.all([db.proveedores.get(idVacia), db.proveedores.get(idGemela)])
+        const saltear = (porque: string) =>
+          resultado.salteadas.push({ id: idVacia, nombre: vacia?.nombre ?? idVacia, porque })
+        if (!vacia || !gemela || idVacia === idGemela) {
+          saltear('ya no está')
+          continue
+        }
+        if (vacia.nombre.trim() !== gemela.nombre.trim()) {
+          saltear('ya no se llama igual que su gemela')
+          continue
+        }
+        const [productos, movimientos] = await Promise.all([
+          db.productos.where('proveedorId').equals(idVacia).count(),
+          db.movimientosProveedor.where('proveedorId').equals(idVacia).count(),
+        ])
+        if (productos + movimientos > 0) {
+          saltear('ahora tiene productos, compras o pagos')
+          continue
+        }
+
+        const plan = armarUnion(gemela, vacia, [], [])
+        const cambios: Partial<Proveedor> = {}
+        if (plan.aliasNuevos.length > 0) cambios.alias = [...(gemela.alias ?? []), ...plan.aliasNuevos]
+        for (const [campo] of RESCATABLES) {
+          if (!cargado(gemela[campo]) && cargado(vacia[campo])) {
+            ;(cambios as Record<string, unknown>)[campo] = vacia[campo]
+          }
+        }
+        if (Object.keys(cambios).length > 0) {
+          await db.proveedores.update(gemela.id, { ...cambios, actualizadoEn: Date.now() })
+        }
+        await db.borrados.put(constanciaDeBorrado(vacia.id, quien, MOTIVO_FICHAS_VACIAS))
+        await db.proveedores.delete(vacia.id)
+        resultado.unidas++
+      }
+      return resultado
+    }),
+  )
+}
+
+/** La pregunta antes de unir de una: cuántas, un ejemplo, y qué pasa. */
+export function textoDeConfirmacionVacias(
+  pares: { vacia: Proveedor; gemela: { proveedor: Proveedor; productos: number; movimientos?: number } }[],
+): string {
+  const n = pares.length
+  // El ejemplo, de una gemela con productos: se entiende mejor.
+  const ej = [...pares].sort((a, b) => b.gemela.productos - a.gemela.productos)[0]
+  const deLaGemela = (g: { productos: number; movimientos?: number }) =>
+    [
+      `${g.productos} ${g.productos === 1 ? 'producto' : 'productos'}`,
+      ...(g.movimientos ? [`${g.movimientos} ${g.movimientos === 1 ? 'compra o pago' : 'compras y pagos'}`] : []),
+    ].join(', ')
+  return [
+    `Vas a unir ${n} ${n === 1 ? 'ficha repetida vacía' : 'fichas repetidas vacías'} a su gemela.`,
+    '',
+    ej
+      ? `Por ejemplo: "${ej.vacia.nombre}" (sin productos, ni compras, ni pagos) dentro de "${ej.gemela.proveedor.nombre}" (${deLaGemela(ej.gemela)}).`
+      : '',
+    '',
+    '· Cada ficha vacía se borra, con su constancia: no vuelve aunque un aparato haya estado apagado.',
+    '· Si tenía teléfono, ciudad o alias para transferir y la gemela no, pasan a la gemela.',
+    '· Ningún producto, compra ni pago cambia de lugar.',
+    '',
+    `Queda en el historial como «${MOTIVO_FICHAS_VACIAS}».`,
+    '',
+    '¿Unir?',
+  ].join('\n')
 }
