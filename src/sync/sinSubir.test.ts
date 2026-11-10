@@ -7,9 +7,12 @@ import {
   firmadosPorOtroEn,
   motivoDeRechazo,
   siguenPendientes,
+  textoDeTurnosSinSubir,
+  turnosQueFaltan,
   type Pendiente,
   type Revision,
 } from './sinSubir'
+import { fechaLinda } from '../lib/formato'
 
 const contexto = {
   borrados: new Set(['ventas/borrada-en-la-mac']),
@@ -112,5 +115,51 @@ describe('motivoDeRechazo', () => {
   })
   it('lo demas que las reglas no dejan', () => {
     expect(motivoDeRechazo('ventas', {}, { code: 'permission-denied' })).toMatch(/reglas/)
+  })
+})
+
+describe('los turnos que no llegaron al servidor (07/11)', () => {
+  const j = (id: string, fecha: string, turno: 'M' | 'T', creadoEn = 1) => ({ id, fecha, turno, creadoEn })
+  const contexto = {
+    enServidor: new Set(['ok']),
+    retenidos: new Set(['retenido']),
+    desde: '2026-10-20',
+    creadoAntesDe: 1000,
+  }
+
+  it('por id, no por cantidades: los recientes que el servidor no tiene, en orden', () => {
+    const faltan = turnosQueFaltan(
+      [
+        j('bf387987', '2026-11-04', 'T'),
+        j('ok', '2026-11-05', 'M'),
+        j('a75ebe2e', '2026-11-03', 'M'),
+        j('3fbc0d84', '2026-11-03', 'T'),
+      ],
+      contexto,
+    )
+    expect(faltan.map((t) => t.id)).toEqual(['a75ebe2e', '3fbc0d84', 'bf387987'])
+  })
+
+  it('no cuenta los retenidos, los viejos ni los recién abiertos, que pueden estar viajando', () => {
+    const faltan = turnosQueFaltan(
+      [j('retenido', '2026-11-03', 'M'), j('viejo', '2026-10-19', 'M'), j('recien', '2026-11-06', 'T', 5000)],
+      contexto,
+    )
+    expect(faltan).toEqual([])
+  })
+
+  it('el cartel nombra cada turno con sus ventas', () => {
+    expect(textoDeTurnosSinSubir([{ id: 'a', fecha: '2026-11-03', turno: 'M', ventas: 1 }])).toBe(
+      `El turno del ${fechaLinda('2026-11-03')} mañana (1 venta) no llegó al servidor.`,
+    )
+    expect(
+      textoDeTurnosSinSubir([
+        { id: 'a', fecha: '2026-11-03', turno: 'M', ventas: 8 },
+        { id: 'b', fecha: '2026-11-03', turno: 'T', ventas: 0 },
+        { id: 'c', fecha: '2026-11-04', turno: 'T', ventas: 11 },
+      ]),
+    ).toBe(
+      `Los turnos del ${fechaLinda('2026-11-03')} mañana (8 ventas), ${fechaLinda('2026-11-03')} tarde y ${fechaLinda('2026-11-04')} tarde (11 ventas) no llegaron al servidor.`,
+    )
   })
 })

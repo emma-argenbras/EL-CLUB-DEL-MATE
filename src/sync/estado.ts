@@ -1,6 +1,6 @@
 import { nubeConfigurada } from './config'
 import type { TurnoRetenido } from './retener'
-import type { Revision } from './sinSubir'
+import type { Revision, TurnoSinSubir } from './sinSubir'
 
 /**
  * Estado reactivo de la sincronizacion, sin depender del SDK de
@@ -48,6 +48,11 @@ export interface EstadoSync {
    * en esta sesion no hizo falta revisar.
    */
   revision: Revision | null
+  /**
+   * Turnos recientes de este aparato que el servidor no tiene, buscados por
+   * id (07/11): el aviso «sin subir» cuenta cantidades y los podia tapar.
+   */
+  turnosSinSubir: TurnoSinSubir[]
 }
 
 export interface RechazoVisible {
@@ -69,6 +74,7 @@ let estado: EstadoSync = {
   rechazos: [],
   retenidos: [],
   revision: null,
+  turnosSinSubir: [],
 }
 
 export function anotarRechazoVisible(texto: string): void {

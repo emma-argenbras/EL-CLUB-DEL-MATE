@@ -169,3 +169,55 @@ export function motivoDeRechazo(tabla: NombreTabla, fila: Record<string, unknown
   if (codigo === 'unavailable') return 'No había conexión con el servidor. Se vuelve a intentar solo.'
   return error instanceof Error ? error.message : String(error)
 }
+
+/**
+ * Un turno de este aparato que no esta en el servidor (07/11).
+ *
+ * El aviso «sin subir» compara CANTIDADES por tabla: si a un aparato le
+ * faltan otros turnos del servidor, uno pendiente queda tapado. Asi
+ * quedaron tres turnos de Gabriela (03/11 y 04/11) sin llegar nunca,
+ * mientras sus ventas si llegaban. Para los turnos se pregunta por id.
+ */
+export interface TurnoSinSubir {
+  id: string
+  fecha: string
+  turno: 'M' | 'T'
+  ventas: number
+}
+
+/** Los turnos recientes de este aparato que el servidor no tiene. */
+export function turnosQueFaltan(
+  locales: { id: string; fecha: string; turno: 'M' | 'T'; creadoEn?: number }[],
+  contexto: {
+    /** Los ids (como se llaman aca) que el servidor si tiene. */
+    enServidor: Set<string>
+    /** Retenidos a proposito: tienen su propio cartel. */
+    retenidos: Set<string>
+    /** Desde que fecha (yyyy-mm-dd) se controla. */
+    desde: string
+    /** Lo creado despues de esto puede estar viajando todavia. */
+    creadoAntesDe: number
+  },
+): { id: string; fecha: string; turno: 'M' | 'T' }[] {
+  return locales
+    .filter(
+      (j) =>
+        j.fecha >= contexto.desde &&
+        !contexto.retenidos.has(j.id) &&
+        !contexto.enServidor.has(j.id) &&
+        (j.creadoEn ?? 0) < contexto.creadoAntesDe,
+    )
+    .sort((a, b) => (a.fecha + a.turno).localeCompare(b.fecha + b.turno))
+}
+
+/** El cartel, en palabras. */
+export function textoDeTurnosSinSubir(turnos: TurnoSinSubir[]): string {
+  const nombre = (t: TurnoSinSubir) =>
+    `${fechaLinda(t.fecha)} ${TURNO[t.turno]}${t.ventas > 0 ? ` (${t.ventas} ${t.ventas === 1 ? 'venta' : 'ventas'})` : ''}`
+  const nombres = turnos.map(nombre)
+  const lista =
+    nombres.length <= 1 ? (nombres[0] ?? '') : `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
+  return turnos.length === 1
+    ? `El turno del ${lista} no llegó al servidor.`
+    : `Los turnos del ${lista} no llegaron al servidor.`
+}

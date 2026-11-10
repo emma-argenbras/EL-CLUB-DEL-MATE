@@ -1013,6 +1013,24 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['sin subir', 'pendiente', 'no sincroniza', 'no llega', 'cartel', 'ver que es', 'revisar', 'no baja', '1 cosa', '3 cosas'],
   },
   {
+    id: 'turno-no-llego',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Apareció un cartel rojo: «El turno del … no llegó al servidor». ¿Qué hago?',
+    respuesta:
+      'Quiere decir que ese turno está guardado solo en este aparato: el servidor no lo tiene, aunque sus ventas puede que sí. Mientras siga así, los demás no lo ven, y si este aparato se pierde o se borra la app, el turno se pierde con él.\n\nNo borres la app ni sus datos, no cierres la sesión y no vuelvas a cargar ese turno en otro aparato: quedaría repetido. Sacale una foto al cartel y avisale a Emmanuel. Desde ahí se decide cómo subirlo.\n\nLa app revisa los turnos de las últimas tres semanas, uno por uno, un rato después de abrirse y cada cinco minutos. Un turno recién abierto no avisa en los primeros dos minutos: puede estar viajando todavía.',
+    palabrasClave: ['no llego al servidor', 'turno no subio', 'cartel rojo', 'turno perdido', 'solo en este aparato'],
+  },
+  {
+    id: 'aviso-turnos-sin-subir',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'El Panel dice «N turnos no llegaron al servidor: sus ventas sí». ¿Qué es?',
+    respuesta:
+      'Hay ventas del mes cuyo turno no está en el servidor. Las ventas cuentan en los reportes, pero del turno falta todo lo demás: con cuánto abrió, el conteo del cierre y la diferencia. Pasó con tres turnos de Gabriela del 03/11 y el 04/11.\n\nCasi siempre el turno quedó guardado solo en el aparato donde se cargó. El aviso dice la fecha y quién lo cargó: en ese aparato tiene que aparecer el cartel rojo «El turno del … no llegó al servidor».\n\nEn ese aparato, que no borren la app ni cierren la sesión. Antes de tocar datos, hablalo con Claude: se puede subir desde ese aparato o, si ya no está, rearmar desde el historial.',
+    palabrasClave: ['turnos no llegaron', 'ventas sin turno', 'turno que falta', 'panel urgente'],
+    soloOwner: true,
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'codigos-con-barra',
     categoria: 'Sincronización y respaldo',
     pregunta: 'Hay productos que veo en un celular y no en otro, ¿por qué?',

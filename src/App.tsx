@@ -12,6 +12,7 @@ import { useSesion } from './sync/useSesion'
 import { useEstadoNube } from './sync/useEstadoNube'
 import { descartarRechazos } from './sync/estado'
 import { textoDeRetenidos } from './sync/retener'
+import { textoDeTurnosSinSubir } from './sync/sinSubir'
 import Panel from './paginas/Panel'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
@@ -235,6 +236,13 @@ export default function App() {
           <strong>Hay cargas de este aparato que no se subieron, a propósito.</strong>{' '}
           {textoDeRetenidos(estadoNube.retenidos)} Avisale a Emmanuel: se resuelve desde Ajustes
           → «Cargas retenidas».
+        </div>
+      )}
+      {nubeConfigurada && !enConsulta && estadoNube.turnosSinSubir.length > 0 && (
+        <div className="aviso aviso-error">
+          <strong>{textoDeTurnosSinSubir(estadoNube.turnosSinSubir)}</strong>{' '}
+          {estadoNube.turnosSinSubir.length === 1 ? 'Está guardado' : 'Están guardados'} solo en este
+          aparato. No borres la app ni sus datos, no cierres la sesión, y avisale a Emmanuel.
         </div>
       )}
       {nubeConfigurada && !enConsulta && estadoNube.rechazos.length > 0 && (
