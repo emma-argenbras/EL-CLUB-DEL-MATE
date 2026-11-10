@@ -1790,6 +1790,63 @@ vuelve a importar.
   botón saca las 9 del aparato (18 ventas) sin tocar el servidor, con el renglón del
   historial y la constancia.
 
+## Lo que pasó el 07/11: tres turnos de Gabriela que no llegaron
+
+El soporte de Emmanuel encontró que en el servidor faltan tres turnos: 03/11 mañana, 03/11
+tarde y 04/11 tarde. Sus 19 ventas sí están, y el historial muestra que Gabriela los cerró con
+arqueo. No hay ninguna constancia de borrado.
+
+### Lo que se sabe y lo que no
+
+- **No se borraron del servidor.** Ningún camino de la app borra un turno allá sin dejar
+  constancia en `borrados`. La excepción es «Importar un respaldo», en Ajustes. «Copias
+  retenidas» (usado el 06/11 a las 12:18) solo saca copias del aparato donde se toca.
+- **El 04/11 el aviso estaba mal diagnosticado.** Ese día la PC de Gabriela marcaba «3 sin
+  subir» fijo, y faltan justo tres turnos. Aquel arreglo se probó con un turno retenido de
+  dos ventas, no con sus datos reales. Lo más probable es que fueran estos tres.
+- **El aviso «sin subir» tiene un punto ciego.** Compara cuántos registros tiene el aparato
+  contra cuántos tiene el servidor, no cuáles. La revisión de a uno saltea una tabla si el
+  aparato no tiene más filas que el servidor. Si a un aparato le faltan otros turnos del
+  servidor, uno pendiente queda tapado y nunca se intenta subir.
+- **Dónde están todavía no se sabe.** Lo más probable es la PC de Gabriela; si se borraron
+  los datos del sitio, en ningún aparato. Las ventas cuentan en los reportes. Del turno
+  faltan la caja inicial, el conteo del cierre y la diferencia. El conteo y la hora están en
+  el historial; la caja inicial no.
+
+### Lo que se agregó (10/11)
+
+- **En el Panel, para quien está al mando:** «N turnos no llegaron al servidor: sus ventas
+  sí» (`caja-turnos-sin-subir`, urgente). Sale de las ventas del mes cuyo turno no está, así
+  que se ve desde cualquier aparato. Dice la fecha, quién lo cargó, cuántas ventas y cuánta
+  plata. El 03/11 lo habría mostrado ese mismo día.
+- **En cada aparato, un cartel rojo:** «El turno del 03/11 mañana (8 ventas) no llegó al
+  servidor», con qué no hacer. Los turnos de las últimas tres semanas se controlan uno por
+  uno (`controlarTurnosRecientes`):
+  - primero se cuenta cuántos están, una lectura por cada tanda de 30;
+  - recién si falta alguno se pregunta cuáles;
+  - no cuentan los retenidos, los borrados a propósito ni los abiertos hace menos de dos
+    minutos.
+
+  Corre después del intento de subida inicial, y cada cinco minutos.
+- **La subida automática no cambia.** Qué hacer con un turno que no llegó lo decide Emmanuel.
+
+Probado:
+- 3 pruebas del cartel y 2 del aviso del Panel, rotas a propósito de 10 maneras y las 10 en
+  rojo (una sobrevivía al principio: el vendedor tomado de la primera venta; se cambió el
+  caso).
+- Contra los emuladores, con el caso armado como el real:
+  - el aparato de Gabriela tiene un turno que no puede subir, y sus dos ventas están en el
+    servidor;
+  - el cartel rojo aparece a los 47 segundos de abrir. Antes, ese aparato reintentó subir lo
+    pendiente, de a uno;
+  - el turno sigue sin subir;
+  - el Panel de Emmanuel muestra el aviso con el detalle;
+  - en la compu de Emmanuel no aparece ningún cartel de aparato.
+
+Pendiente, con el OK de Emmanuel: ubicar los tres turnos (la PC y el celular de Gabriela) y
+subirlos desde ahí, o rearmarlos en el servidor con las ventas, los egresos y el conteo del
+historial.
+
 ## Los avisos por plazo, y el cambio en una línea (06/11)
 
 Dos pedidos del 06/11 que no tocan cómo se guardan los datos:

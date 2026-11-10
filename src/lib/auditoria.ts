@@ -321,6 +321,44 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
     })
   }
 
+  // --- Ventas cuyo turno no esta ---
+  // 07/11: tres turnos de Gabriela (03/11 y 04/11) no estaban en el
+  // servidor, pero sus 19 ventas si. Caja no los mostraba, y faltaba con
+  // cuanto abrieron, el conteo del cierre y la diferencia. Un turno que no
+  // subio vive solo en el aparato donde se cargo; desde cualquier otro, lo
+  // unico que se ve son sus ventas sin turno.
+  const idsDeTurnos = new Set(datos.jornadas.map((j) => j.id))
+  const sinTurno = datos.ventas.filter((v) => v.jornadaId && !idsDeTurnos.has(v.jornadaId))
+  if (sinTurno.length > 0) {
+    const porTurno = new Map<string, { fecha: string; ventas: number; vendedor: string | null }>()
+    for (const v of sinTurno) {
+      const t = porTurno.get(v.jornadaId) ?? { fecha: v.fecha, ventas: 0, vendedor: v.vendedor ?? null }
+      t.ventas++
+      if (v.fecha < t.fecha) t.fecha = v.fecha
+      if (!t.vendedor && v.vendedor) t.vendedor = v.vendedor
+      porTurno.set(v.jornadaId, t)
+    }
+    const turnos = [...porTurno.values()].sort((a, b) => a.fecha.localeCompare(b.fecha))
+    const nombres = turnos.map((t) => `${fechaLinda(t.fecha)}${t.vendedor ? ` (${t.vendedor})` : ''}`)
+    hallazgos.push({
+      id: 'caja-turnos-sin-subir',
+      modulo: 'caja',
+      nivel: 'critico',
+      titulo: `${turnos.length} ${plural(turnos.length, 'turno no llegó', 'turnos no llegaron')} al servidor: sus ventas sí`,
+      detalle:
+        `${turnos.length === 1 ? 'Es el del' : 'Son los del'} ${nombres.join(', ')}, con ${sinTurno.length} ${plural(sinTurno.length, 'venta', 'ventas')}. ` +
+        'Las ventas cuentan en los reportes, pero el turno no está: falta con cuánto abrió, el conteo del cierre y la diferencia. ' +
+        'Seguramente quedó solo en el aparato donde se cargó.',
+      comoSeResuelve:
+        'En ese aparato no borres la app ni sus datos ni cierres la sesión. Abrilo con la sesión de quien cargó el turno y mirá en Caja, con esa fecha, si el turno aparece. Antes de tocar datos, avisá: se puede subir desde ese aparato o rearmar desde el historial.',
+      ruta: '/turnos',
+      cantidad: turnos.length,
+      monto: sinTurno.reduce((s, v) => s + v.total, 0),
+      soloOwner: true,
+      requiereSeccion: 'caja',
+    })
+  }
+
   // --- La plata tiene que engancharse entre un turno y el siguiente ---
   // Lo que se conto al cerrar la manana deberia ser lo que aparece al
   // abrir la tarde. Si no engancha, o alguien saco plata entre medio, o
@@ -1025,6 +1063,14 @@ export const CONTROLES: {
     modulo: 'caja',
     que: 'Que no falte cargar ningún día del mes',
     bien: 'Todos los días del mes tienen caja cargada',
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'caja-turnos-sin-subir',
+    modulo: 'caja',
+    que: 'Que cada venta del mes tenga su turno en el servidor',
+    bien: 'Todas las ventas del mes tienen su turno',
+    soloOwner: true,
     requiereSeccion: 'caja',
   },
   {

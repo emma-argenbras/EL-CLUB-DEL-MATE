@@ -13,10 +13,13 @@ import {
   getCountFromServer,
   getDoc,
   getDocFromServer,
+  documentId,
   getDocs,
   onSnapshot,
+  query,
   runTransaction,
   setDoc,
+  where,
   writeBatch,
   type DocumentReference,
   type Unsubscribe,
@@ -59,9 +62,13 @@ import {
   filasRetenidasEn,
   firmadosPorOtroEn,
   motivoDeRechazo,
+  turnosQueFaltan,
   type RenglonRevision,
   type Revision,
+  type TurnoSinSubir,
 } from './sinSubir'
+import { hoyISO } from '../lib/formato'
+import { sumarDias } from '../lib/tablero'
 import { estaAlMando } from './permisos'
 import {
   camposParaConservar,
@@ -825,6 +832,76 @@ async function marcaDeArranqueSoloAca(): Promise<number> {
   return marcaEnElServidor ? 0 : 1
 }
 
+/** Cuantos dias para atras se controlan los turnos uno por uno. */
+const DIAS_DE_TURNOS_A_CONTROLAR = 21
+/** Un turno recien abierto puede estar viajando: no se reclama antes de esto. */
+const MARGEN_TURNO_NUEVO = 2 * 60 * 1000
+/** Firestore acepta hasta 30 valores en un `in`. */
+const TANDA_IN = 30
+
+/**
+ * Los turnos recientes de este aparato que el servidor no tiene, por id
+ * (07/11). El aviso «sin subir» compara cantidades por tabla, y si a un
+ * aparato le faltan otros turnos del servidor, uno pendiente queda tapado:
+ * asi quedaron tres turnos de Gabriela del 03/11 y el 04/11, con sus
+ * ventas arriba y el turno solo en su aparato.
+ *
+ * Primero se cuenta (una lectura por tanda de 30); recien si falta alguno
+ * se pregunta cuales. No sube nada: solo avisa. Lo que hacer con un turno
+ * que no llego lo decide Emmanuel.
+ */
+async function controlarTurnosRecientes(): Promise<void> {
+  if (!obtenerAuth().currentUser) return
+  try {
+    const firestore = obtenerFirestore()
+    const coleccion = collection(firestore, 'negocios', ID_NEGOCIO, 'jornadas')
+    const desde = sumarDias(hoyISO(), -DIAS_DE_TURNOS_A_CONTROLAR)
+    const retenidos = new Set(obtenerEstadoNube().retenidos.map((t) => t.id))
+    const recientes = (await db.jornadas.where('fecha').aboveOrEqual(desde).toArray()).filter(
+      (j) => !retenidos.has(j.id),
+    )
+    const tandas: string[][] = []
+    for (let i = 0; i < recientes.length; i += TANDA_IN) {
+      tandas.push(recientes.slice(i, i + TANDA_IN).map((j) => aClaveDeNube(j.id)))
+    }
+    let estan = 0
+    for (const tanda of tandas) {
+      estan += (await getCountFromServer(query(coleccion, where(documentId(), 'in', tanda)))).data().count
+    }
+    if (estan >= recientes.length) {
+      if (obtenerEstadoNube().turnosSinSubir.length > 0) fijarEstadoNube({ turnosSinSubir: [] })
+      return
+    }
+    const enServidor = new Set<string>()
+    for (const tanda of tandas) {
+      for (const d of (await getDocs(query(coleccion, where(documentId(), 'in', tanda)))).docs) {
+        enServidor.add(aClaveLocal(d.id))
+      }
+    }
+    const faltan = turnosQueFaltan(recientes, {
+      enServidor,
+      retenidos,
+      desde,
+      creadoAntesDe: Date.now() - MARGEN_TURNO_NUEVO,
+    })
+    // Lo borrado a proposito desde otro aparato no es «no llego»: la
+    // revision de lo que no sube lo saca de aca. Se pregunta por cada uno.
+    const turnosSinSubir: TurnoSinSubir[] = []
+    for (const j of faltan) {
+      const borrado = await getDoc(
+        doc(firestore, 'negocios', ID_NEGOCIO, 'borrados', aClaveDeNube(`jornadas/${j.id}`)),
+      )
+      if (borrado.exists()) continue
+      turnosSinSubir.push({ ...j, ventas: await db.ventas.where('jornadaId').equals(j.id).count() })
+    }
+    fijarEstadoNube({ turnosSinSubir })
+    if (turnosSinSubir.length > 0) console.warn('Turnos de este aparato que no estan en el servidor:', turnosSinSubir)
+  } catch (e) {
+    // Sin internet no se puede saber: queda lo que se sabia.
+    console.warn('No se pudo controlar los turnos recientes:', e)
+  }
+}
+
 /** Desde cuando el aviso viene diciendo que hay algo sin subir. */
 let pendientesDesde: number | null = null
 let ultimaRevisionAutomatica = 0
@@ -841,6 +918,7 @@ const ENTRE_REVISIONES = 30 * 60 * 1000
  * Antes el aviso quedaba fijo y nadie podia saber que estaba contando.
  */
 export async function controlarSinSubir(revisarSiHaceFalta = true): Promise<void> {
+  await controlarTurnosRecientes()
   const cuantos = await contarSinSubir()
   fijarEstadoNube({ sinSubir: cuantos })
   if (!cuantos) {
