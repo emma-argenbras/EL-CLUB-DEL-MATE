@@ -1022,6 +1022,59 @@ cuenta corriente a otra— no dejaba rastro. Ahora sí.
 
 ---
 
+### Las fichas repetidas vacías, de una (10/11)
+
+El 10/11 se encontraron en el servidor 94 fichas con el mismo nombre exacto que otra, sin
+productos ni compras ni pagos, todas de la importación del 18/08. Unirlas de a una eran 94
+vueltas. Arriba de la pantalla aparece ahora **«Fichas repetidas vacías»**
+(`src/lib/fichasRepetidas.ts`):
+
+- **La lista entera, antes de tocar nada:** el nombre, cuándo se creó la vacía, cuántos
+  productos y compras tiene la gemela, y qué pasa a la gemela.
+- **Un botón une todas.** Pregunta antes cuántas son, con un ejemplo. De cada vacía pasan a
+  la gemela el teléfono, la ciudad o el alias si la gemela no los tenía, y sus otros nombres.
+  Ningún producto, compra ni pago cambia de lugar.
+- **Cada una se vuelve a mirar al unir** (`unirFichasVacias`). Si ya no está, si cambió de
+  nombre o si le cargaron algo desde que se mostró la lista, se saltea y se dice por qué. Todo
+  va en una transacción, con el motivo «Unión de fichas repetidas vacías» en el historial.
+- **Lo que no es vacío no entra.** Si dos fichas del mismo nombre tienen datos, aparecen
+  aparte («Mismo nombre, con datos en más de una»), con «Elegir», que las pone en la unión de a
+  una. Si todas las de un nombre están vacías, no hay cuál es la buena y no se tocan. Los
+  parecidos (SALDO y SALDOS) siguen en las sugerencias de siempre.
+- **Los menús muestran cuántos productos tiene cada ficha:** dos con el mismo nombre se veían
+  iguales.
+
+**Y la unión ahora deja constancia en `borrados`, también la de a una.** Antes la ficha
+absorbida se borraba sin constancia. Un aparato que estuvo apagado puede volver a subir lo que
+el servidor no tiene, salvo lo que figura en `borrados` (es lo que pasaba con los turnos). Si
+alguien vuelve a crear un proveedor con ese mismo id, la constancia se olvida
+(`olvidarBorradoDeProveedor`); si no, la revisión de lo que no sube lo sacaría de los
+aparatos.
+
+Probado:
+- 6 pruebas de la lista y 7 de la unión, rotas a propósito de 14 maneras y las 14 en rojo:
+  - la unión de a una sin constancia;
+  - la constancia que no se olvida;
+  - sin mirar el nombre, o si tiene datos;
+  - la de las vacías sin constancia;
+  - pisando los datos de la gemela, o sin sus otros nombres;
+  - sin borrar la vacía, o con otro motivo;
+  - sin recortar espacios;
+  - dos fichas con datos tomadas como una;
+  - las únicas tomadas como repetidas;
+  - sin contar compras y pagos;
+  - sin ordenar.
+- En el navegador, a 1440 y a 390, la lista y el botón.
+- Contra los emuladores, con la Mac de Emmanuel y un celular de Sandra que estaba sin
+  conexión:
+  - en el servidor quedan las gemelas, con el teléfono y la ciudad rescatados;
+  - los productos no se mueven, y hay una constancia por ficha con quién y el motivo;
+  - el celular vuelve y no devuelve nada;
+  - cero rechazos y nada «sin subir».
+- La misma prueba sin la constancia: el celular tampoco las devolvió. La copia local de
+  Firestore le avisó el borrado antes de subir. La constancia es la segunda barrera, para un
+  aparato que no tenga esa copia, como con los turnos.
+
 ## Que un producto no se cargue dos veces
 
 Dos formas de duplicar un producto, con dos arreglos distintos.
@@ -2624,6 +2677,11 @@ flete se carga como gasto. Lo que proponen los sistemas de gestión: el pago a u
 mercadería (y el flete) mueve plata pero no es gasto del mes, porque ya está en el costo de
 lo vendido; los insumos (bolsas, limpieza) sí son gasto. Antes de tocar la cuenta, mirar con
 el contador y con los datos reales cuánto cambia.
+
+**Para correr con el OK de Emmanuel (10/11):** las 94 fichas de proveedor repetidas vacías.
+Ajustes → «Unir proveedores» → «Fichas repetidas vacías»: primero se mira la lista, después el
+botón (ver «Las fichas repetidas vacías, de una»). Los pares con datos de los dos lados, como
+HUGO-LA ENTRERRIANA, los une Sandra a mano desde la misma pantalla.
 
 **Lo que sigue del plan del 06/11**, en orden:
 

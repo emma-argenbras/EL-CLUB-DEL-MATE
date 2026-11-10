@@ -6,6 +6,7 @@ import {
   conMotivo,
   db,
   nuevoId,
+  olvidarBorradoDeProveedor,
   productoVisible,
   MEDIOS_PAGO,
   type MedioPago,
@@ -304,6 +305,7 @@ function FormularioProveedor({
       (await db.proveedores.where('nombre').equalsIgnoreCase(ficha.nombre.trim()).first())
     if (existe) return setError(`Ya existe un proveedor "${existe.nombre}".`)
 
+    await olvidarBorradoDeProveedor(id)
     await db.proveedores.add({
       id,
       ...datosDeLaFicha(ficha),
