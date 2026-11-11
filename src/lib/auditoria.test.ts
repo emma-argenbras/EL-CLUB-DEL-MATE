@@ -793,3 +793,34 @@ describe('ventas que no dicen que salio', () => {
     expect(hallazgos.map((h) => h.id)).not.toContain('productos-comodin')
   })
 })
+
+describe('las ventas cuyo turno no llegó al servidor (07/11)', () => {
+  it('un negocio sano no tiene el aviso: cada venta tiene su turno', () => {
+    expect(buscar(auditar(datos()), 'caja-turnos-sin-subir')).toBeUndefined()
+  })
+
+  it('agrupa por turno, con la fecha, quién lo cargó, cuántas ventas y cuánta plata', () => {
+    const h = buscar(
+      auditar(
+        datos({
+          ventas: [
+            venta({}),
+            // La primera venta del turno sin vendedor: se toma el de la que lo tenga.
+            venta({ id: 'a1', jornadaId: 'a75ebe2e', fecha: '2026-08-03', total: 1000 }),
+            venta({ id: 'a2', jornadaId: 'a75ebe2e', fecha: '2026-08-03', vendedor: 'Gabriela', total: 500 }),
+            venta({ id: 'b1', jornadaId: 'bf387987', fecha: '2026-08-04', total: 200 }),
+          ],
+        }),
+      ),
+      'caja-turnos-sin-subir',
+    )
+    expect(h).toBeDefined()
+    expect(h?.nivel).toBe('critico')
+    expect(h?.titulo).toBe('2 turnos no llegaron al servidor: sus ventas sí')
+    expect(h?.detalle).toContain('03/08/2026 (Gabriela), 04/08/2026')
+    expect(h?.detalle).toContain('con 3 ventas')
+    expect(h?.cantidad).toBe(2)
+    expect(h?.monto).toBe(1700)
+    expect(h?.soloOwner).toBe(true)
+  })
+})
