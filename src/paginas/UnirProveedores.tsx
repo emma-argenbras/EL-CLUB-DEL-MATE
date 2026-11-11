@@ -3,9 +3,14 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { plata } from '../lib/formato'
 import { fichasParecidas } from '../lib/fichasParecidas'
+import { planDeRepetidas } from '../lib/fichasRepetidas'
+import { useSesion } from '../sync/useSesion'
 import {
   armarUnion,
+  MOTIVO_FICHAS_VACIAS,
   textoDeConfirmacionUnion,
+  textoDeConfirmacionVacias,
+  unirFichasVacias,
   unirProveedores,
   type ResultadoUnion,
 } from '../db/unirProveedores'
@@ -28,6 +33,7 @@ export default function UnirProveedores() {
   const [trabajando, setTrabajando] = useState(false)
   const [hecho, setHecho] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const sesion = useSesion()
 
   const datos = useLiveQuery(async () => {
     const [proveedores, productos, movimientos] = await Promise.all([
@@ -42,6 +48,12 @@ export default function UnirProveedores() {
     () => (datos ? fichasParecidas(datos.proveedores) : []),
     [datos],
   )
+  // Las de mismo nombre EXACTO (10/11): las vacias se unen de una, las
+  // que tienen datos de los dos lados se eligen a mano.
+  const repetidas = useMemo(
+    () => (datos ? planDeRepetidas(datos.proveedores, datos.productos, datos.movimientos) : null),
+    [datos],
+  )
 
   if (!datos) return <p className="vacio">Mirando las fichas…</p>
 
@@ -54,13 +66,32 @@ export default function UnirProveedores() {
       : null
 
   const ordenadas = [...datos.proveedores].sort((a, b) => a.nombre.localeCompare(b.nombre))
+  // Dos fichas con el mismo nombre se ven iguales en la lista: la cantidad
+  // de productos es lo que las distingue.
+  const productosDe = new Map<string, number>()
+  for (const p of datos.productos) {
+    if (p.proveedorId) productosDe.set(p.proveedorId, (productosDe.get(p.proveedorId) ?? 0) + 1)
+  }
+  // Los pares de nombre identico ya estan arriba (vacias o a mano): en las
+  // sugerencias serian dos botones iguales, y con las 94 del 10/11, casi cien.
+  const cubiertos = new Set([
+    ...(repetidas?.vacias.map((r) => r.vacia.nombre.trim()) ?? []),
+    ...(repetidas?.aMano.map((g) => g.nombre) ?? []),
+  ])
+  const sugeridosVisibles = sugeridos.filter(
+    (par) => !(par.a.nombre.trim() === par.b.nombre.trim() && cubiertos.has(par.a.nombre.trim())),
+  )
+  const conProductos = (p: { id: string; nombre: string }) =>
+    `${p.nombre}» · ${productosDe.get(p.id) ?? 0} ${productosDe.get(p.id) === 1 ? 'producto' : 'productos'}`
+  const etiqueta = (p: { id: string; nombre: string; activo?: boolean }) =>
+    `${p.nombre} · ${productosDe.get(p.id) ?? 0} ${productosDe.get(p.id) === 1 ? 'producto' : 'productos'}${p.activo === false ? ' (inactiva)' : ''}`
 
   async function unir() {
     if (!vista || !confirm(textoDeConfirmacionUnion(vista))) return
     setTrabajando(true)
     setError(null)
     try {
-      const r = await unirProveedores(vista.queda.id, vista.seAbsorbe.id)
+      const r = await unirProveedores(vista.queda.id, vista.seAbsorbe.id, sesion.email)
       if (r === 'no-existe') {
         setError('Una de las dos fichas ya no está. Actualizá la pantalla.')
       } else if (r === 'es-la-misma') {
@@ -69,7 +100,8 @@ export default function UnirProveedores() {
         const hecho = r as ResultadoUnion
         setHecho(
           `"${vista.seAbsorbe.nombre}" quedó dentro de "${vista.queda.nombre}": ` +
-            `${hecho.productosTocados} productos y ${hecho.movimientosTocados} compras y pagos pasaron a su ficha.`,
+            `${hecho.productosTocados} productos y ${hecho.movimientosTocados} compras y pagos pasaron a su ficha. ` +
+            'Está en el historial como «Unión de proveedores».',
         )
         setIdQueda('')
         setIdSeAbsorbe('')
@@ -81,13 +113,43 @@ export default function UnirProveedores() {
     }
   }
 
+  async function unirLasVacias() {
+    if (!repetidas || repetidas.vacias.length === 0) return
+    if (!confirm(textoDeConfirmacionVacias(repetidas.vacias))) return
+    setTrabajando(true)
+    setError(null)
+    try {
+      const r = await unirFichasVacias(
+        repetidas.vacias.map((x) => ({ idVacia: x.vacia.id, idGemela: x.gemela.proveedor.id })),
+        sesion.email,
+      )
+      setHecho(
+        `Se ${r.unidas === 1 ? 'unió 1 ficha vacía' : `unieron ${r.unidas} fichas vacías`} a su gemela.` +
+          (r.salteadas.length > 0
+            ? ` Se ${r.salteadas.length === 1 ? 'salteó 1, que cambió' : `saltearon ${r.salteadas.length}, que cambiaron`} desde que se armó la lista: ` +
+              r.salteadas.map((x) => `${x.nombre} (${x.porque})`).join('; ') +
+              '.'
+            : '') +
+          ` Está en el historial como «${MOTIVO_FICHAS_VACIAS}».`,
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  const cuantos = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`
+  const creada = (cuando: number | undefined) =>
+    cuando ? new Date(cuando).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
+
   return (
     <>
       <h2>Unir proveedores</h2>
 
       {hecho ? (
         <div className="aviso aviso-ok">
-          <strong>Listo.</strong> {hecho} Está en el historial como «Unión de proveedores».
+          <strong>Listo.</strong> {hecho}
         </div>
       ) : (
         <div className="aviso aviso-ojo">
@@ -98,9 +160,99 @@ export default function UnirProveedores() {
 
       {error && <div className="aviso aviso-error">{error}</div>}
 
+      {repetidas && repetidas.vacias.length > 0 && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Fichas repetidas vacías · {repetidas.vacias.length}</p>
+          <p className="silencio" style={{ marginTop: 0 }}>
+            Tienen el mismo nombre exacto que otra ficha y no tienen ningún producto, ni compras, ni
+            pagos. Se unen de una a su gemela, la que tiene los datos. Mirá la lista: no se toca
+            nada hasta que confirmes.
+          </p>
+          <div className="tabla-envoltorio">
+            <table className="tabla-turno">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Ficha vacía, creada el</th>
+                  <th>Gemela, que queda</th>
+                  <th>Pasa a la gemela</th>
+                </tr>
+              </thead>
+              <tbody>
+                {repetidas.vacias.map(({ vacia, gemela }) => {
+                  const plan = armarUnion(gemela.proveedor, vacia, [], [])
+                  const pasa = [...plan.datosQueSeRescatan, ...plan.aliasNuevos.map((a) => `otro nombre: ${a}`)]
+                  return (
+                    <tr key={vacia.id}>
+                      <td>{vacia.nombre}</td>
+                      <td>
+                        {creada(vacia.creadoEn)}
+                        {vacia.activo === false && <span className="silencio"> · inactiva</span>}
+                      </td>
+                      <td>
+                        {cuantos(gemela.productos, 'producto', 'productos')}
+                        {gemela.movimientos > 0 && ` · ${cuantos(gemela.movimientos, 'compra o pago', 'compras y pagos')}`}
+                      </td>
+                      <td>{pasa.length > 0 ? pasa.join(', ') : <span className="silencio">nada</span>}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <button
+            className="boton-principal"
+            style={{ marginTop: 12 }}
+            onClick={() => void unirLasVacias()}
+            disabled={trabajando}
+          >
+            {trabajando
+              ? 'Uniendo…'
+              : `Unir ${repetidas.vacias.length === 1 ? 'la ficha vacía' : `las ${repetidas.vacias.length} fichas vacías`} a su gemela`}
+          </button>
+        </div>
+      )}
+
+      {repetidas && repetidas.aMano.length > 0 && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Mismo nombre, con datos en más de una · {repetidas.aMano.length}</p>
+          <p className="silencio" style={{ marginTop: 0 }}>
+            Las dos tienen productos, compras o pagos: hay que mirarlas y unirlas de a una. «Elegir» las
+            pone abajo, con la de más productos como la que queda; antes de unir se ve qué pasa.
+          </p>
+          <ul className="lista">
+            {repetidas.aMano.map((g) => (
+              <li className="item" key={g.nombre} style={{ display: 'block' }}>
+                <div className="item-titulo">{g.nombre}</div>
+                <div className="item-sub silencio">
+                  {g.fichas
+                    .map(
+                      (f) =>
+                        `${cuantos(f.productos, 'producto', 'productos')}, ${cuantos(f.movimientos, 'compra o pago', 'compras y pagos')}`,
+                    )
+                    .join(' · ')}
+                </div>
+                <div className="botonera">
+                  <button
+                    className="boton-chico"
+                    onClick={() => {
+                      setIdQueda(g.fichas[0].proveedor.id)
+                      setIdSeAbsorbe(g.fichas[1].proveedor.id)
+                      setHecho(null)
+                    }}
+                  >
+                    Elegir
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="tarjeta">
         <p className="tarjeta-titulo">Fichas que parecen la misma</p>
-        {sugeridos.length === 0 ? (
+        {sugeridosVisibles.length === 0 ? (
           <p className="vacio" style={{ margin: 0 }}>
             Ninguna. Igual podés elegir dos a mano acá abajo.
           </p>
@@ -110,7 +262,7 @@ export default function UnirProveedores() {
               Son sugerencias, no decisiones: mirá cada una antes de unir.
             </p>
             <ul className="lista">
-              {sugeridos.map((par) => (
+              {sugeridosVisibles.map((par) => (
                 <li className="item" key={`${par.a.id}|${par.b.id}`} style={{ display: 'block' }}>
                   <div className="item-titulo">
                     {par.a.nombre} + {par.b.nombre}
@@ -125,7 +277,7 @@ export default function UnirProveedores() {
                         setHecho(null)
                       }}
                     >
-                      Dejar «{par.a.nombre}»
+                      Dejar «{conProductos(par.a)}
                     </button>
                     <button
                       className="boton-chico"
@@ -135,7 +287,7 @@ export default function UnirProveedores() {
                         setHecho(null)
                       }}
                     >
-                      Dejar «{par.b.nombre}»
+                      Dejar «{conProductos(par.b)}
                     </button>
                   </div>
                 </li>
@@ -153,8 +305,7 @@ export default function UnirProveedores() {
             <option value="">Elegí una…</option>
             {ordenadas.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nombre}
-                {p.activo === false ? ' (inactiva)' : ''}
+                {etiqueta(p)}
               </option>
             ))}
           </select>
@@ -167,8 +318,7 @@ export default function UnirProveedores() {
               .filter((p) => p.id !== idQueda)
               .map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.nombre}
-                  {p.activo === false ? ' (inactiva)' : ''}
+                  {etiqueta(p)}
                 </option>
               ))}
           </select>
