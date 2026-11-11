@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  asegurarProveedor,
   db,
   engancharAutor,
   historialAlDia,
@@ -10,8 +11,11 @@ import {
 } from './db'
 import {
   armarUnion,
+  MOTIVO_FICHAS_VACIAS,
   MOTIVO_UNION,
   textoDeConfirmacionUnion,
+  textoDeConfirmacionVacias,
+  unirFichasVacias,
   unirProveedores,
 } from './unirProveedores'
 
@@ -38,6 +42,7 @@ beforeEach(async () => {
     db.proveedores.clear(),
     db.productos.clear(),
     db.movimientosProveedor.clear(),
+    db.borrados.clear(),
   ])
   await historialAlDia()
   await db.historial.clear()
@@ -209,5 +214,103 @@ describe('unirProveedores', () => {
     expect(
       renglones.some((r) => r.tabla === 'movimientosProveedor' && r.motivo === MOTIVO_UNION),
     ).toBe(true)
+  })
+})
+
+describe('la constancia de lo que se borra al unir (10/11)', () => {
+  it('unir de a una deja la constancia de la ficha absorbida, con quién y el motivo', async () => {
+    await db.proveedores.bulkPut([prov('saldo', 'SALDO'), prov('saldos', 'SALDOS')])
+    await unirProveedores('saldo', 'saldos', 'ventas@elclubdelmate.com')
+    expect(await db.borrados.get('proveedores/saldos')).toMatchObject({
+      tabla: 'proveedores',
+      clave: 'saldos',
+      quien: 'ventas@elclubdelmate.com',
+      motivo: MOTIVO_UNION,
+    })
+    expect(await db.borrados.get('proveedores/saldo')).toBeUndefined()
+  })
+
+  it('si se vuelve a crear un proveedor con ese id, la constancia se olvida', async () => {
+    await db.proveedores.bulkPut([prov('prov-hugo', 'HUGO'), prov('hugo-viejo', 'HUGO VIEJO')])
+    await unirProveedores('hugo-viejo', 'prov-hugo', null)
+    expect(await db.borrados.get('proveedores/prov-hugo')).toBeDefined()
+    // La que quedó se renombra, y alguien vuelve a escribir HUGO.
+    await db.proveedores.update('hugo-viejo', { nombre: 'OTRO', alias: [] })
+    expect(await asegurarProveedor('HUGO')).toBe('prov-hugo')
+    expect(await db.borrados.get('proveedores/prov-hugo')).toBeUndefined()
+  })
+})
+
+describe('unirFichasVacias (las repetidas de la importación)', () => {
+  async function sembrar() {
+    await db.proveedores.bulkPut([
+      prov('hugo', 'HUGO'),
+      prov('hugo-copia', 'HUGO', { contacto: '3456 123456', ciudad: 'Concordia', alias: ['HUGO MATES'] }),
+      prov('ana', 'ANA', { contacto: '111' }),
+      prov('ana-copia', 'ANA', { contacto: '999' }),
+    ])
+    await db.productos.bulkPut([prod('A', 'hugo', 'HUGO'), prod('B', 'ana', 'ANA')])
+    await db.movimientosProveedor.bulkPut([mov('m1', 'ana', 'compra', 5000)])
+  }
+  const pares = [
+    { idVacia: 'hugo-copia', idGemela: 'hugo' },
+    { idVacia: 'ana-copia', idGemela: 'ana' },
+  ]
+
+  it('borra las vacías y deja todo lo demás donde estaba', async () => {
+    await sembrar()
+    const r = await unirFichasVacias(pares, 'emmanuelclubdelmate@gmail.com')
+    expect(r).toEqual({ unidas: 2, salteadas: [] })
+    expect((await db.proveedores.toArray()).map((p) => p.id).sort()).toEqual(['ana', 'hugo'])
+    expect(await db.productos.get('A')).toMatchObject({ proveedorId: 'hugo' })
+    expect(await db.movimientosProveedor.get('m1')).toMatchObject({ proveedorId: 'ana' })
+  })
+
+  it('la gemela se queda con los datos que tenía vacíos y con los otros nombres, sin pisar los suyos', async () => {
+    await sembrar()
+    await unirFichasVacias(pares, null)
+    expect(await db.proveedores.get('hugo')).toMatchObject({
+      contacto: '3456 123456',
+      ciudad: 'Concordia',
+      alias: ['HUGO MATES'],
+    })
+    expect((await db.proveedores.get('ana'))?.contacto).toBe('111')
+  })
+
+  it('deja la constancia de cada una y el motivo en el historial', async () => {
+    await sembrar()
+    await unirFichasVacias(pares, 'emmanuelclubdelmate@gmail.com')
+    expect((await db.borrados.toArray()).map((b) => `${b.id}:${b.motivo}`).sort()).toEqual([
+      `proveedores/ana-copia:${MOTIVO_FICHAS_VACIAS}`,
+      `proveedores/hugo-copia:${MOTIVO_FICHAS_VACIAS}`,
+    ])
+    await historialAlDia()
+    const borradas = (await db.historial.toArray()).filter((h) => h.tabla === 'proveedores' && h.accion === 'borro')
+    expect(borradas.map((h) => h.motivo)).toEqual([MOTIVO_FICHAS_VACIAS, MOTIVO_FICHAS_VACIAS])
+  })
+
+  it('saltea la que cambió desde que se armó la lista, y dice por qué', async () => {
+    await sembrar()
+    await db.productos.put(prod('C', 'hugo-copia', 'HUGO')) // le cargaron un producto
+    await db.proveedores.update('ana-copia', { nombre: 'ANA BELEN' }) // la renombraron
+    const r = await unirFichasVacias([...pares, { idVacia: 'no-existe', idGemela: 'hugo' }], null)
+    expect(r.unidas).toBe(0)
+    expect(r.salteadas.map((x) => `${x.id}: ${x.porque}`)).toEqual([
+      'hugo-copia: ahora tiene productos, compras o pagos',
+      'ana-copia: ya no se llama igual que su gemela',
+      'no-existe: ya no está',
+    ])
+    expect(await db.proveedores.count()).toBe(4)
+    expect(await db.borrados.count()).toBe(0)
+  })
+
+  it('la pregunta dice cuántas, con un ejemplo, antes de tocar nada', () => {
+    const texto = textoDeConfirmacionVacias([
+      { vacia: prov('hugo-copia', 'HUGO'), gemela: { proveedor: prov('hugo', 'HUGO'), productos: 12 } },
+      { vacia: prov('ana-copia', 'ANA'), gemela: { proveedor: prov('ana', 'ANA'), productos: 3 } },
+    ])
+    expect(texto).toContain('Vas a unir 2 fichas repetidas vacías')
+    expect(texto).toContain('"HUGO" (sin productos, ni compras, ni pagos) dentro de "HUGO" (12 productos)')
+    expect(texto).toContain(MOTIVO_FICHAS_VACIAS)
   })
 })

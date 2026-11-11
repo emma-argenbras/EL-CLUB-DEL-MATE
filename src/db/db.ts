@@ -1562,6 +1562,17 @@ export function buscarPorNombreOAlias(
 }
 
 /**
+ * Si se vuelve a crear un proveedor con un id que se borro a proposito (una
+ * union de fichas, 10/11), la constancia ya no habla de este: sin sacarla,
+ * la revision de lo que no sube lo trataria como borrado y lo sacaria de
+ * los aparatos.
+ */
+export async function olvidarBorradoDeProveedor(id: string): Promise<void> {
+  const clave = `proveedores/${id}`
+  if (await db.borrados.get(clave)) await db.borrados.delete(clave)
+}
+
+/**
  * Devuelve el id del proveedor que se llama asi, creandolo si no esta.
  *
  * Es el unico lugar por donde se crea un proveedor a partir de un
@@ -1590,6 +1601,7 @@ export async function asegurarProveedor(nombreCrudo: string): Promise<string | n
     (await db.proveedores.get(id)) ?? buscarPorNombreOAlias(nombre, await db.proveedores.toArray())
   if (existente) return existente.id
 
+  await olvidarBorradoDeProveedor(id)
   await db.proveedores.add({
     id,
     nombre,
