@@ -260,7 +260,7 @@ describe('unirFichasVacias (las repetidas de la importación)', () => {
   it('borra las vacías y deja todo lo demás donde estaba', async () => {
     await sembrar()
     const r = await unirFichasVacias(pares, 'emmanuelclubdelmate@gmail.com')
-    expect(r).toEqual({ unidas: 2, salteadas: [] })
+    expect(r).toEqual({ unidas: 2, idsUnidas: ['hugo-copia', 'ana-copia'], salteadas: [] })
     expect((await db.proveedores.toArray()).map((p) => p.id).sort()).toEqual(['ana', 'hugo'])
     expect(await db.productos.get('A')).toMatchObject({ proveedorId: 'hugo' })
     expect(await db.movimientosProveedor.get('m1')).toMatchObject({ proveedorId: 'ana' })
@@ -295,6 +295,7 @@ describe('unirFichasVacias (las repetidas de la importación)', () => {
     await db.proveedores.update('ana-copia', { nombre: 'ANA BELEN' }) // la renombraron
     const r = await unirFichasVacias([...pares, { idVacia: 'no-existe', idGemela: 'hugo' }], null)
     expect(r.unidas).toBe(0)
+    expect(r.idsUnidas).toEqual([])
     expect(r.salteadas.map((x) => `${x.id}: ${x.porque}`)).toEqual([
       'hugo-copia: ahora tiene productos, compras o pagos',
       'ana-copia: ya no se llama igual que su gemela',

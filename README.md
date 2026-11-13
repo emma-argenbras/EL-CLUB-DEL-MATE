@@ -1907,9 +1907,42 @@ La lógica está en `src/sync/escuchas.ts`, aparte del motor, con sus pruebas.
 - La misma prueba con tres roturas del motor (sin reabrir, sin los cambios de estado,
   «Sincronizado» siempre): las tres fallan.
 
-Sigue (13/11, aparte): que la revisión no vuelva a subir una ficha de proveedor vacía cuando
-el servidor ya tiene otra con el mismo nombre, y que «Unir proveedores» confirme contra el
-servidor que las constancias llegaron. Recién después se repite la limpieza.
+### Las constancias, confirmadas contra el servidor (publicación aparte)
+
+Hasta el 13/11, la unión escribía la constancia en el aparato y suponía que llegaba. Ahora:
+- **Después de unir**, la masiva y la de a una, la app espera a que salga lo que tiene en
+  cola y le pregunta al servidor por cada constancia. Lo dice en verde si están todas. Si
+  falta alguna lo dice en rojo, con cuántas y con que no se repita la limpieza.
+- **Arriba de la pantalla**, «Constancias en el servidor» dice cuántas hay en total. Avisa
+  si falta alguna de las que se unieron desde ese aparato, y «Revisar de nuevo» vuelve a
+  preguntar. Es lo primero que hay que mirar antes de repetir la limpieza.
+
+La pregunta va de a 30 constancias, por su nombre en el servidor, y lee solo las que
+encuentra. Los textos están en `src/sync/constancias.ts`, con sus pruebas.
+
+Probado:
+- 5 pruebas de los textos y las tandas, y una de los ids unidos. Se rompieron a propósito
+  de 7 maneras y las 7 quedaron en rojo.
+- Contra los emuladores, con dos fichas vacías y un par con datos:
+  - con las reglas publicadas: «Las 2 constancias ya están en el servidor», después «La
+    constancia ya está», y la tarjeta pasa de 0 a 2 y a 3;
+  - con reglas que no dejan escribir `borrados`, el caso que explicaría lo del 13/11: las
+    fichas se borran igual, y la pantalla dice en rojo «Ninguna de las 2 constancias llegó
+    al servidor» y «La constancia no llegó». En `rechazos` quedan las tres.
+- La misma prueba con tres roturas fallan las tres:
+  - que diga siempre que están;
+  - que no pregunte después de la unión de a una;
+  - que pregunte con el nombre sin escapar.
+
+De paso: cuando el servidor rechaza las constancias, rechaza también los renglones del
+historial de esa unión, que viajan en el mismo momento. La revisión de «sin subir» los
+sube después.
+
+Sigue: que la revisión tampoco vuelva a subir una ficha de proveedor vacía cuando el
+servidor ya tiene otra con el mismo nombre, aunque falte la constancia. Es la tercera
+barrera. Las dos de hoy (la escucha que vuelve y la constancia confirmada) alcanzan para
+repetir la limpieza, pero esta cubre las fichas borradas por fuera de la app, por ejemplo
+desde la consola de Firebase.
 
 ## Los avisos por plazo, y el cambio en una línea (06/11)
 
@@ -2917,17 +2950,26 @@ el contador y con los datos reales cuánto cambia.
 cartel mientras tanto, y la revisión no sube nada de lo que el aparato no está recibiendo.
 Ver «Lo que pasó el 13/11».
 
+**Hecho el 13/11, publicación aparte** — «Unir proveedores» confirma contra el servidor que
+las constancias llegaron y dice cuántas hay. Ver «Las constancias, confirmadas contra el
+servidor».
+
 **Lo que sigue (13/11):**
-- [ ] **Que no vuelvan las fichas de proveedor.** La revisión no tiene que volver a subir una
-      ficha vacía si el servidor ya tiene otra con el mismo nombre exacto. Y «Unir
-      proveedores» tiene que confirmar contra el servidor que las constancias llegaron.
+- [ ] **Una tercera barrera para las fichas de proveedor.** La revisión no tiene que volver
+      a subir una ficha vacía si el servidor ya tiene otra con el mismo nombre exacto,
+      aunque no haya constancia (por ejemplo, si se borró desde la consola).
 - [ ] **Leer menos al abrir la app.** Cada apertura lee la base entera (ver la auditoría del
       27/10, más abajo). Con la cuota de 50.000 lecturas diarias del plan Spark puede ser lo
       que tira las escuchas. Antes, mirar en la consola de Firebase las lecturas por día.
 
 **La limpieza de fichas de proveedor repetidas (10/11) no se repite todavía.** El 13/11 había
 252 fichas con 93 nombres repetidos y ninguna constancia de proveedores en `borrados`.
-Primero, lo que sigue de arriba. Después, con el OK de Emmanuel: Ajustes → «Unir
+Primero:
+- que estén publicadas la escucha que vuelve y la confirmación de las constancias;
+- saber por qué no hubo constancias. Están pedidos al soporte el historial (`borro` de
+  proveedores desde el 10/11), los `rechazos` de `borrados` y las reglas de la consola.
+
+Después, con el OK de Emmanuel: Ajustes → «Unir
 proveedores» → «Fichas repetidas vacías», mirando la lista antes del botón (ver «Las fichas
 repetidas vacías, de una»). Los pares con datos de los dos lados, como HUGO-LA ENTRERRIANA,
 los une Sandra a mano desde la misma pantalla.

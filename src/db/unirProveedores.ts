@@ -196,6 +196,8 @@ export async function unirProveedores(
 
 export interface ResultadoFichasVacias {
   unidas: number
+  /** Los ids de las fichas que se unieron (y se borraron): sus constancias se revisan en el servidor. */
+  idsUnidas: string[]
   /** Las que se dejaron porque cambiaron desde que se armo la lista. */
   salteadas: { id: string; nombre: string; porque: string }[]
 }
@@ -217,7 +219,7 @@ export async function unirFichasVacias(
 ): Promise<ResultadoFichasVacias> {
   return conMotivo(MOTIVO_FICHAS_VACIAS, async () =>
     db.transaction('rw', [db.proveedores, db.productos, db.movimientosProveedor, db.borrados], async () => {
-      const resultado: ResultadoFichasVacias = { unidas: 0, salteadas: [] }
+      const resultado: ResultadoFichasVacias = { unidas: 0, idsUnidas: [], salteadas: [] }
       for (const { idVacia, idGemela } of pares) {
         const [vacia, gemela] = await Promise.all([db.proveedores.get(idVacia), db.proveedores.get(idGemela)])
         const saltear = (porque: string) =>
@@ -253,6 +255,7 @@ export async function unirFichasVacias(
         await db.borrados.put(constanciaDeBorrado(vacia.id, quien, MOTIVO_FICHAS_VACIAS))
         await db.proveedores.delete(vacia.id)
         resultado.unidas++
+        resultado.idsUnidas.push(vacia.id)
       }
       return resultado
     }),
