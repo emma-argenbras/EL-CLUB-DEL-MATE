@@ -38,7 +38,7 @@ import { cuelgaDeRetenido, type TurnoRetenido } from './retener'
  * - Lo demas simplemente no habia subido todavia: se sube.
  */
 
-export type Destino = 'ya-borrado' | 'usuario-viejo' | 'retenido' | 'firmado-por-otro' | 'subir'
+export type Destino = 'ya-borrado' | 'usuario-viejo' | 'retenido' | 'firmado-por-otro' | 'sin-recibir' | 'subir'
 
 export interface Pendiente {
   tabla: NombreTabla
@@ -63,9 +63,18 @@ export function clasificarPendiente(
     /** Quien esta conectado. */
     email: string | null
     uid?: string | null
+    /**
+     * Las tablas cuya escucha del servidor esta caida en este aparato
+     * (ver escuchas.ts). Lo que falta de esas no se sube: puede ser algo
+     * que se borro en otro aparato y este no se entero, y subirlo seria
+     * revivirlo. Asi volvieron, el 13/11, fichas de proveedor que se
+     * habian unido. Se revisan cuando la escucha vuelve.
+     */
+    sinRecibir?: ReadonlySet<NombreTabla>
   },
 ): Destino {
   if (contexto.borrados.has(`${p.tabla}/${p.clave}`)) return 'ya-borrado'
+  if (contexto.sinRecibir?.has(p.tabla)) return 'sin-recibir'
   if (p.tabla === 'usuarios' && p.clave !== contexto.uid) return 'usuario-viejo'
   if (cuelgaDeRetenido(p.tabla, p.fila, contexto.retenidos)) return 'retenido'
   if (TABLAS_DE_HISTORIAL.includes(p.tabla) && p.fila.quien !== contexto.email) {
@@ -129,6 +138,7 @@ export type Resultado =
   | 'sacado-de-aca'
   | 'retenido'
   | 'firmado-por-otro'
+  | 'sin-recibir'
   | 'rechazado'
 
 export interface RenglonRevision {

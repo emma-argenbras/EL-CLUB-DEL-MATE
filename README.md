@@ -1847,6 +1847,70 @@ Pendiente, con el OK de Emmanuel: ubicar los tres turnos (la PC y el celular de 
 subirlos desde ahí, o rearmarlos en el servidor con las ventas, los egresos y el conteo del
 historial.
 
+## Lo que pasó el 13/11: el aparato que dejaba de recibir
+
+El soporte de Emmanuel trajo dos cosas el mismo día:
+- A Sandra no le aparecen seis productos que el servidor tiene desde el 29/10 (116-244,
+  116-297, 116-331, 116-335, 221-731 y 221-740).
+- Volvieron las fichas de proveedor repetidas: 252 en el servidor, con 93 nombres repetidos,
+  y ninguna constancia de proveedores en `borrados`.
+
+### Lo que se encontró
+
+- **Una escucha que se caía no volvía.** Cada tabla tiene su escucha del servidor. Cuando una
+  termina en error, Firestore la da por terminada y no avisa nada más. La app no la volvía a
+  abrir hasta recargar, y la pisaba la primera tabla que recibía algo: el estado volvía a
+  decir «Sincronizado». Probado con la versión publicada contra el emulador:
+  - se niega una vez leer productos;
+  - un producto creado después no llega nunca;
+  - apenas cambia un proveedor, Ajustes dice «Sincronizado».
+- **Qué puede tirar una escucha:** la cuota diaria de lecturas, un permiso, o la base del
+  navegador que falla. La cuota del plan Spark es de 50.000 lecturas, y cada apertura lee la
+  base entera (ver «Próximos pasos»). Cuál fue en el caso de Sandra todavía no se sabe: lo
+  dice la foto de Ajustes o la consola de Firebase.
+- **Un aparato que no recibe sigue subiendo.** La revisión de «sin subir» sube lo que el
+  servidor no tiene, salvo lo que figura en `borrados`. Si ese aparato no se enteró de un
+  borrado y no hay constancia, lo revive. Es un camino por el que pueden volver las fichas.
+- **Las constancias:** la unión publicada el 10/11 las escribe, la masiva y la de a una. Que
+  no haya ninguna quiere decir que la limpieza no se corrió o que el servidor las rechazó. Lo
+  dicen `historial` (renglones `borro` de proveedores) y `rechazos` (tabla `borrados`). Está
+  pedido al soporte.
+
+### Lo que cambia
+
+- **La escucha caída se vuelve a abrir sola**, a los 15 segundos, 30, 1 minuto, 2 y después
+  cada 5 minutos para siempre: la cuota vuelve sola a la madrugada. La que se reabre pide
+  también los cambios de estado (`includeMetadataChanges`): así se entera de que volvió
+  aunque nadie haya cambiado nada. Las que nunca se cayeron quedan como estaban.
+- **Mientras haya una caída:**
+  - un cartel rojo para todos dice qué no recibe, desde cuándo y qué hacer. Si es la cuota,
+    dice que recargar no sirve;
+  - el estado queda en error (el Panel lo marca urgente) en vez de «Sincronizado».
+- **Constancia en `rechazos`, con acción `escuchar`:** una cuando se cae y otra cuando
+  vuelve, con cuánto duró y cuántos intentos llevó.
+- **La revisión de «sin subir» no sube nada de una tabla que el aparato no está recibiendo**
+  (`sin-recibir`). En «Ver qué es» aparece como «De algo que este aparato no está
+  recibiendo», y se revisa cuando vuelve.
+
+La lógica está en `src/sync/escuchas.ts`, aparte del motor, con sus pruebas.
+
+### Cómo se probó
+
+- 6 pruebas de `escuchas.ts` y una de la clasificación. Se rompieron a propósito de 11
+  maneras y las 11 quedaron en rojo.
+- Contra los emuladores, con las reglas publicadas:
+  - se niega leer productos y el aparato arranca: aparece el cartel y queda la constancia;
+  - mientras sigue caída cambia un proveedor: el estado sigue en error;
+  - se vuelve a permitir: el cartel se va solo a los 10 a 14 segundos, sin ningún cambio en
+    productos;
+  - un producto creado después llega, y queda la constancia de la vuelta.
+- La misma prueba con tres roturas del motor (sin reabrir, sin los cambios de estado,
+  «Sincronizado» siempre): las tres fallan.
+
+Sigue (13/11, aparte): que la revisión no vuelva a subir una ficha de proveedor vacía cuando
+el servidor ya tiene otra con el mismo nombre, y que «Unir proveedores» confirme contra el
+servidor que las constancias llegaron. Recién después se repite la limpieza.
+
 ## Los avisos por plazo, y el cambio en una línea (06/11)
 
 Dos pedidos del 06/11 que no tocan cómo se guardan los datos:
@@ -2798,6 +2862,11 @@ otros dispositivos a la base local. Cada turno, venta y gasto tiene un id propio
 generado en el dispositivo (no un número correlativo), así dos celulares pueden
 crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
+Cada tabla se escucha por separado. Si la escucha de una termina en error, el motor
+la vuelve a abrir solo, cada vez con más espera, y mientras tanto el estado queda en
+error y la revisión no sube nada de esa tabla (ver «Lo que pasó el 13/11» y
+`sync/escuchas.ts`).
+
 ---
 
 ## Diferencias con la planilla
@@ -2818,7 +2887,7 @@ crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 06/11/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 13/11/2026. Lo de arriba de la lista es lo que
 sigue.
 
 **Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
@@ -2844,10 +2913,24 @@ mercadería (y el flete) mueve plata pero no es gasto del mes, porque ya está e
 lo vendido; los insumos (bolsas, limpieza) sí son gasto. Antes de tocar la cuenta, mirar con
 el contador y con los datos reales cuánto cambia.
 
-**Para correr con el OK de Emmanuel (10/11):** las 94 fichas de proveedor repetidas vacías.
-Ajustes → «Unir proveedores» → «Fichas repetidas vacías»: primero se mira la lista, después el
-botón (ver «Las fichas repetidas vacías, de una»). Los pares con datos de los dos lados, como
-HUGO-LA ENTRERRIANA, los une Sandra a mano desde la misma pantalla.
+**Hecho el 13/11** — la escucha del servidor que se cae se vuelve a abrir sola, con un
+cartel mientras tanto, y la revisión no sube nada de lo que el aparato no está recibiendo.
+Ver «Lo que pasó el 13/11».
+
+**Lo que sigue (13/11):**
+- [ ] **Que no vuelvan las fichas de proveedor.** La revisión no tiene que volver a subir una
+      ficha vacía si el servidor ya tiene otra con el mismo nombre exacto. Y «Unir
+      proveedores» tiene que confirmar contra el servidor que las constancias llegaron.
+- [ ] **Leer menos al abrir la app.** Cada apertura lee la base entera (ver la auditoría del
+      27/10, más abajo). Con la cuota de 50.000 lecturas diarias del plan Spark puede ser lo
+      que tira las escuchas. Antes, mirar en la consola de Firebase las lecturas por día.
+
+**La limpieza de fichas de proveedor repetidas (10/11) no se repite todavía.** El 13/11 había
+252 fichas con 93 nombres repetidos y ninguna constancia de proveedores en `borrados`.
+Primero, lo que sigue de arriba. Después, con el OK de Emmanuel: Ajustes → «Unir
+proveedores» → «Fichas repetidas vacías», mirando la lista antes del botón (ver «Las fichas
+repetidas vacías, de una»). Los pares con datos de los dos lados, como HUGO-LA ENTRERRIANA,
+los une Sandra a mano desde la misma pantalla.
 
 **Lo que sigue del plan del 06/11**, en orden:
 

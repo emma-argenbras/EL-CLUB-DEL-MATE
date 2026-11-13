@@ -1,4 +1,5 @@
 import { nubeConfigurada } from './config'
+import type { TablaSinRecibir } from './escuchas'
 import type { TurnoRetenido } from './retener'
 import type { Revision, TurnoSinSubir } from './sinSubir'
 
@@ -53,6 +54,12 @@ export interface EstadoSync {
    * id (07/11): el aviso «sin subir» cuenta cantidades y los podia tapar.
    */
   turnosSinSubir: TurnoSinSubir[]
+  /**
+   * Tablas cuya escucha del servidor se cayo y se esta volviendo a abrir
+   * (13/11, ver escuchas.ts). Mientras haya alguna, este aparato no se
+   * entera de lo que cambia en esas tablas.
+   */
+  sinRecibir: TablaSinRecibir[]
 }
 
 export interface RechazoVisible {
@@ -75,6 +82,7 @@ let estado: EstadoSync = {
   retenidos: [],
   revision: null,
   turnosSinSubir: [],
+  sinRecibir: [],
 }
 
 export function anotarRechazoVisible(texto: string): void {
