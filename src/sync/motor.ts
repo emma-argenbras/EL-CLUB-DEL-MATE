@@ -67,7 +67,14 @@ import {
   type Revision,
   type TurnoSinSubir,
 } from './sinSubir'
-import { hoyISO } from '../lib/formato'
+import { haceCuanto, hoyISO } from '../lib/formato'
+import {
+  anotarCaida,
+  anotarQueVolvio,
+  esperaParaReabrir,
+  estadoTrasRecibir,
+  textoDeTablasSinRecibir,
+} from './escuchas'
 import { sumarDias } from '../lib/tablero'
 import { estaAlMando } from './permisos'
 import {
@@ -178,7 +185,10 @@ async function mandarLoteSinPerder(
   for (const c of claves) rechazosRecientes.delete(c)
 }
 
-let desuscribirColecciones: Unsubscribe[] = []
+/** La escucha abierta de cada tabla (ver escuchas.ts). */
+const escuchas = new Map<NombreTabla, Unsubscribe>()
+/** La reapertura programada de las escuchas que se cayeron. */
+const reaperturas = new Map<NombreTabla, ReturnType<typeof setTimeout>>()
 let motorIniciado = false
 let controlPeriodico: ReturnType<typeof setInterval> | null = null
 
@@ -409,7 +419,7 @@ async function explicarRechazoDeProducto(
 async function dejarConstanciaDelRechazo(
   tabla: NombreTabla,
   clave: string,
-  accion: AccionCambio | 'recibir' | 'revisar' | 'descartar',
+  accion: AccionCambio | 'recibir' | 'revisar' | 'descartar' | 'escuchar',
   texto: string,
   motivos: MotivoRechazo[] | null,
   reintento: 'entro' | 'no' | 'esperable',
@@ -978,6 +988,9 @@ async function hacerRevision(): Promise<Revision | null> {
     const retenidos = new Set(obtenerEstadoNube().retenidos.map((t) => t.id))
     const alMando = estaAlMando(obtenerSesion().perfil)
     const renglones: RenglonRevision[] = []
+    // Las tablas que este aparato no esta recibiendo (ver escuchas.ts):
+    // lo que les falta no se sube hasta que la escucha vuelva.
+    const sinRecibir = new Set(obtenerEstadoNube().sinRecibir.map((t) => t.tabla))
 
     for (const tabla of TABLAS) {
       const [aca, alla] = await Promise.all([
@@ -999,13 +1012,14 @@ async function hacerRevision(): Promise<Revision | null> {
           retenidos,
           email: usuario.email,
           uid: usuario.uid,
+          sinRecibir,
         })
         if (destino === 'ya-borrado' || destino === 'usuario-viejo') {
           await comoRemoto(async () => {
             await db.table(tabla).delete(clave)
           })
           renglones.push({ tabla, clave, que, resultado: 'sacado-de-aca' })
-        } else if (destino === 'retenido' || destino === 'firmado-por-otro') {
+        } else if (destino === 'retenido' || destino === 'firmado-por-otro' || destino === 'sin-recibir') {
           renglones.push({ tabla, clave, que, resultado: destino })
         } else {
           renglones.push({ tabla, clave, que, ...(await subirUno(tabla, clave, fila, alMando)) })
@@ -1148,42 +1162,113 @@ async function actualizarPerfilPropio(): Promise<void> {
 }
 
 function escucharColecciones() {
-  const firestore = obtenerFirestore()
+  dejarDeEscuchar()
+  for (const tabla of TABLAS) escucharTabla(tabla, false)
+}
 
-  desuscribirColecciones.forEach((f) => f())
-  desuscribirColecciones = TABLAS.map((tabla) => {
-    const referencia = collection(firestore, 'negocios', ID_NEGOCIO, tabla)
-    return onSnapshot(
-      referencia,
-      (instantanea) => {
-        comoRemoto(async () => {
-          // Cada cambio por su cuenta: uno que falla ya no corta a los
-          // que vienen detras (ver aplicarRemotos.ts).
-          const fallos = await aplicarCambiosRemotos(
-            tabla,
-            instantanea.docChanges().map((cambio) => ({
-              tipo: cambio.type,
-              id: cambio.doc.id,
-              datos: cambio.type === 'removed' ? null : cambio.doc.data(),
-              pendiente: cambio.doc.metadata.hasPendingWrites,
-            })),
-            (id) => rechazosRecientes.has(`${tabla}/${id}`),
-            (id) => rechazosRecientes.delete(`${tabla}/${id}`),
-          )
-          if (fallos.length > 0) avisarFallosAlRecibir(tabla, fallos)
-          if (tabla === 'usuarios') await actualizarPerfilPropio()
-        }).catch((e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e))
-        fijarEstadoNube({ estado: 'sincronizado', error: null, ultimaRecepcion: Date.now() })
-        anotarSincronizacion().catch(() => {
-          /* Si no se puede anotar, la app sigue: es solo para el aviso. */
-        })
-      },
-      (error) => {
-        console.warn(`Error escuchando ${tabla}:`, error)
-        fijarEstadoNube({ estado: 'error', error: error.message })
-      },
+/**
+ * Abre la escucha de una tabla. `reabriendo` es cuando se cayo antes:
+ * ahi se pide que avise tambien los cambios de estado (de la copia
+ * local a lo confirmado por el servidor), que es la unica forma de
+ * saber que volvio aunque en el medio nadie haya cambiado nada. Las
+ * escuchas que nunca se cayeron quedan exactamente como antes.
+ */
+function escucharTabla(tabla: NombreTabla, reabriendo: boolean) {
+  const firestore = obtenerFirestore()
+  const referencia = collection(firestore, 'negocios', ID_NEGOCIO, tabla)
+  escuchas.get(tabla)?.()
+  const cancelar = onSnapshot(
+    referencia,
+    { includeMetadataChanges: reabriendo },
+    (instantanea) => {
+      comoRemoto(async () => {
+        // Cada cambio por su cuenta: uno que falla ya no corta a los
+        // que vienen detras (ver aplicarRemotos.ts).
+        const fallos = await aplicarCambiosRemotos(
+          tabla,
+          instantanea.docChanges().map((cambio) => ({
+            tipo: cambio.type,
+            id: cambio.doc.id,
+            datos: cambio.type === 'removed' ? null : cambio.doc.data(),
+            pendiente: cambio.doc.metadata.hasPendingWrites,
+          })),
+          (id) => rechazosRecientes.has(`${tabla}/${id}`),
+          (id) => rechazosRecientes.delete(`${tabla}/${id}`),
+        )
+        if (fallos.length > 0) avisarFallosAlRecibir(tabla, fallos)
+        if (tabla === 'usuarios') await actualizarPerfilPropio()
+      }).catch((e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e))
+      if (!instantanea.metadata.fromCache) volvioARecibir(tabla)
+      // Con otra tabla caida no es «Sincronizado»: hasta el 13/11 este
+      // renglon lo decia igual y tapaba la escucha caida.
+      fijarEstadoNube(estadoTrasRecibir(obtenerEstadoNube().sinRecibir, Date.now()))
+      anotarSincronizacion().catch(() => {
+        /* Si no se puede anotar, la app sigue: es solo para el aviso. */
+      })
+    },
+    (error) => {
+      console.warn(`Error escuchando ${tabla}:`, error)
+      // Firestore ya la dio por terminada: no hay que cancelarla.
+      escuchas.delete(tabla)
+      seCayoLaEscucha(tabla, error)
+    },
+  )
+  escuchas.set(tabla, cancelar)
+}
+
+/**
+ * Firestore termina una escucha cuando le da error y no la vuelve a
+ * abrir. Hasta el 13/11 la app tampoco: el aparato dejaba de recibir esa
+ * tabla hasta que alguien recargaba (ver escuchas.ts).
+ */
+function seCayoLaEscucha(tabla: NombreTabla, error: unknown): void {
+  const mensaje = error instanceof Error ? error.message : String(error)
+  const codigo = (error as { code?: unknown } | null)?.code
+  const antes = obtenerEstadoNube().sinRecibir
+  const sinRecibir = anotarCaida(antes, tabla, mensaje, Date.now(), typeof codigo === 'string' ? codigo : null)
+  fijarEstadoNube({ estado: 'error', error: textoDeTablasSinRecibir(sinRecibir), sinRecibir })
+  const caida = sinRecibir.find((t) => t.tabla === tabla)!
+  // Una constancia por corte, no una por reintento: si la cuota se
+  // agoto, los reintentos fallan cada cinco minutos hasta las 5 de la
+  // mañana.
+  if (caida.caidas === 1) {
+    void dejarConstanciaDelRechazo(
+      tabla,
+      '-',
+      'escuchar',
+      `Este aparato dejó de recibir ${tabla}. La app la vuelve a abrir sola.`,
+      null,
+      'no',
+      mensaje,
     )
-  })
+  }
+  const pendiente = reaperturas.get(tabla)
+  if (pendiente) clearTimeout(pendiente)
+  reaperturas.set(
+    tabla,
+    setTimeout(() => {
+      reaperturas.delete(tabla)
+      // Si en el medio se cerro la sesion, no hay nada que reabrir.
+      if (obtenerAuth().currentUser) escucharTabla(tabla, true)
+    }, esperaParaReabrir(caida.caidas)),
+  )
+}
+
+/** Llego algo confirmado por el servidor: si esa tabla estaba caida, volvio. */
+function volvioARecibir(tabla: NombreTabla): void {
+  const antes = obtenerEstadoNube().sinRecibir
+  const caida = antes.find((t) => t.tabla === tabla)
+  if (!caida) return
+  fijarEstadoNube({ sinRecibir: anotarQueVolvio(antes, tabla) })
+  void dejarConstanciaDelRechazo(
+    tabla,
+    '-',
+    'escuchar',
+    `Este aparato volvió a recibir ${tabla}. Se había cortado ${haceCuanto(caida.desde)} y se volvió a abrir ${caida.caidas === 1 ? 'al primer intento' : `después de ${caida.caidas} intentos`}.`,
+    null,
+    'entro',
+    caida.error,
+  )
 }
 
 /**
@@ -1216,8 +1301,11 @@ function avisarFallosAlRecibir(tabla: NombreTabla, fallos: FalloAlRecibir[]): vo
 }
 
 function dejarDeEscuchar() {
-  desuscribirColecciones.forEach((f) => f())
-  desuscribirColecciones = []
+  for (const cancelar of escuchas.values()) cancelar()
+  escuchas.clear()
+  for (const pendiente of reaperturas.values()) clearTimeout(pendiente)
+  reaperturas.clear()
+  fijarEstadoNube({ sinRecibir: [] })
 }
 
 /**

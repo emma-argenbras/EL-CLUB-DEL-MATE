@@ -13,6 +13,7 @@ import { useEstadoNube } from './sync/useEstadoNube'
 import { descartarRechazos } from './sync/estado'
 import { textoDeRetenidos } from './sync/retener'
 import { textoDeTurnosSinSubir } from './sync/sinSubir'
+import { consejoDeTablasSinRecibir, textoDeTablasSinRecibir } from './sync/escuchas'
 import Panel from './paginas/Panel'
 import Caja from './paginas/Caja'
 import Productos from './paginas/Productos'
@@ -243,6 +244,15 @@ export default function App() {
           <strong>{textoDeTurnosSinSubir(estadoNube.turnosSinSubir)}</strong>{' '}
           {estadoNube.turnosSinSubir.length === 1 ? 'Está guardado' : 'Están guardados'} solo en este
           aparato. No borres la app ni sus datos, no cierres la sesión, y avisale a Emmanuel.
+        </div>
+      )}
+      {/* 13/11: la escucha de una tabla se cae y hasta ahora no volvia
+          ni avisaba. Va para todos: quien esta en el mostrador es quien
+          necesita saber que lo de los otros aparatos no le llega. */}
+      {nubeConfigurada && !enConsulta && estadoNube.sinRecibir.length > 0 && (
+        <div className="aviso aviso-error" role="alert">
+          <strong>{textoDeTablasSinRecibir(estadoNube.sinRecibir)}</strong>{' '}
+          {consejoDeTablasSinRecibir(estadoNube.sinRecibir)}
         </div>
       )}
       {nubeConfigurada && !enConsulta && estadoNube.rechazos.length > 0 && (
