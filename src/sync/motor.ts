@@ -15,10 +15,12 @@ import {
   getDocFromServer,
   documentId,
   getDocs,
+  getDocsFromServer,
   onSnapshot,
   query,
   runTransaction,
   setDoc,
+  waitForPendingWrites,
   where,
   writeBatch,
   type DocumentReference,
@@ -75,6 +77,7 @@ import {
   estadoTrasRecibir,
   textoDeTablasSinRecibir,
 } from './escuchas'
+import { enTandas, type RevisionConstancias } from './constancias'
 import { sumarDias } from '../lib/tablero'
 import { estaAlMando } from './permisos'
 import {
@@ -948,6 +951,48 @@ export async function controlarSinSubir(revisarSiHaceFalta = true): Promise<void
   ) {
     ultimaRevisionAutomatica = ahora
     await revisarPendientes()
+  }
+}
+
+/**
+ * Si las constancias de las fichas de proveedor unidas estan en el
+ * servidor (ver constancias.ts). Sin `ids`, controla las que hay en este
+ * aparato. null si no se pudo preguntar: sin sesion, sin internet, o el
+ * servidor no contesto.
+ *
+ * Primero espera a que salga lo que este aparato tiene en cola, con un
+ * limite: recien unidas, las constancias pueden estar viajando todavia.
+ * Despues pregunta por cada una AL SERVIDOR, no a la copia local, que es
+ * justamente la que puede creer que estan.
+ */
+export async function revisarConstanciasDeProveedores(ids?: string[]): Promise<RevisionConstancias | null> {
+  if (!obtenerAuth().currentUser) return null
+  const firestore = obtenerFirestore()
+  const coleccion = collection(firestore, 'negocios', ID_NEGOCIO, 'borrados')
+  try {
+    const pedidas =
+      ids ?? (await db.borrados.where('tabla').equals('proveedores').toArray()).map((b) => b.clave)
+    let espera: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      waitForPendingWrites(firestore),
+      new Promise((_, rechazar) => {
+        espera = setTimeout(() => rechazar(new Error('El servidor no contestó a tiempo.')), 20_000)
+      }),
+    ]).finally(() => clearTimeout(espera))
+    const estan = new Set<string>()
+    for (const tanda of enTandas(pedidas, 30)) {
+      const docs = await getDocsFromServer(
+        query(coleccion, where(documentId(), 'in', tanda.map((id) => aClaveDeNube(`proveedores/${id}`)))),
+      )
+      for (const d of docs.docs) estan.add(aClaveLocal(d.id).slice('proveedores/'.length))
+    }
+    const enElServidor = (
+      await getCountFromServer(query(coleccion, where('tabla', '==', 'proveedores')))
+    ).data().count
+    return { pedidas: pedidas.length, faltan: pedidas.filter((id) => !estan.has(id)), enElServidor }
+  } catch (e) {
+    console.warn('No se pudieron revisar las constancias de proveedores:', e)
+    return null
   }
 }
 
