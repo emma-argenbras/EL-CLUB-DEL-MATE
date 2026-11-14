@@ -53,6 +53,22 @@ describe('clasificarPendiente: que es cada cosa que el aviso contaba', () => {
   it('una venta comun que no habia subido, se sube', () => {
     expect(clasificarPendiente(p('ventas', 'v-nueva', { jornadaId: 'otro' }), contexto)).toBe('subir')
   })
+
+  it('lo de una tabla que este aparato no esta recibiendo no se sube: podria ser algo borrado en otro (13/11)', () => {
+    const sinRecibir = new Set(['proveedores'] as const)
+    // La ficha que se unio en la Mac: este aparato no se entero y la tiene.
+    expect(clasificarPendiente(p('proveedores', 'ry-viejo', { nombre: 'RY' }), { ...contexto, sinRecibir })).toBe(
+      'sin-recibir',
+    )
+    // Las otras tablas, como siempre.
+    expect(clasificarPendiente(p('ventas', 'v-nueva', { jornadaId: 'otro' }), { ...contexto, sinRecibir })).toBe('subir')
+    // Si el servidor dice que se borro a proposito, se saca igual: eso no depende de recibir.
+    expect(
+      clasificarPendiente(p('ventas', 'borrada-en-la-mac'), { ...contexto, sinRecibir: new Set(['ventas'] as const) }),
+    ).toBe('ya-borrado')
+    // Con la escucha andando, la misma ficha se sube (si no hay constancia de borrado).
+    expect(clasificarPendiente(p('proveedores', 'ry-viejo', { nombre: 'RY' }), contexto)).toBe('subir')
+  })
 })
 
 describe('el aviso no cuenta lo que no se sube a proposito', () => {

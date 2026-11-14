@@ -41,6 +41,12 @@ const GRUPOS: { resultado: Resultado; titulo: string; explicacion: string }[] = 
       'No se suben a propósito: el servidor ya tiene ese turno cargado desde otro aparato. Se resuelve en Ajustes → «Cargas retenidas». No cuentan en el aviso.',
   },
   {
+    resultado: 'sin-recibir',
+    titulo: 'De algo que este aparato no está recibiendo',
+    explicacion:
+      'Por ahora no se suben: este aparato no se está enterando de lo que cambia en esa parte, y podría ser algo que se borró a propósito desde otro aparato. Se revisan solas cuando vuelve a recibir.',
+  },
+  {
     resultado: 'firmado-por-otro',
     titulo: 'Renglones del historial firmados por otra persona',
     explicacion:
