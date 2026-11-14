@@ -1,10 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { plata } from '../lib/formato'
 import { fichasParecidas } from '../lib/fichasParecidas'
 import { planDeRepetidas } from '../lib/fichasRepetidas'
 import { useSesion } from '../sync/useSesion'
+import { nubeConfigurada } from '../sync/config'
+import {
+  avisoDeConstancias,
+  resumenDeConstancias,
+  type Aviso,
+  type RevisionConstancias,
+} from '../sync/constancias'
 import {
   armarUnion,
   MOTIVO_FICHAS_VACIAS,
@@ -34,6 +41,40 @@ export default function UnirProveedores() {
   const [hecho, setHecho] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const sesion = useSesion()
+  // Las constancias, contra el servidor (13/11): el aviso de la ultima
+  // union y el renglon fijo de arriba.
+  const [avisoUnion, setAvisoUnion] = useState<Aviso | null>(null)
+  const [resumen, setResumen] = useState<Aviso | 'mirando' | null>(null)
+
+  async function revisarConstancias(ids?: string[]): Promise<RevisionConstancias | null> {
+    if (!nubeConfigurada) return null
+    const { revisarConstanciasDeProveedores } = await import('../sync/motor')
+    return revisarConstanciasDeProveedores(ids)
+  }
+
+  async function actualizarResumen() {
+    if (!nubeConfigurada) return
+    setResumen('mirando')
+    const r = await revisarConstancias()
+    setResumen(
+      r
+        ? resumenDeConstancias(r)
+        : { tipo: 'ojo', texto: 'No se pudo preguntar al servidor: fijate que haya internet.' },
+    )
+  }
+
+  /** Despues de unir: si las constancias de ESTAS fichas llegaron. */
+  async function confirmarConstancias(ids: string[]) {
+    if (!nubeConfigurada || ids.length === 0) return
+    setAvisoUnion({ tipo: 'ojo', texto: 'Confirmando con el servidor que las constancias llegaron…' })
+    setAvisoUnion(avisoDeConstancias(await revisarConstancias(ids)))
+    void actualizarResumen()
+  }
+
+  useEffect(() => {
+    void actualizarResumen()
+    // Una vez al entrar: es una pregunta al servidor, no hace falta mas.
+  }, [])
 
   const datos = useLiveQuery(async () => {
     const [proveedores, productos, movimientos] = await Promise.all([
@@ -90,6 +131,7 @@ export default function UnirProveedores() {
     if (!vista || !confirm(textoDeConfirmacionUnion(vista))) return
     setTrabajando(true)
     setError(null)
+    setAvisoUnion(null)
     try {
       const r = await unirProveedores(vista.queda.id, vista.seAbsorbe.id, sesion.email)
       if (r === 'no-existe') {
@@ -105,6 +147,7 @@ export default function UnirProveedores() {
         )
         setIdQueda('')
         setIdSeAbsorbe('')
+        void confirmarConstancias([vista.seAbsorbe.id])
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -118,6 +161,7 @@ export default function UnirProveedores() {
     if (!confirm(textoDeConfirmacionVacias(repetidas.vacias))) return
     setTrabajando(true)
     setError(null)
+    setAvisoUnion(null)
     try {
       const r = await unirFichasVacias(
         repetidas.vacias.map((x) => ({ idVacia: x.vacia.id, idGemela: x.gemela.proveedor.id })),
@@ -132,6 +176,7 @@ export default function UnirProveedores() {
             : '') +
           ` Está en el historial como «${MOTIVO_FICHAS_VACIAS}».`,
       )
+      void confirmarConstancias(r.idsUnidas)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -158,7 +203,36 @@ export default function UnirProveedores() {
         </div>
       )}
 
+      {avisoUnion && <div className={`aviso aviso-${avisoUnion.tipo}`}>{avisoUnion.texto}</div>}
+
       {error && <div className="aviso aviso-error">{error}</div>}
+
+      {nubeConfigurada && (
+        <div className="tarjeta">
+          <p className="tarjeta-titulo">Constancias en el servidor</p>
+          <p className="silencio" style={{ marginTop: 0 }}>
+            Cada ficha que se une deja una constancia en el servidor. Es lo que impide que un aparato
+            atrasado la vuelva a subir.
+          </p>
+          {resumen === 'mirando' || resumen === null ? (
+            <p className="silencio" style={{ marginBottom: 0 }}>
+              Preguntando al servidor…
+            </p>
+          ) : (
+            <div className={`aviso aviso-${resumen.tipo}`} style={{ marginBottom: 0 }}>
+              {resumen.texto}
+            </div>
+          )}
+          <button
+            className="boton-chico"
+            style={{ marginTop: 10 }}
+            onClick={() => void actualizarResumen()}
+            disabled={resumen === 'mirando'}
+          >
+            Revisar de nuevo
+          </button>
+        </div>
+      )}
 
       {repetidas && repetidas.vacias.length > 0 && (
         <div className="tarjeta">
