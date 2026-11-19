@@ -1037,6 +1037,26 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['sin subir', 'pendiente', 'no sincroniza', 'no llega', 'cartel', 'ver que es', 'revisar', 'no baja', '1 cosa', '3 cosas'],
   },
   {
+    id: 'como-venimos',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿Cómo sé si el equipo está cargando en la app y no en el cuaderno o en el Excel?',
+    respuesta:
+      'En Ajustes → «Cómo venimos». Muestra las últimas seis semanas, una tarjeta por semana:\n\n• Caja cargada: de lunes a sábado, cuántos días tienen al menos un turno, y cuáles no. Un feriado en el que no se abrió figura como día sin caja.\n• Turnos de días anteriores que siguen abiertos.\n• Ventas, y qué parte se cargó el mismo día. Las «después» se pasaron más tarde, casi siempre desde el cuaderno.\n• Ventas sin código.\n• Costos actualizados e ingresos de mercadería: lo que entró de los proveedores y se cargó en la app esa semana. Si llegó mercadería y los dos números están en cero, se anotó en otro lado.\n\nCada semana lleva un cartel: «BIEN», «PARA MIRAR» (más de una de cada diez ventas se cargó después) o «FALTA CARGAR» (faltó la caja de algún día o quedó un turno sin cerrar).\n\n«Copiar el resumen» deja las seis semanas en texto, para pegar en WhatsApp.\n\nLa pantalla no cambia nada y no tiene números por persona: es para ver qué parte de la app todavía cuesta más que el cuaderno, y arreglar esa parte.',
+    palabrasClave: [
+      'uso',
+      'seguimiento',
+      'como venimos',
+      'excel',
+      'cuaderno',
+      'cargan en el dia',
+      'dias sin caja',
+      'semana',
+      'lunes',
+      'resumen semanal',
+    ],
+    soloOwner: true,
+  },
+  {
     id: 'cargar-apenas-abro',
     categoria: 'Sincronización y respaldo',
     pregunta: 'Cargué algo y después no estaba, o volvió algo que había borrado. ¿Puede pasar?',

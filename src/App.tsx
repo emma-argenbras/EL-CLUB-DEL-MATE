@@ -21,6 +21,7 @@ import Proveedores from './paginas/Proveedores'
 import Gastos from './paginas/Gastos'
 import Reportes from './paginas/Reportes'
 import MiActividad from './paginas/MiActividad'
+import Uso from './paginas/Uso'
 import Ajustes from './paginas/Ajustes'
 import Historial from './paginas/Historial'
 import Ayuda from './paginas/Ayuda'
@@ -365,6 +366,7 @@ export default function App() {
             path="/historial"
             element={alMando ? <Historial /> : <Navigate to="/mi-actividad" replace />}
           />
+          <Route path="/uso" element={alMando ? <Uso /> : <Navigate to="/mi-actividad" replace />} />
           <Route path="/ayuda" element={<Ayuda />} />
           <Route path="*" element={<Navigate to="/caja" replace />} />
         </Routes>
