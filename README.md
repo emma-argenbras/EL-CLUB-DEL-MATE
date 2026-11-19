@@ -2234,8 +2234,7 @@ del historial.
 - **No evita que al abrir la app se vuelva a guardar todo.** Cada vez que se abre, lo que
   baja —o lo que Firestore tiene guardado en el aparato— se escribe otra vez en la base
   local, aunque sea igual a lo que ya estaba. En tandas son segundos, pero es trabajo de
-  más. Y la subida del arranque sigue leyendo cada colección entera del servidor para saber
-  qué falta (ver «Próximos pasos»).
+  más.
 
 ## Los avisos por plazo, y el cambio en una línea (06/11)
 
@@ -3506,11 +3505,16 @@ en tandas de 200. En la prueba, la primera sincronización pasó de 130 s a 10 s
 carga apenas se abre la app llega al servidor en 2 a 4 s. Ver «Lo que baja se guarda en
 tandas».
 
-- [ ] **Que la subida del arranque no lea el servidor entero.** Para saber qué le falta al
-      servidor, hoy lee cada colección completa cada vez que se abre la app. Son lecturas
-      del plan gratis de Firebase (50.000 por día entre todos los aparatos). Ahora que
-      espera a que termine de guardarse lo que baja, puede comparar contra eso sin leer de
-      nuevo.
+- [ ] **Leer menos al abrir la app.** Medido el 19/11 mirando lo que la app le pide al
+      servidor: al abrirse pide cada colección **una sola vez**, que es la escucha. La
+      subida del arranque no agrega lecturas: se cuelga de la escucha que ya está abierta.
+      Lo anotado el 27/10 —que `empujarTodoLocal` leía todo otra vez— estaba mal, y sacarle
+      ese `getDocs` no ahorraría nada. Lo que sí cuesta, según la documentación de
+      facturación de Firestore: una escucha que estuvo más de 30 minutos desconectada se
+      cobra como una consulta nueva, o sea la colección entera, esté o no guardada en el
+      aparato. Cada aparato que se abre a la mañana lee todo, y el historial es lo que más
+      crece. Si la consola de Firebase muestra que se está cerca de las 50.000 lecturas por
+      día, lo que sigue es escuchar solo lo reciente del historial y de las ventas.
 - [ ] **Que lo borrado deje constancia en todas las tablas.** Hoy la dejan las ventas, los
       turnos (con lo suyo), el código viejo de un producto y las fichas de proveedor unidas.
       Un gasto, una compra, un pago o una ficha borrados desde un aparato todavía pueden
@@ -3543,9 +3547,9 @@ servidor».
 - [ ] **Una tercera barrera para las fichas de proveedor.** La revisión no tiene que volver
       a subir una ficha vacía si el servidor ya tiene otra con el mismo nombre exacto,
       aunque no haya constancia (por ejemplo, si se borró desde la consola).
-- [ ] **Leer menos al abrir la app.** Cada apertura lee la base entera (ver la auditoría del
-      27/10, más abajo). Con la cuota de 50.000 lecturas diarias del plan Spark puede ser lo
-      que tira las escuchas. Antes, mirar en la consola de Firebase las lecturas por día.
+- [ ] **Mirar en la consola de Firebase las lecturas por día.** Con la cuota de 50.000
+      lecturas diarias del plan Spark, quedarse sin lecturas puede ser lo que tira las
+      escuchas (ver «Leer menos al abrir la app», más arriba).
 
 **La limpieza de fichas de proveedor repetidas (10/11) no se repite todavía.** El 13/11 había
 252 fichas con 93 nombres repetidos y ninguna constancia de proveedores en `borrados`.
@@ -3597,14 +3601,14 @@ celular sin dejar datos. Ver "Lo que no se sube".
 
 **Encontrado en la auditoría del 27/10** (sin cambios de código todavía)
 
-- [ ] **Cada apertura de la app lee la base entera del servidor.** `empujarTodoLocal`
-      hace `getDocs` de las diez colecciones en cada inicio de sesión —también al tocar
-      "Actualizar"— para comparar con la copia local: del orden de 8.000 a 15.000
-      lecturas por apertura y por dispositivo, contra las 50.000 diarias del plan Spark.
-      Y `controlarSinSubir` hace diez conteos cada cinco minutos, unas 5.000 lecturas
-      por día en la PC que queda prendida. Corrección: comparar los conteos primero y
-      leer una colección entera solo cuando el conteo local supera al del servidor;
-      controlar cada 15 minutos. Antes, mirar el uso real en la consola de Firebase.
+- [ ] **Cada apertura de la app lee la base entera del servidor.** Corregido el 19/11, con
+      la medición: no es `empujarTodoLocal`. Su `getDocs` de cada colección se cuelga de la
+      escucha que ya está abierta y no agrega lecturas. Las que leen todo son las escuchas
+      mismas, cuando el aparato estuvo más de 30 minutos desconectado (ver «Leer menos al
+      abrir la app», más arriba). Lo que sigue en pie de esta nota: `controlarSinSubir` hace
+      un conteo por tabla cada cinco minutos, unas 5.000 lecturas por día en la PC que queda
+      prendida; se puede controlar cada 15 minutos. Antes, mirar el uso real en la consola
+      de Firebase.
 - [ ] **El historial crece sin límite** y cada dispositivo lo escucha y lo carga entero
       (`Historial.tsx` trae todos los renglones a memoria). Escuchar solo los últimos
       90 días y traer lo viejo a pedido; en la pantalla, de a 300 con "ver más".
