@@ -5,6 +5,7 @@ import {
   conMotivo,
   db,
   engancharAutor,
+  engancharSync,
   historialAlDia,
   ID_ARRANQUE_HISTORIAL,
   marcarArranqueDelHistorial,
@@ -405,20 +406,33 @@ describe('aguante', () => {
  * llama desde varios lados a la vez --los ocho listeners de Firestore,
  * la lista de precios, los meses historicos--, asi que el primero que
  * terminaba apagaba el marcador mientras los demas seguian escribiendo.
+ *
+ * Y el error inverso, encontrado el 19/11: el contador global que lo
+ * arreglo dejaba marcado como remoto TODO lo que se escribia mientras
+ * habia alguna sincronizacion en curso, tambien lo de la persona. Desde
+ * ese dia la marca va en la transaccion que escribe (ver comoRemoto).
  */
 describe('un cambio que viene del servidor no deja historial', () => {
+  /** Varias escrituras seguidas en la misma sincronizacion, para que dure. */
+  async function bajarPrecios(codigo: string, desde: number, cuantas = 25) {
+    for (let i = 0; i < cuantas; i++) {
+      await db.productos.update(codigo, { precioCompra: desde + i, fechaCompra: '2023-04-12' })
+    }
+  }
+
   it('lo normal: una sincronizacion sola no registra nada', async () => {
-    await comoRemoto(async () => {
+    await comoRemoto(db.productos, async () => {
       await db.productos.add(producto({ precioCompra: null }))
     })
-    await comoRemoto(async () => {
+    await comoRemoto(db.productos, async () => {
       await db.productos.update('TM015', { precioCompra: 20000, fechaCompra: '2023-04-12' })
     })
     expect(await renglones('edito')).toHaveLength(0)
+    expect(await renglones()).toHaveLength(0)
   })
 
   it('DOS sincronizaciones a la vez tampoco: el caso del 14/10', async () => {
-    await comoRemoto(async () => {
+    await comoRemoto(db.productos, async () => {
       await db.productos.bulkAdd([
         producto({ precioCompra: null }),
         producto({ codigo: 'TM016', descripcion: 'OTRO', precioCompra: null }),
@@ -429,29 +443,24 @@ describe('un cambio que viene del servidor no deja historial', () => {
     // La corta termina primero. Con un booleano, al terminar apagaba el
     // marcador y todo lo que la larga escribia despues quedaba
     // registrado como una edicion a mano.
-    const larga = comoRemoto(async () => {
-      await new Promise((listo) => setTimeout(listo, 20))
-      await db.productos.update('TM015', { precioCompra: 20000, fechaCompra: '2023-04-12' })
-    })
-    const corta = comoRemoto(async () => {
+    const larga = comoRemoto(db.productos, () => bajarPrecios('TM015', 20000))
+    const corta = comoRemoto(db.productos, async () => {
       await db.productos.update('TM016', { precioCompra: 15000 })
     })
     await Promise.all([corta, larga])
 
     expect(await renglones()).toHaveLength(0)
+    expect((await db.productos.get('TM015'))?.precioCompra).toBe(20024)
   })
 
   it('con muchas a la vez, como los ocho listeners del arranque', async () => {
-    await comoRemoto(async () => {
+    await comoRemoto(db.productos, async () => {
       await db.productos.add(producto({ precioCompra: null }))
     })
 
     await Promise.all(
-      [40, 5, 25, 1, 15, 30, 10, 20].map((demora) =>
-        comoRemoto(async () => {
-          await new Promise((listo) => setTimeout(listo, demora))
-          await db.productos.update('TM015', { precioCompra: 20000 + demora })
-        }),
+      [40, 5, 25, 1, 15, 30, 10, 20].map((cuantas) =>
+        comoRemoto(db.productos, () => bajarPrecios('TM015', 20000, cuantas)),
       ),
     )
 
@@ -459,17 +468,12 @@ describe('un cambio que viene del servidor no deja historial', () => {
   })
 
   it('pero una edicion de verdad DESPUES si queda registrada', async () => {
-    // El arreglo no puede dejar el marcador trabado: si quedara prendido,
-    // la app dejaria de registrar para siempre, que es peor.
-    await comoRemoto(async () => {
+    await comoRemoto(db.productos, async () => {
       await db.productos.add(producto({ precioCompra: null }))
     })
     await Promise.all([
-      comoRemoto(async () => {
-        await new Promise((listo) => setTimeout(listo, 15))
-        await db.productos.update('TM015', { precioCompra: 20000 })
-      }),
-      comoRemoto(async () => {
+      comoRemoto(db.productos, () => bajarPrecios('TM015', 20000)),
+      comoRemoto(db.productos, async () => {
         await db.productos.update('TM015', { stock: 5 })
       }),
     ])
@@ -480,12 +484,40 @@ describe('un cambio que viene del servidor no deja historial', () => {
     expect(edits[0].campo).toBe('precioVenta')
   })
 
+  it('Y UNA EDICION DE VERDAD MIENTRAS TANTO, TAMBIEN: el caso del 19/11', async () => {
+    // Con el contador global, esta edicion caia adentro de "hay una
+    // sincronizacion en curso": no dejaba renglon y no se subia.
+    await comoRemoto(db.productos, async () => {
+      await db.productos.bulkAdd([
+        producto({ precioCompra: null }),
+        producto({ codigo: 'TM016', descripcion: 'OTRO', precioCompra: null }),
+      ])
+    })
+    let termino = false
+    const bajando = Promise.all(
+      [40, 30, 20].map((cuantas) => comoRemoto(db.productos, () => bajarPrecios('TM016', 15000, cuantas))),
+    ).then(() => {
+      termino = true
+    })
+
+    await db.productos.update('TM015', { precioVenta: 52000 })
+    await db.jornadas.add(jornada())
+    // Si ya hubiera terminado de bajar, la prueba no probaria nada.
+    expect(termino).toBe(false)
+    await bajando
+
+    const edits = await renglones('edito')
+    expect(edits.map((e) => `${e.clave}.${e.campo}`)).toEqual(['TM015.precioVenta'])
+    expect(edits[0].quienNombre).toBe('Sandra')
+    expect((await renglones('creo')).map((e) => e.tabla)).toEqual(['jornadas'])
+  })
+
   it('tampoco se traba si una sincronizacion falla', async () => {
-    await comoRemoto(async () => {
+    await comoRemoto(db.productos, async () => {
       await db.productos.add(producto({ precioCompra: null }))
     })
     await expect(
-      comoRemoto(async () => {
+      comoRemoto(db.productos, async () => {
         throw new Error('se corto internet')
       }),
     ).rejects.toThrow('se corto internet')
@@ -493,4 +525,99 @@ describe('un cambio que viene del servidor no deja historial', () => {
     await db.productos.update('TM015', { precioVenta: 52000 })
     expect(await renglones('edito')).toHaveLength(1)
   })
+
+  it('si una sincronizacion falla a medias, no deja nada escrito a medias', async () => {
+    await comoRemoto(db.productos, async () => {
+      await db.productos.add(producto({ precioCompra: null }))
+    })
+    await expect(
+      comoRemoto(db.productos, async () => {
+        await db.productos.update('TM015', { precioCompra: 99999 })
+        throw new Error('se corto internet')
+      }),
+    ).rejects.toThrow('se corto internet')
+    expect((await db.productos.get('TM015'))?.precioCompra).toBeNull()
+  })
+
+  it('una transaccion abierta ADENTRO de una sincronizacion sigue siendo remota', async () => {
+    const subidos: string[] = []
+    engancharSync((tabla, accion, clave) => {
+      if (tabla !== 'historial') subidos.push(`${accion} ${tabla}/${clave}`)
+    })
+    await comoRemoto([db.productos, db.jornadas], async () => {
+      await db.productos.add(producto({ precioCompra: null }))
+      await db.transaction('rw', db.productos, db.jornadas, async () => {
+        await db.productos.update('TM015', { precioCompra: 20000 })
+        await db.jornadas.add(jornada())
+        await db.transaction('rw', db.jornadas, async () => {
+          await db.jornadas.update('j1', { estado: 'cerrado' })
+        })
+      })
+      await db.jornadas.delete('j1')
+    })
+    engancharSync(() => {})
+    expect(await renglones()).toHaveLength(0)
+    // Ni se anota ni vuelve a subir: nada de lo de adentro es de la persona.
+    expect(subidos).toEqual([])
+  })
+
+  it('y lo que hace la persona adentro de una transaccion anidada deja su renglon', async () => {
+    await comoRemoto(db.productos, async () => {
+      await db.productos.bulkAdd([
+        producto({ precioCompra: null }),
+        producto({ codigo: 'TM016', descripcion: 'OTRO', precioCompra: null }),
+      ])
+    })
+    await db.transaction('rw', db.productos, async () => {
+      await db.productos.update('TM015', { precioVenta: 50000 })
+      await db.transaction('rw', db.productos, async () => {
+        await db.productos.update('TM016', { precioVenta: 60000 })
+      })
+    })
+    expect((await renglones('edito')).map((e) => e.clave).sort()).toEqual(['TM015', 'TM016'])
+  })
+
+  it('funciona aunque la llamen desde la cola de una transaccion que ya termino', async () => {
+    // Asi llega la respuesta de una subida que el servidor rechaza: el
+    // aviso se engancha adentro de la transaccion de la escritura y
+    // corre mucho despues, cuando esa transaccion ya no existe. Lo que
+    // haya que traer del servidor se tiene que poder guardar igual.
+    await comoRemoto(db.productos, async () => {
+      await db.productos.add(producto({ precioCompra: null }))
+    })
+    let llegoLaRespuesta!: () => void
+    const respuesta = new Promise<void>((listo) => {
+      llegoLaRespuesta = listo
+    })
+    let guardado: Promise<unknown> = Promise.resolve()
+    await db.transaction('rw', db.jornadas, async () => {
+      await db.jornadas.add(jornada())
+      guardado = respuesta.then(() =>
+        comoRemoto(db.productos, async () => {
+          await db.productos.update('TM015', { precioCompra: 20000 })
+        }),
+      )
+    })
+    llegoLaRespuesta()
+    await guardado
+    expect((await db.productos.get('TM015'))?.precioCompra).toBe(20000)
+    expect(await renglones('edito')).toHaveLength(0)
+  })
+
+  it('y una sincronizacion adentro de algo que hace la persona no la contagia', async () => {
+    await comoRemoto(db.productos, async () => {
+      await db.productos.add(producto({ precioCompra: null }))
+    })
+    // Lo de adentro es remoto; lo de antes y lo de despues, de la persona.
+    await db.transaction('rw', db.productos, async () => {
+      await db.productos.update('TM015', { precioVenta: 50000 })
+      await comoRemoto(db.productos, async () => {
+        await db.productos.update('TM015', { precioCompra: 20000 })
+      })
+      await db.productos.update('TM015', { stock: 9 })
+    })
+    const edits = await renglones('edito')
+    expect(edits.map((e) => e.campo).sort()).toEqual(['precioVenta', 'stock'])
+  })
 })
+

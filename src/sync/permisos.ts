@@ -65,9 +65,10 @@ export function puedeBorrarTodo(perfil: Perfil | null): boolean {
 /**
  * Importar un respaldo.
  *
- * Va con el mismo candado que borrar todo, y no es exceso de celo:
- * importar pisa el catalogo, los turnos y las ventas con lo que diga el
- * archivo. Quien puede importar puede borrar, solo que mas despacio.
+ * Va con el mismo candado que borrar todo. Desde el 19/11 importar
+ * reemplaza solo lo de ese aparato y no le borra nada al servidor (ver
+ * db/importarRespaldo.ts), pero lo que el archivo tenga y el servidor no
+ * se sube: con un archivo viejo puede revivir cosas borradas a proposito.
  */
 export function puedeImportarRespaldo(perfil: Perfil | null): boolean {
   return esDueno(perfil)

@@ -46,6 +46,7 @@ import {
 } from '../db/db'
 import { aClaveDeNube, aClaveLocal } from './claves'
 import { aplicarCambiosRemotos, type FalloAlRecibir } from './aplicarRemotos'
+import { colaPorClave } from './enOrden'
 import {
   compararConServidor,
   cuelgaDeRetenido,
@@ -374,8 +375,10 @@ async function explicarRechazoDeProducto(
       // listener.
       const fresco = await getDocFromServer(intento.referencia)
       if (fresco.exists()) {
-        await comoRemoto(async () => {
-          await db.table('productos').put({ ...fresco.data() })
+        // Lo del servidor se trae antes; adentro solo se guarda.
+        const delServidor = { ...fresco.data() }
+        await comoRemoto(db.table('productos'), async () => {
+          await db.table('productos').put(delServidor)
         })
       }
     } catch (e) {
@@ -605,12 +608,10 @@ export async function leerRetenidos(): Promise<TurnoRetenido[]> {
  * borrado de la persona.
  */
 export async function descartarTurnoRetenido(id: string): Promise<void> {
-  await comoRemoto(async () => {
-    await db.transaction('rw', db.jornadas, db.ventas, db.movimientos, async () => {
-      await db.ventas.where('jornadaId').equals(id).delete()
-      await db.movimientos.where('jornadaId').equals(id).delete()
-      await db.jornadas.delete(id)
-    })
+  await comoRemoto([db.jornadas, db.ventas, db.movimientos], async () => {
+    await db.ventas.where('jornadaId').equals(id).delete()
+    await db.movimientos.where('jornadaId').equals(id).delete()
+    await db.jornadas.delete(id)
   })
   await anotarRetenidos((await leerRetenidos()).filter((t) => t.id !== id))
 }
@@ -705,12 +706,10 @@ export async function descartarCopiasRetenidas(
 
   let ventas = 0
   let movimientos = 0
-  await comoRemoto(async () => {
-    await db.transaction('rw', db.jornadas, db.ventas, db.movimientos, async () => {
-      ventas = await db.ventas.where('jornadaId').anyOf(ids).delete()
-      movimientos = await db.movimientos.where('jornadaId').anyOf(ids).delete()
-      await db.jornadas.bulkDelete(ids)
-    })
+  await comoRemoto([db.jornadas, db.ventas, db.movimientos], async () => {
+    ventas = await db.ventas.where('jornadaId').anyOf(ids).delete()
+    movimientos = await db.movimientos.where('jornadaId').anyOf(ids).delete()
+    await db.jornadas.bulkDelete(ids)
   })
   const quedan = retenidos.filter((t) => !ids.includes(t.id))
   await anotarRetenidos(quedan)
@@ -1060,7 +1059,7 @@ async function hacerRevision(): Promise<Revision | null> {
           sinRecibir,
         })
         if (destino === 'ya-borrado' || destino === 'usuario-viejo') {
-          await comoRemoto(async () => {
+          await comoRemoto(db.table(tabla), async () => {
             await db.table(tabla).delete(clave)
           })
           renglones.push({ tabla, clave, que, resultado: 'sacado-de-aca' })
@@ -1163,7 +1162,7 @@ export async function sacarDeEsteAparato(tabla: NombreTabla, clave: string): Pro
       undefined,
       { fila },
     )
-    await comoRemoto(async () => {
+    await comoRemoto(db.table(tabla), async () => {
       await db.table(tabla).delete(clave)
     })
   }
@@ -1206,6 +1205,9 @@ async function actualizarPerfilPropio(): Promise<void> {
   })
 }
 
+/** Lo que baja de cada tabla se guarda de a un aviso, en el orden en que llego. */
+const guardadoEnOrden = colaPorClave<NombreTabla>()
+
 function escucharColecciones() {
   dejarDeEscuchar()
   for (const tabla of TABLAS) escucharTabla(tabla, false)
@@ -1226,23 +1228,36 @@ function escucharTabla(tabla: NombreTabla, reabriendo: boolean) {
     referencia,
     { includeMetadataChanges: reabriendo },
     (instantanea) => {
-      comoRemoto(async () => {
-        // Cada cambio por su cuenta: uno que falla ya no corta a los
-        // que vienen detras (ver aplicarRemotos.ts).
-        const fallos = await aplicarCambiosRemotos(
-          tabla,
-          instantanea.docChanges().map((cambio) => ({
-            tipo: cambio.type,
-            id: cambio.doc.id,
-            datos: cambio.type === 'removed' ? null : cambio.doc.data(),
-            pendiente: cambio.doc.metadata.hasPendingWrites,
-          })),
-          (id) => rechazosRecientes.has(`${tabla}/${id}`),
-          (id) => rechazosRecientes.delete(`${tabla}/${id}`),
-        )
-        if (fallos.length > 0) avisarFallosAlRecibir(tabla, fallos)
-        if (tabla === 'usuarios') await actualizarPerfilPropio()
-      }).catch((e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e))
+      // Cada cambio por su cuenta: uno que falla ya no corta a los que
+      // vienen detras, y cada uno se guarda marcado como remoto en su
+      // propia transaccion (ver aplicarRemotos.ts). Hasta el 19/11 todo
+      // este recorrido iba adentro de un solo comoRemoto, y mientras
+      // duraba --el primer snapshot trae la tabla entera-- lo que la
+      // persona cargaba no se subia (ver comoRemoto en db.ts).
+      //
+      // Y cada aviso espera a que termine de guardarse el anterior de
+      // su tabla (ver enOrden.ts): si no, el eco de un cambio hecho
+      // mientras se guardaba el primer aviso quedaba pisado por lo viejo.
+      const cambios = instantanea.docChanges().map((cambio) => ({
+        tipo: cambio.type,
+        id: cambio.doc.id,
+        datos: cambio.type === 'removed' ? null : cambio.doc.data(),
+        pendiente: cambio.doc.metadata.hasPendingWrites,
+      }))
+      void guardadoEnOrden.encolar(
+        tabla,
+        async () => {
+          const fallos = await aplicarCambiosRemotos(
+            tabla,
+            cambios,
+            (id) => rechazosRecientes.has(`${tabla}/${id}`),
+            (id) => rechazosRecientes.delete(`${tabla}/${id}`),
+          )
+          if (fallos.length > 0) avisarFallosAlRecibir(tabla, fallos)
+          if (tabla === 'usuarios') await actualizarPerfilPropio()
+        },
+        (e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e),
+      )
       if (!instantanea.metadata.fromCache) volvioARecibir(tabla)
       // Con otra tabla caida no es «Sincronizado»: hasta el 13/11 este
       // renglon lo decia igual y tapaba la escucha caida.
@@ -1348,6 +1363,7 @@ function avisarFallosAlRecibir(tabla: NombreTabla, fallos: FalloAlRecibir[]): vo
 function dejarDeEscuchar() {
   for (const cancelar of escuchas.values()) cancelar()
   escuchas.clear()
+  guardadoEnOrden.vaciar()
   for (const pendiente of reaperturas.values()) clearTimeout(pendiente)
   reaperturas.clear()
   fijarEstadoNube({ sinRecibir: [] })

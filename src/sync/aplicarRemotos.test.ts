@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { comoRemoto, db, type Producto } from '../db/db'
+import { db, engancharAutor, engancharSync, historialAlDia, type Producto } from '../db/db'
 import { aplicarCambiosRemotos, type CambioRemoto } from './aplicarRemotos'
 
 function prod(codigo: string, extra: Partial<Producto> = {}): Record<string, unknown> {
@@ -20,6 +20,11 @@ const nada = () => {}
 
 beforeEach(async () => {
   await db.productos.clear()
+  await db.jornadas.clear()
+  await historialAlDia()
+  await db.historial.clear()
+  engancharSync(() => {})
+  engancharAutor(() => null)
 })
 
 describe('aplicarCambiosRemotos', () => {
@@ -31,13 +36,11 @@ describe('aplicarCambiosRemotos', () => {
     ])
     // Un documento sin codigo en el medio, que IndexedDB no puede guardar.
     const { codigo: _sinCodigo, ...malo } = prod('MMM001')
-    const fallos = await comoRemoto(() =>
-      aplicarCambiosRemotos(
-        'productos',
-        [llega(prod('AAA001')), llega(malo, 'MMM001'), llega(prod('ZZZ001'))],
-        nunca,
-        nada,
-      ),
+    const fallos = await aplicarCambiosRemotos(
+      'productos',
+      [llega(prod('AAA001')), llega(malo, 'MMM001'), llega(prod('ZZZ001'))],
+      nunca,
+      nada,
     )
     expect((await db.productos.get('AAA001'))?.proveedor).toBe('MOHICANO')
     expect((await db.productos.get('ZZZ001'))?.proveedor).toBe('MOHICANO')
@@ -48,29 +51,23 @@ describe('aplicarCambiosRemotos', () => {
 
   it('un borrado de verdad borra, con la clave desescapada', async () => {
     await db.productos.put(prod('TM/01') as unknown as Producto)
-    await comoRemoto(() =>
-      aplicarCambiosRemotos('productos', [{ tipo: 'removed', id: 'TM%2F01', datos: null, pendiente: false }], nunca, nada),
-    )
+    await aplicarCambiosRemotos('productos', [{ tipo: 'removed', id: 'TM%2F01', datos: null, pendiente: false }], nunca, nada)
     expect(await db.productos.get('TM/01')).toBeUndefined()
   })
 
   it('la reversion de un rechazo propio NO borra lo que se acaba de cargar', async () => {
     await db.productos.put(prod('A') as unknown as Producto)
-    await comoRemoto(() =>
-      aplicarCambiosRemotos('productos', [{ tipo: 'removed', id: 'A', datos: null, pendiente: false }], () => true, nada),
-    )
+    await aplicarCambiosRemotos('productos', [{ tipo: 'removed', id: 'A', datos: null, pendiente: false }], () => true, nada)
     expect(await db.productos.get('A')).toBeDefined()
   })
 
   it('el eco pendiente de un alta propia no se reescribe', async () => {
     await db.productos.put(prod('A', { precioVenta: 5000 }) as unknown as Producto)
-    await comoRemoto(() =>
-      aplicarCambiosRemotos(
-        'productos',
-        [{ ...llega(prod('A', { precioVenta: 4000 })), tipo: 'added', pendiente: true }],
-        nunca,
-        nada,
-      ),
+    await aplicarCambiosRemotos(
+      'productos',
+      [{ ...llega(prod('A', { precioVenta: 4000 })), tipo: 'added', pendiente: true }],
+      nunca,
+      nada,
     )
     expect((await db.productos.get('A'))?.precioVenta).toBe(5000)
   })
@@ -80,13 +77,11 @@ describe('aplicarCambiosRemotos', () => {
     await db.productos.put(prod('A', { precioVenta: 45000, stock: 2 }) as unknown as Producto)
     // Firestore muestra el servidor (precio 50000) con lo nuestro encima
     // (stock 2), todavia sin confirmar.
-    await comoRemoto(() =>
-      aplicarCambiosRemotos(
-        'productos',
-        [{ ...llega(prod('A', { precioVenta: 50000, stock: 2 })), tipo: 'modified', pendiente: true }],
-        nunca,
-        nada,
-      ),
+    await aplicarCambiosRemotos(
+      'productos',
+      [{ ...llega(prod('A', { precioVenta: 50000, stock: 2 })), tipo: 'modified', pendiente: true }],
+      nunca,
+      nada,
     )
     const a = await db.productos.get('A')
     expect(a?.precioVenta).toBe(50000)
@@ -95,9 +90,178 @@ describe('aplicarCambiosRemotos', () => {
 
   it('avisa que llego el dato bueno, para olvidar el rechazo', async () => {
     const recibidos: string[] = []
-    await comoRemoto(() =>
-      aplicarCambiosRemotos('productos', [llega(prod('A'))], nunca, (id) => recibidos.push(id)),
-    )
+    await aplicarCambiosRemotos('productos', [llega(prod('A'))], nunca, (id) => recibidos.push(id))
     expect(recibidos).toEqual(['A'])
+  })
+
+  /**
+   * El hueco del 19/11.
+   *
+   * Hasta ese dia todo el recorrido iba adentro de una marca global de
+   * "esto es remoto", y mientras duraba --al abrir la app, la tabla
+   * entera, documento por documento-- lo que la persona cargaba se
+   * tomaba por remoto: no subia y no dejaba historial. Abrir la app y
+   * abrir el turno enseguida dejaba el turno sin subir.
+   */
+  describe('lo que baja y lo que la persona carga MIENTRAS baja', () => {
+    const MUCHOS = 400
+
+    function escuchar() {
+      const subidos: string[] = []
+      engancharSync((tabla, accion, clave) => {
+        // El historial tambien sube; aca interesa lo demas.
+        if (tabla !== 'historial') subidos.push(`${accion} ${tabla}/${clave}`)
+      })
+      engancharAutor(() => ({ email: 'sucursal@elclubdelmate.com', nombre: 'Gabriela', rol: 'empleado' }))
+      return subidos
+    }
+
+    const turno = {
+      id: 'j1', fecha: '2026-11-19', turno: 'M' as const, estado: 'abierto' as const, vendedor: 'Gabriela',
+      cajaInicial: 10000, horaApertura: '09:00', horaCierre: null, arqueoApertura: null, arqueoCierre: null, notas: null,
+    }
+
+    it('lo que baja no vuelve a subir ni queda a nombre de nadie', async () => {
+      const subidos = escuchar()
+      await db.productos.put(prod('VIEJO') as unknown as Producto)
+      await historialAlDia()
+      await db.historial.clear()
+      subidos.length = 0
+
+      const fallos = await aplicarCambiosRemotos(
+        'productos',
+        [
+          { ...llega(prod('NUEVO')), tipo: 'added' },
+          llega(prod('VIEJO', { precioVenta: 9000 })),
+          { tipo: 'removed', id: 'VIEJO', datos: null, pendiente: false },
+        ],
+        nunca,
+        nada,
+      )
+      await historialAlDia()
+      expect(fallos).toEqual([])
+      expect(await db.productos.get('NUEVO')).toBeDefined()
+      expect(await db.productos.get('VIEJO')).toBeUndefined()
+      expect(subidos).toEqual([])
+      expect(await db.historial.count()).toBe(0)
+      // Y lo que bajo no queda firmado por quien tenia la app abierta.
+      expect((await db.productos.get('NUEVO'))?.creadoPor).toBeUndefined()
+    })
+
+    it('ABRIR EL TURNO Y EDITAR MIENTRAS BAJA LA TABLA ENTERA: eso sí sube y queda a su nombre', async () => {
+      const subidos = escuchar()
+      await db.productos.put(prod('TM015', { precioVenta: 45000 }) as unknown as Producto)
+      await historialAlDia()
+      await db.historial.clear()
+      subidos.length = 0
+
+      // El primer snapshot al abrir la app: la tabla entera, de a uno.
+      let termino = false
+      const bajando = aplicarCambiosRemotos(
+        'productos',
+        Array.from({ length: MUCHOS }, (_, i) => ({ ...llega(prod(`P${String(i).padStart(4, '0')}`)), tipo: 'added' as const })),
+        nunca,
+        nada,
+      ).then((fallos) => {
+        termino = true
+        return fallos
+      })
+
+      // Mientras tanto la persona no espera: abre el turno, cambia un
+      // precio y borra un producto.
+      await db.productos.put(prod('BORRAME') as unknown as Producto)
+      await db.jornadas.add(turno)
+      await db.productos.update('TM015', { precioVenta: 52000 })
+      await db.productos.delete('BORRAME')
+      // Si la bajada ya hubiera terminado, la prueba no probaria nada.
+      expect(termino).toBe(false)
+
+      expect(await bajando).toEqual([])
+      await historialAlDia()
+
+      // Lo suyo subio: las cuatro cosas, y nada mas.
+      expect(subidos.sort()).toEqual([
+        'actualizar productos/TM015',
+        'borrar productos/BORRAME',
+        'guardar jornadas/j1',
+        'guardar productos/BORRAME',
+      ])
+      // Y quedo en el historial, a su nombre: ni un renglon de lo que bajo.
+      const renglones = await db.historial.toArray()
+      expect(renglones.map((r) => `${r.accion} ${r.tabla}/${r.clave}`).sort()).toEqual([
+        'borro productos/BORRAME',
+        'creo jornadas/j1',
+        'creo productos/BORRAME',
+        'edito productos/TM015',
+      ])
+      expect(new Set(renglones.map((r) => r.quienNombre))).toEqual(new Set(['Gabriela']))
+      // Lo que bajo esta todo.
+      expect(await db.productos.where('codigo').startsWith('P').count()).toBe(MUCHOS)
+    })
+
+    it('UN TICKET DE MUCHOS PRODUCTOS: el eco de lo primero que sube no tapa lo que viene atrás', async () => {
+      // Cada escritura propia vuelve enseguida como eco por la escucha
+      // (Firestore la muestra antes de que el servidor confirme). Con la
+      // marca global, guardar ese eco dejaba "hay algo remoto en curso"
+      // prendido hasta que terminara la operacion de la persona --el eco
+      // espera a que se libere la tabla--, y lo que quedaba de la
+      // operacion no se subia: un ticket, una limpieza, un cierre.
+      const codigos = Array.from({ length: 30 }, (_, i) => `T${String(i).padStart(2, '0')}`)
+      await db.productos.bulkPut(codigos.map((c) => prod(c, { stock: 5 }) as unknown as Producto))
+      await historialAlDia()
+      await db.historial.clear()
+
+      const subidos: string[] = []
+      const ecos: Promise<unknown>[] = []
+      engancharAutor(() => ({ email: 'sucursal@elclubdelmate.com', nombre: 'Gabriela', rol: 'empleado' }))
+      engancharSync((tabla, accion, clave, doc) => {
+        if (tabla !== 'productos') return
+        subidos.push(`${accion} ${clave}`)
+        // El eco: lo mismo que se acaba de mandar, todavia sin confirmar.
+        // Firestore lo entrega en otra vuelta (con un setTimeout), suelto
+        // de la operacion que lo causo: aca se hace igual.
+        ecos.push(
+          new Promise((listo) => {
+            setTimeout(() => {
+              listo(
+                aplicarCambiosRemotos(
+                  'productos',
+                  [{ tipo: 'modified', id: clave, datos: { ...prod(clave, { stock: 4 }), ...(doc as object) }, pendiente: true }],
+                  nunca,
+                  nada,
+                ),
+              )
+            }, 0)
+          }),
+        )
+      })
+
+      // El ticket: se descuenta el stock de los treinta, en una sola operacion.
+      await db.transaction('rw', db.productos, async () => {
+        for (const c of codigos) await db.productos.update(c, { stock: 4 })
+      })
+      expect((await Promise.all(ecos)).flat()).toEqual([])
+      await historialAlDia()
+
+      expect(subidos).toEqual(codigos.map((c) => `actualizar ${c}`))
+      expect((await db.historial.toArray()).filter((h) => h.accion === 'edito')).toHaveLength(30)
+    })
+
+    it('editar el MISMO producto que está bajando tampoco se pierde', async () => {
+      const subidos = escuchar()
+      await db.productos.put(prod('TM015', { precioVenta: 45000, stock: 3 }) as unknown as Producto)
+      await historialAlDia()
+      subidos.length = 0
+
+      const bajando = aplicarCambiosRemotos(
+        'productos',
+        Array.from({ length: 50 }, (_, i) => llega(prod('TM015', { precioVenta: 45000, stock: 3, descripcion: `vuelta ${i}` }))),
+        nunca,
+        nada,
+      )
+      await db.productos.update('TM015', { stock: 2 })
+      await bajando
+      expect(subidos).toEqual(['actualizar productos/TM015'])
+    })
   })
 })

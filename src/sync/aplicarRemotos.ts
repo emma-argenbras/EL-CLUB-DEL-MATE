@@ -1,4 +1,4 @@
-import { db, type NombreTabla } from '../db/db'
+import { comoRemoto, db, type NombreTabla } from '../db/db'
 import { aClaveLocal } from './claves'
 
 /**
@@ -19,6 +19,11 @@ import { aClaveLocal } from './claves'
  *
  * Ahora cada cambio va por su cuenta: el que falla se anota y el resto
  * se guarda igual.
+ *
+ * Y cada uno se guarda marcado como remoto en su propia transaccion
+ * (19/11, ver comoRemoto en db/db.ts): no vuelve a subir ni deja
+ * historial, y lo que la persona cargue mientras dura el recorrido
+ * --al abrir la app es la tabla entera-- sigue siendo suyo.
  */
 
 export interface CambioRemoto {
@@ -70,10 +75,16 @@ export async function aplicarCambiosRemotos(
         if (esReversionDeRechazo(cambio.id)) continue
         // El id viene escapado si la clave tenia barra: se desescapa
         // para borrar la fila local correcta.
-        await db.table(tabla).delete(aClaveLocal(cambio.id))
+        const clave = aClaveLocal(cambio.id)
+        await comoRemoto(db.table(tabla), async () => {
+          await db.table(tabla).delete(clave)
+        })
       } else {
         alRecibir(cambio.id)
-        await db.table(tabla).put({ ...cambio.datos })
+        const fila = { ...cambio.datos }
+        await comoRemoto(db.table(tabla), async () => {
+          await db.table(tabla).put(fila)
+        })
       }
     } catch (e) {
       fallos.push({ id: cambio.id, error: e instanceof Error ? `${e.name}: ${e.message}` : String(e) })
