@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { personasParaSueldo } from '../lib/sueldos'
+import { duenosParaRetiro, personasParaSueldo, type QueParece } from '../lib/sueldos'
+import SugerenciaDeCarga from '../componentes/SugerenciaDeCarga'
 import { useCambiosSinGuardar, useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
@@ -1255,21 +1256,31 @@ function PanelEgresos({
   const [monto, setMonto] = useState('')
   const [tipo, setTipo] = useState<'EGRESO_CAJA' | 'A_CAJA_GRANDE'>('EGRESO_CAJA')
   const [categoria, setCategoria] = useState<CategoriaGasto>('OTROS')
-  // De quien es, cuando lo que sale del cajon es un sueldo (19/11). Una
-  // empleada que retira el suyo lo encuentra ya elegido; lo puede cambiar.
+  // De quien es, cuando lo que sale del cajon es un sueldo o el retiro de
+  // un dueño (19/11). Una empleada que retira el suyo lo encuentra ya
+  // elegido, y un dueño que retira lo suyo tambien; lo pueden cambiar.
   const sesion = useSesion()
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
   const personas = personasParaSueldo(usuarios ?? [])
+  const duenos = duenosParaRetiro(usuarios ?? [])
   const [persona, setPersona] = useState('')
   useSinGuardar('un egreso de caja', concepto.trim() !== '' || monto.trim() !== '')
+  const paraElegir = categoria === 'SUELDOS' ? personas : categoria === 'RETIRO SOCIOS' ? duenos : []
 
-  function elegirCategoria(nueva: CategoriaGasto) {
+  function elegirCategoria(nueva: CategoriaGasto, deQuien?: string) {
     setCategoria(nueva)
-    if (nueva !== 'SUELDOS') {
-      setPersona('')
-    } else if (!persona && sesion.perfil?.rol === 'empleado' && personas.some((p) => p.id === sesion.uid)) {
-      setPersona(sesion.uid ?? '')
-    }
+    const lista = nueva === 'SUELDOS' ? personas : nueva === 'RETIRO SOCIOS' ? duenos : []
+    const yo = sesion.uid ?? ''
+    const meToca =
+      (nueva === 'SUELDOS' && sesion.perfil?.rol === 'empleado') ||
+      (nueva === 'RETIRO SOCIOS' && sesion.perfil?.rol === 'owner')
+    if (deQuien && lista.some((p) => p.id === deQuien)) setPersona(deQuien)
+    else if (meToca && lista.some((p) => p.id === yo)) setPersona(yo)
+    else setPersona('')
+  }
+
+  function aplicarSugerencia(parece: QueParece, nueva: 'SUELDOS' | 'RETIRO SOCIOS') {
+    elegirCategoria(nueva, parece.persona?.id)
   }
 
   async function agregar() {
@@ -1283,15 +1294,17 @@ function PanelEgresos({
       const igual = egresoIgual(valor, jornada.fecha, delDia)
       if (igual && !confirm(preguntaEgresoRepetido(igual))) return
     }
-    const esSueldo = tipo === 'EGRESO_CAJA' && categoria === 'SUELDOS'
-    const deQuien = esSueldo ? personas.find((p) => p.id === persona) : undefined
+    const deQuien = tipo === 'EGRESO_CAJA' ? paraElegir.find((p) => p.id === persona) : undefined
+    const porDefecto = !deQuien
+      ? 'Egreso'
+      : categoria === 'SUELDOS'
+        ? `Sueldo de ${deQuien.nombre}`
+        : `Retiro de ${deQuien.nombre}`
     await db.movimientos.add({
       id: nuevoId(),
       fecha: jornada.fecha,
       tipo,
-      concepto:
-        concepto.trim() ||
-        (tipo === 'A_CAJA_GRANDE' ? 'Pase a caja grande' : deQuien ? `Sueldo de ${deQuien.nombre}` : 'Egreso'),
+      concepto: concepto.trim() || (tipo === 'A_CAJA_GRANDE' ? 'Pase a caja grande' : porDefecto),
       monto: valor,
       categoria: tipo === 'EGRESO_CAJA' ? categoria : null,
       jornadaId: jornada.id,
@@ -1348,6 +1361,16 @@ function PanelEgresos({
           </div>
 
           {tipo === 'EGRESO_CAJA' && (
+            <SugerenciaDeCarga
+              concepto={concepto}
+              categoria={categoria}
+              persona={persona || null}
+              personas={personas}
+              onAplicar={aplicarSugerencia}
+            />
+          )}
+
+          {tipo === 'EGRESO_CAJA' && (
             <div className="campo">
               <label htmlFor="cat-egreso">Categoría</label>
               <select
@@ -1369,12 +1392,14 @@ function PanelEgresos({
             </div>
           )}
 
-          {tipo === 'EGRESO_CAJA' && categoria === 'SUELDOS' && personas.length > 0 && (
+          {tipo === 'EGRESO_CAJA' && paraElegir.length > 0 && (
             <div className="campo">
-              <label htmlFor="persona-egreso">¿De quién es el sueldo?</label>
+              <label htmlFor="persona-egreso">
+                {categoria === 'SUELDOS' ? '¿De quién es el sueldo?' : '¿De quién es el retiro?'}
+              </label>
               <select id="persona-egreso" value={persona} onChange={(e) => setPersona(e.target.value)}>
                 <option value="">Elegí…</option>
-                {personas.map((p) => (
+                {paraElegir.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.nombre}
                   </option>

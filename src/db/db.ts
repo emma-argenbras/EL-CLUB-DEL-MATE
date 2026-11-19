@@ -644,9 +644,10 @@ export interface Movimiento {
    */
   vencimiento?: { id: string; periodo: string } | null
   /**
-   * En un pago de sueldo (categoria SUELDOS, 19/11): de quien es. El id
-   * de su usuario. Sin esto se sabia cuanto se pago de sueldos en el mes,
-   * pero no a quien (ver lib/sueldos.ts).
+   * De quien es (19/11): en un pago de sueldo (categoria SUELDOS), la
+   * persona que cobra; en un retiro de socios (RETIRO SOCIOS), el dueño
+   * que retira. El id de su usuario. Sin esto se sabia cuanto se pago de
+   * sueldos o se retiro en el mes, pero no quien (ver lib/sueldos.ts).
    */
   persona?: string | null
   /**
@@ -732,6 +733,13 @@ export interface Usuario {
    * creada antes de que existiera esto no pierde acceso a nada).
    */
   secciones?: SeccionId[] | null
+  /**
+   * Con que otros nombres figura en los conceptos de los gastos, separados
+   * por coma («Gabi, Gaby»). Sirve para reconocer de quien es un sueldo o
+   * un retiro anotado a mano (19/11, ver lib/sueldos.ts). No es un dato
+   * reservado: lo ven todos, como el nombre.
+   */
+  apodos?: string | null
   creadoEn?: number
   actualizadoEn?: number
 }
@@ -1169,7 +1177,7 @@ class BaseECDM extends Dexie {
       // otra. Sin esto, unir dos fichas movia los saldos sin dejar
       // rastro, que es justo lo que el historial existe para evitar.
       movimientosProveedor: ['tipo', 'monto', 'fecha', 'concepto', 'proveedorId'],
-      usuarios: ['nombre', 'email', 'rol', 'activo', 'secciones'],
+      usuarios: ['nombre', 'email', 'rol', 'activo', 'secciones', 'apodos'],
       // Las dos tablas de historial no se registran a si mismas: un
       // registro del registro no agrega nada y crece sin freno.
       historialProductos: [],

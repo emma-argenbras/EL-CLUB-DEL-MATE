@@ -247,9 +247,14 @@ service cloud.firestore {
     }
 
     // Los sueldos acordados (19/11): cuanto cobra cada persona, una
-    // ficha por persona. Es lo mas reservado que guarda la app, y es la
-    // unica coleccion que la app no baja a todos los aparatos: la lee y
-    // la escribe solo el dueño, desde la pantalla Sueldos.
+    // ficha por persona. El id de la ficha es el uid de su usuario. Es lo
+    // mas reservado que guarda la app, y es la unica coleccion que la app
+    // no baja a los aparatos.
+    //
+    // Quien lee: los dueños y quien esta de encargado --la administracion
+    // la lleva la encargada--, y cada persona SU ficha, para «Mi sueldo».
+    // Quien escribe: solo un dueño. Asi nadie se cambia el propio sueldo
+    // ni mira el de otro sin tener por que.
     //
     // Va afuera de la regla general de arriba --por eso figura en sus dos
     // listas-- porque esa deja leer a cualquiera con sesion, y en las
@@ -258,10 +263,11 @@ service cloud.firestore {
     // Los pagos no estan aca: son gastos de categoria SUELDOS, en
     // `movimientos`, y se ven en Gastos como cualquier otro.
     //
-    // Si algun dia los sueldos los lleva la encargada, se cambia aca y en
-    // puedeVerSueldos() (src/sync/permisos.ts): las dos juntas.
+    // Si esto cambia, cambia tambien en src/sync/permisos.ts
+    // (puedeVerSueldos, puedeDefinirSueldos, tieneMiSueldo): juntas.
     match /negocios/el-club-del-mate/sueldos/{persona} {
-      allow read, write: if soyOwner();
+      allow read: if estoyAlMando() || (estoyActivo() && request.auth.uid == persona);
+      allow write: if soyOwner();
     }
   }
 }

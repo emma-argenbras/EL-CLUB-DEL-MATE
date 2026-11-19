@@ -1,9 +1,11 @@
 /**
  * Pruebas de la regla de `sueldos` contra el emulador de Firestore.
  *
- * Cuanto cobra cada persona lo ve solo el dueño. Esa promesa la cumple
- * la regla, no la pantalla: la pantalla se puede esquivar pidiendole el
- * dato directo al servidor. Lo que se prueba aca es justamente eso.
+ * Cuanto cobra cada persona lo ven los dueños y quien esta de encargado,
+ * y cada persona lo suyo; lo define solo un dueño (19/11). Esa promesa la
+ * cumple la regla, no la pantalla: la pantalla se puede esquivar
+ * pidiendole el dato directo al servidor. Lo que se prueba aca es
+ * justamente eso.
  *
  * Van en un archivo aparte de reglas.test.ts, con el mismo `npm run
  * test:reglas`.
@@ -47,7 +49,11 @@ beforeEach(async () => {
     await setDoc(doc(db, `${NEGOCIO}/usuarios/uid-sandra`), { nombre: 'Sandra', rol: 'encargado', activo: true })
     await setDoc(doc(db, `${NEGOCIO}/usuarios/uid-gabi`), { nombre: 'Gabriela', rol: 'empleado', activo: true })
     await setDoc(doc(db, `${NEGOCIO}/usuarios/uid-ex`), { nombre: 'Ex dueño', rol: 'owner', activo: false })
+    await setDoc(doc(db, `${NEGOCIO}/usuarios/uid-baja`), { nombre: 'Ex empleada', rol: 'empleado', activo: false })
+    await setDoc(doc(db, `${NEGOCIO}/usuarios/uid-exenc`), { nombre: 'Ex encargada', rol: 'encargado', activo: false })
     await setDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), FICHA)
+    await setDoc(doc(db, `${NEGOCIO}/sueldos/uid-sandra`), { ...FICHA, id: 'uid-sandra', nombre: 'Sandra' })
+    await setDoc(doc(db, `${NEGOCIO}/sueldos/uid-baja`), { ...FICHA, id: 'uid-baja', nombre: 'Ex empleada' })
   })
 })
 
@@ -56,43 +62,72 @@ const comoEmma = () => como('uid-emma', 'emmanuel@elclubdelmate.com')
 const comoSandra = () => como('uid-sandra', 'ventas@elclubdelmate.com')
 const comoGabi = () => como('uid-gabi', 'sucursalconcordia@elclubdelmate.com')
 
-describe('sueldos: lo ve y lo cambia solo el dueño', () => {
+describe('sueldos: los ven los dueños y la encargada, cada uno lo suyo, y los define solo un dueño', () => {
   it('el dueño lee una ficha, las lista todas, las crea, las cambia y las borra', async () => {
     const db = comoEmma()
     const ficha = await assertSucceeds(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
     expect(ficha.data()?.acuerdos[0].monto).toBe(123456)
     const todas = await assertSucceeds(getDocs(collection(db, `${NEGOCIO}/sueldos`)))
-    expect(todas.size).toBe(1)
-    await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-sandra`), { ...FICHA, id: 'uid-sandra', nombre: 'Sandra' }))
+    expect(todas.size).toBe(3)
+    await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-nueva`), { ...FICHA, id: 'uid-nueva', nombre: 'Nueva' }))
     await assertSucceeds(updateDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), { actualizadoEn: 2 }))
-    await assertSucceeds(deleteDoc(doc(db, `${NEGOCIO}/sueldos/uid-sandra`)))
+    await assertSucceeds(deleteDoc(doc(db, `${NEGOCIO}/sueldos/uid-nueva`)))
   })
 
-  it('la encargada no las lee ni las lista, aunque esté al mando', async () => {
+  it('LA ENCARGADA LAS VE: la de otra persona, la suya y la lista entera', async () => {
     const db = comoSandra()
-    await assertFails(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
+    const deGabi = await assertSucceeds(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
+    expect(deGabi.data()?.acuerdos[0].monto).toBe(123456)
+    await assertSucceeds(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-sandra`)))
+    const todas = await assertSucceeds(getDocs(collection(db, `${NEGOCIO}/sueldos`)))
+    expect(todas.size).toBe(3)
+  })
+
+  it('la encargada NO las escribe: ni la suya ni la de otra persona. Nadie se cambia el propio sueldo', async () => {
+    const db = comoSandra()
+    await assertFails(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-sandra`), { ...FICHA, id: 'uid-sandra', acuerdos: [] }))
+    await assertFails(updateDoc(doc(db, `${NEGOCIO}/sueldos/uid-sandra`), { actualizadoEn: 2 }))
+    await assertFails(updateDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), { actualizadoEn: 2 }))
+    await assertFails(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-otra`), { ...FICHA, id: 'uid-otra' }))
+    await assertFails(deleteDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
+  })
+
+  it('«MI SUELDO»: una empleada lee SU ficha, y nada más que la suya', async () => {
+    const db = comoGabi()
+    const mia = await assertSucceeds(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
+    expect(mia.data()?.acuerdos[0].monto).toBe(123456)
     await assertFails(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-sandra`)))
+    await assertFails(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-baja`)))
+    // Listar es pedirlas todas: no se puede, aunque una sea la suya.
     await assertFails(getDocs(collection(db, `${NEGOCIO}/sueldos`)))
   })
 
-  it('la encargada no las escribe: ni la suya ni la de otra persona', async () => {
-    const db = comoSandra()
-    await assertFails(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-sandra`), { ...FICHA, id: 'uid-sandra' }))
+  it('una empleada no escribe ni la suya', async () => {
+    const db = comoGabi()
+    await assertFails(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), { ...FICHA, acuerdos: [] }))
     await assertFails(updateDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), { actualizadoEn: 2 }))
     await assertFails(deleteDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
   })
 
-  it('una empleada no lee ni la suya, y no puede escribirla', async () => {
-    const db = comoGabi()
-    await assertFails(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
-    await assertFails(getDocs(collection(db, `${NEGOCIO}/sueldos`)))
-    await assertFails(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), { ...FICHA, acuerdos: [] }))
-    await assertFails(deleteDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
+  it('quien todavía no tiene ficha puede preguntar por la suya: le contesta que no hay, no que no puede', async () => {
+    await entorno.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), `${NEGOCIO}/sueldos/uid-gabi`))
+    })
+    const mia = await assertSucceeds(getDoc(doc(comoGabi(), `${NEGOCIO}/sueldos/uid-gabi`)))
+    expect(mia.exists()).toBe(false)
   })
 
-  it('un dueño desactivado tampoco, y sin sesión menos', async () => {
+  it('con la cuenta desactivada no se lee nada: ni la propia, ni siendo dueño o encargada', async () => {
+    await assertFails(getDoc(doc(como('uid-baja', 'baja@elclubdelmate.com'), `${NEGOCIO}/sueldos/uid-baja`)))
     await assertFails(getDoc(doc(como('uid-ex', 'ex@elclubdelmate.com'), `${NEGOCIO}/sueldos/uid-gabi`)))
+    await assertFails(getDocs(collection(como('uid-exenc', 'exenc@elclubdelmate.com'), `${NEGOCIO}/sueldos`)))
+  })
+
+  it('sin sesión, o con una cuenta sin perfil, tampoco', async () => {
     await assertFails(getDoc(doc(entorno.unauthenticatedContext().firestore(), `${NEGOCIO}/sueldos/uid-gabi`)))
+    // Alguien con cuenta pero sin perfil en el negocio: ni siquiera «la suya».
+    await assertFails(getDoc(doc(como('uid-nadie', 'nadie@ejemplo.com'), `${NEGOCIO}/sueldos/uid-nadie`)))
+    await assertFails(getDoc(doc(como('uid-nadie', 'nadie@ejemplo.com'), `${NEGOCIO}/sueldos/uid-gabi`)))
   })
 
   it('lo demás sigue como estaba: un gasto de sueldos lo carga y lo lee cualquiera activo', async () => {
@@ -100,5 +135,13 @@ describe('sueldos: lo ve y lo cambia solo el dueño', () => {
     await assertSucceeds(setDoc(doc(comoGabi(), `${NEGOCIO}/movimientos/m1`), pago))
     await assertSucceeds(getDoc(doc(comoSandra(), `${NEGOCIO}/movimientos/m1`)))
     await assertSucceeds(updateDoc(doc(comoEmma(), `${NEGOCIO}/movimientos/m1`), { persona: 'uid-sandra' }))
+  })
+
+  it('el apodo de alguien lo cambia quien está al mando, no la empleada', async () => {
+    await assertSucceeds(updateDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-gabi`), { apodos: 'Gabi' }))
+    await assertSucceeds(updateDoc(doc(comoEmma(), `${NEGOCIO}/usuarios/uid-emma`), { apodos: 'Emma' }))
+    await assertFails(updateDoc(doc(comoGabi(), `${NEGOCIO}/usuarios/uid-gabi`), { apodos: 'Jefa' }))
+    // Una encargada no toca a un dueño, tampoco para esto.
+    await assertFails(updateDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-emma`), { apodos: 'Emma' }))
   })
 })

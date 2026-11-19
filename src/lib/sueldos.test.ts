@@ -1,15 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import {
+  apodoPosible,
+  apodosLimpios,
+  categoriaQueSugiere,
+  comoFigura,
   conAcuerdo,
+  duenosParaRetiro,
   esPagoDeSueldo,
+  esRetiroDeSocio,
+  estadoDeMiSaldo,
   estadoDelSaldo,
   fichaDesdeDatos,
   mesDelPago,
+  miSueldoDelMes,
+  parecenRetiro,
   parecenSueldo,
   personasParaSueldo,
+  preguntaDeLaSugerencia,
   problemaDelAcuerdo,
+  queParece,
+  resumenDeRetiros,
   resumenDeSueldos,
   sueldoDelMes,
+  sugerenciaAplicada,
   textoDeConfirmacionSueldo,
   type AcuerdoSueldo,
   type FichaSueldo,
@@ -256,3 +269,317 @@ describe('una ficha como viene del servidor', () => {
     expect(fichaDesdeDatos('x', { acuerdos: 'nada' }).acuerdos).toEqual([])
   })
 })
+
+/* ------------------------------------------------------------------ */
+/* Lo del 19/11 a la tarde: apodos, pagos por semana, retiros, «Mi sueldo» */
+
+const dueno = (id: string, nombre: string, apodos: string | null = null): PersonaConSueldo => ({
+  id,
+  nombre,
+  activo: true,
+  rol: 'owner',
+  apodos,
+})
+const empleada = (id: string, nombre: string, apodos: string | null = null): PersonaConSueldo => ({
+  id,
+  nombre,
+  activo: true,
+  rol: 'empleado',
+  apodos,
+})
+
+describe('con qué nombres figura alguien en un gasto', () => {
+  it('su nombre de pila y sus apodos, sin acentos ni mayúsculas', () => {
+    expect(comoFigura({ nombre: 'Gabriela Pérez', apodos: 'Gabi, GABY' })).toEqual(['gabriela', 'gabi', 'gaby'])
+    expect(comoFigura({ nombre: 'José', apodos: null })).toEqual(['jose'])
+  })
+
+  it('un nombre de dos letras no se usa (aparece adentro de todo); un apodo de dos letras sí', () => {
+    expect(comoFigura({ nombre: 'Lu', apodos: null })).toEqual([])
+    expect(comoFigura({ nombre: 'Lu', apodos: 'Lu' })).toEqual(['lu'])
+    expect(comoFigura({ nombre: 'Ana', apodos: 'A' })).toEqual(['ana'])
+  })
+
+  it('no repite: el apodo igual al nombre cuenta una vez', () => {
+    expect(comoFigura({ nombre: 'Ana', apodos: 'ana, Anita' })).toEqual(['ana', 'anita'])
+  })
+
+  it('los apodos se guardan prolijos, y vacío es «no tiene»', () => {
+    expect(apodosLimpios('  Gabi ,gaby,, Gabi  ')).toBe('Gabi, gaby')
+    expect(apodosLimpios('   ')).toBeNull()
+    expect(apodosLimpios(' , ,')).toBeNull()
+  })
+})
+
+describe('qué parece un gasto por su concepto', () => {
+  const equipo = [empleada('gabi', 'Gabriela Pérez', 'Gabi'), empleada('sandra', 'Sandra'), dueno('elena', 'Elena', 'Mamá')]
+
+  it('LOS PAGOS POR SEMANA: «SEMANA GABI» es el sueldo de Gabriela, por su apodo', () => {
+    expect(queParece('SEMANA GABI', equipo)).toEqual({ que: 'sueldo', persona: equipo[0] })
+    expect(queParece('gabi semana', equipo)).toEqual({ que: 'sueldo', persona: equipo[0] })
+  })
+
+  it('sin el apodo cargado igual parece un sueldo, por «semana», pero no sabe de quién', () => {
+    const sinApodo = [empleada('gabi', 'Gabriela Pérez'), empleada('sandra', 'Sandra')]
+    expect(queParece('SEMANA GABI', sinApodo)).toEqual({ que: 'sueldo', persona: null })
+  })
+
+  it('si nombra a un dueño es un retiro, diga lo que diga el resto', () => {
+    expect(queParece('Elena', equipo)).toEqual({ que: 'retiro', persona: equipo[2] })
+    expect(queParece('adelanto mamá', equipo)).toEqual({ que: 'retiro', persona: equipo[2] })
+  })
+
+  it('si nombra a alguien del equipo es un sueldo, aunque diga «retiro»', () => {
+    expect(queParece('Retiro Sandra', equipo)).toEqual({ que: 'sueldo', persona: equipo[1] })
+  })
+
+  it('sin nombre deciden las palabras: «adelanto» es sueldo, «retiro» es retiro', () => {
+    expect(queParece('adelanto', equipo)).toEqual({ que: 'sueldo', persona: null })
+    expect(queParece('RETIRO EFECTIVO', equipo)).toEqual({ que: 'retiro', persona: null })
+    // Con las dos, gana la de sueldo: «retiro» se le dice a cualquier salida de plata.
+    expect(queParece('retiro adelanto', equipo)).toEqual({ que: 'sueldo', persona: null })
+  })
+
+  it('lo que no nombra a nadie ni dice nada de eso, no parece nada', () => {
+    expect(queParece('flete y café', equipo)).toBeNull()
+    expect(queParece('', equipo)).toBeNull()
+    // El nombre adentro de otra palabra no cuenta.
+    expect(queParece('sandralias', equipo)).toBeNull()
+    expect(queParece('semanario', equipo)).toBeNull()
+  })
+
+  it('la pregunta y la categoría que se le ofrecen a quien carga', () => {
+    const sueldoDeGabi = queParece('semana gabi', equipo)!
+    expect(preguntaDeLaSugerencia(sueldoDeGabi)).toBe('¿Es el sueldo de Gabriela Pérez?')
+    expect(categoriaQueSugiere(sueldoDeGabi)).toBe('SUELDOS')
+    const retiroDeElena = queParece('elena', equipo)!
+    expect(preguntaDeLaSugerencia(retiroDeElena)).toBe('¿Es un retiro de Elena?')
+    expect(categoriaQueSugiere(retiroDeElena)).toBe('RETIRO SOCIOS')
+    expect(preguntaDeLaSugerencia({ que: 'sueldo', persona: null })).toBe('¿Es un sueldo?')
+    expect(preguntaDeLaSugerencia({ que: 'retiro', persona: null })).toBe('¿Es un retiro de un dueño?')
+  })
+
+  it('no se ofrece lo que ya está puesto: la categoría, y la persona si el concepto la nombra', () => {
+    const sueldoDeGabi = queParece('semana gabi', equipo)!
+    expect(sugerenciaAplicada(sueldoDeGabi, 'OTROS', null)).toBe(false)
+    expect(sugerenciaAplicada(sueldoDeGabi, 'SUELDOS', null)).toBe(false)
+    expect(sugerenciaAplicada(sueldoDeGabi, 'SUELDOS', 'sandra')).toBe(false)
+    expect(sugerenciaAplicada(sueldoDeGabi, 'SUELDOS', 'gabi')).toBe(true)
+    expect(sugerenciaAplicada(sueldoDeGabi, 'RETIRO SOCIOS', 'gabi')).toBe(false)
+    // Sin nombre alcanza con la categoría.
+    expect(sugerenciaAplicada({ que: 'sueldo', persona: null }, 'SUELDOS', null)).toBe(true)
+    expect(sugerenciaAplicada({ que: 'retiro', persona: null }, 'SUELDOS', null)).toBe(false)
+  })
+})
+
+describe('los pagos por semana que no se encontraban', () => {
+  // Como estaban cargados: con el apodo, la palabra «semana» y en OTROS.
+  const sabados = ['2026-10-03', '2026-10-10', '2026-10-17']
+  const pagos = sabados.map((f, i) =>
+    pago(f, 100 + i, { categoria: 'OTROS', concepto: i % 2 === 0 ? 'SEMANA GABI' : 'GABI SEMANA' }),
+  )
+
+  it('con el apodo, los encuentra y sabe de quién son', () => {
+    const lista = parecenSueldo(pagos, [empleada('gabi', 'Gabriela Pérez', 'Gabi')], '2026-10')
+    expect(lista.map((x) => [x.movimiento.fecha, x.sugerida?.id ?? null])).toEqual(sabados.map((f) => [f, 'gabi']))
+  })
+
+  it('sin el apodo, los encuentra igual por «semana», sin decir de quién', () => {
+    const lista = parecenSueldo(pagos, [empleada('gabi', 'Gabriela Pérez')], '2026-10')
+    expect(lista.map((x) => [x.movimiento.fecha, x.sugerida])).toEqual(sabados.map((f) => [f, null]))
+  })
+
+  it('el apodo que se puede ofrecer recordar: la única palabra que queda', () => {
+    const equipo = [empleada('gabi', 'Gabriela Pérez'), dueno('elena', 'Elena')]
+    expect(apodoPosible('SEMANA GABI', equipo)).toBe('gabi')
+    expect(apodoPosible('adelanto 2 gabi', equipo)).toBe('gabi')
+    // Nada que ofrecer: no queda ninguna, o quedan dos y no se adivina.
+    expect(apodoPosible('SEMANA', equipo)).toBeNull()
+    expect(apodoPosible('semana gabi extra', equipo)).toBeNull()
+    // Lo que ya es de alguien no se ofrece otra vez.
+    expect(apodoPosible('semana gabriela', equipo)).toBeNull()
+    expect(apodoPosible('retiro elena', equipo)).toBeNull()
+    // Palabras de relleno y de dos letras no son un apodo.
+    expect(apodoPosible('pago semana de gabi', equipo)).toBe('gabi')
+    expect(apodoPosible('semana lu', equipo)).toBeNull()
+    // Un número no es un apodo, tenga las cifras que tenga.
+    expect(apodoPosible('adelanto 500', equipo)).toBeNull()
+  })
+})
+
+describe('gastos que parecen el retiro de un dueño', () => {
+  const equipo = [dueno('elena', 'Elena', 'mamá'), dueno('seba', 'Sebastián', 'Seba'), empleada('gabi', 'Gabriela', 'Gabi')]
+
+  it('los que nombran a un dueño o dicen «retiro», y no los que ya están en su categoría', () => {
+    const lista = parecenRetiro(
+      [
+        pago('2026-11-03', 1, { categoria: 'OTROS', concepto: 'ELENA' }),
+        pago('2026-11-04', 2, { categoria: 'OTROS', concepto: 'retiro' }),
+        pago('2026-11-05', 3, { categoria: 'OTROS', concepto: 'seba nafta' }),
+        pago('2026-11-06', 4, { categoria: 'OTROS', concepto: 'semana gabi' }), // es un sueldo, va a la otra lista
+        pago('2026-11-07', 5, { categoria: 'RETIRO SOCIOS', concepto: 'retiro mamá' }), // ya es retiro
+        pago('2026-11-08', 6, { categoria: 'SUELDOS', concepto: 'elena' }), // ya es sueldo: no se toca desde acá
+        pago('2026-10-08', 7, { categoria: 'OTROS', concepto: 'elena' }), // otro mes
+        pago('2026-11-09', 8, { categoria: 'OTROS', concepto: 'flete' }),
+      ],
+      equipo,
+      '2026-11',
+    )
+    expect(lista.map((x) => [x.movimiento.monto, x.sugerida?.id ?? null])).toEqual([
+      [1, 'elena'],
+      [2, null],
+      [3, 'seba'],
+    ])
+  })
+
+  it('y esos mismos no aparecen como sueldo', () => {
+    const lista = parecenSueldo(
+      [
+        pago('2026-11-03', 1, { categoria: 'OTROS', concepto: 'adelanto elena' }),
+        pago('2026-11-06', 4, { categoria: 'OTROS', concepto: 'semana gabi' }),
+      ],
+      equipo,
+      '2026-11',
+    )
+    expect(lista.map((x) => x.movimiento.monto)).toEqual([4])
+  })
+})
+
+describe('los retiros de los dueños, por persona', () => {
+  const personas = [
+    dueno('emma', 'Emmanuel'),
+    dueno('elena', 'Elena'),
+    { ...dueno('ex', 'Ex socio'), activo: false },
+    empleada('gabi', 'Gabriela'),
+  ]
+  const retiro = (fecha: string, monto: number, persona: string | null, extra: Record<string, unknown> = {}) =>
+    pago(fecha, monto, { categoria: 'RETIRO SOCIOS', persona, ...extra })
+
+  it('qué es un retiro: un gasto de categoría RETIRO SOCIOS, salga del cajón o de otra cuenta', () => {
+    expect(esRetiroDeSocio({ tipo: 'EGRESO_CAJA', categoria: 'RETIRO SOCIOS' })).toBe(true)
+    expect(esRetiroDeSocio({ tipo: 'GASTO_CAJA_GRANDE', categoria: 'RETIRO SOCIOS' })).toBe(true)
+    expect(esRetiroDeSocio({ tipo: 'EGRESO_CAJA', categoria: 'SUELDOS' })).toBe(false)
+    expect(esRetiroDeSocio({ tipo: 'A_CAJA_GRANDE', categoria: 'RETIRO SOCIOS' })).toBe(false)
+  })
+
+  it('cada dueño con lo que retiró en el mes, de a poquito: se suma', () => {
+    const r = resumenDeRetiros(
+      personas,
+      [
+        retiro('2026-11-02', 10, 'elena'),
+        retiro('2026-11-09', 20, 'elena'),
+        retiro('2026-11-16', 30, 'elena'),
+        retiro('2026-11-05', 400, 'emma'),
+        retiro('2026-10-31', 999, 'elena'), // octubre
+        pago('2026-11-06', 77, { persona: 'elena' }), // un sueldo no es un retiro
+      ],
+      '2026-11',
+    )
+    expect(r.renglones.map((x) => [x.persona.nombre, x.retirado, x.retiros.length])).toEqual([
+      ['Elena', 60, 3],
+      ['Emmanuel', 400, 1],
+    ])
+    expect(r.total).toBe(460)
+    expect(r.sinAsignar).toEqual([])
+  })
+
+  it('un dueño activo figura aunque no haya retirado; uno que ya no está, solo si retiró', () => {
+    const sinNada = resumenDeRetiros(personas, [], '2026-11')
+    expect(sinNada.renglones.map((x) => [x.persona.nombre, x.retirado])).toEqual([
+      ['Elena', 0],
+      ['Emmanuel', 0],
+    ])
+    const conElEx = resumenDeRetiros(personas, [retiro('2026-11-02', 5, 'ex')], '2026-11')
+    expect(conElEx.renglones.map((x) => x.persona.nombre)).toEqual(['Elena', 'Emmanuel', 'Ex socio'])
+  })
+
+  it('un retiro sin nombre, o a nombre de alguien que no figura, queda «sin asignar» y suma al total', () => {
+    const r = resumenDeRetiros(
+      personas,
+      [retiro('2026-11-02', 10, null), retiro('2026-11-03', 20, 'nadie'), retiro('2026-11-04', 30, 'elena')],
+      '2026-11',
+    )
+    expect(r.sinAsignar.map((m) => m.monto)).toEqual([10, 20])
+    expect(r.total).toBe(60)
+  })
+
+  it('si un retiro quedó a nombre de alguien que no es dueño, se ve: no se esconde', () => {
+    const r = resumenDeRetiros(personas, [retiro('2026-11-02', 10, 'gabi')], '2026-11')
+    expect(r.renglones.map((x) => [x.persona.nombre, x.retirado])).toContainEqual(['Gabriela', 10])
+  })
+
+  it('a quién se le puede cargar un retiro: a los dueños activos, por nombre', () => {
+    expect(duenosParaRetiro(personas).map((p) => p.nombre)).toEqual(['Elena', 'Emmanuel'])
+  })
+})
+
+describe('en el mes de sueldos, los dueños no figuran salvo que cobren uno', () => {
+  const personas = [dueno('emma', 'Emmanuel'), dueno('elena', 'Elena'), empleada('gabi', 'Gabriela')]
+
+  it('un dueño sin sueldo definido y sin pagos no aparece; la empleada sí', () => {
+    const r = resumenDeSueldos(personas, [], [], '2026-11')
+    expect(r.renglones.map((x) => x.persona.nombre)).toEqual(['Gabriela'])
+  })
+
+  it('si a un dueño se le definió un sueldo, o se le cargó un pago, aparece', () => {
+    const conAcuerdoDeElena = resumenDeSueldos(personas, [ficha('elena', 'Elena', acuerdo('2026-11', 500))], [], '2026-11')
+    expect(conAcuerdoDeElena.renglones.map((x) => x.persona.nombre)).toEqual(['Elena', 'Gabriela'])
+    const conPagoAEmma = resumenDeSueldos(personas, [], [pago('2026-11-05', 9, { persona: 'emma' })], '2026-11')
+    expect(conPagoAEmma.renglones.map((x) => x.persona.nombre)).toEqual(['Emmanuel', 'Gabriela'])
+  })
+})
+
+describe('«Mi sueldo»: lo de una persona en el mes', () => {
+  const miFicha = ficha('gabi', 'Gabriela', acuerdo('2026-10', 1000))
+  const movimientos = [
+    pago('2026-11-07', 250, { persona: 'gabi', concepto: 'semana 1' }),
+    pago('2026-11-14', 250, { persona: 'gabi', concepto: 'semana 2' }),
+    pago('2026-11-21', 250, { persona: 'gabi', concepto: 'semana 3' }),
+    pago('2026-11-10', 999, { persona: 'sandra' }), // de otra persona
+    pago('2026-11-11', 888, { persona: null }), // sin asignar
+    pago('2026-12-03', 100, { persona: 'gabi', periodoSueldo: '2026-11', concepto: 'saldo' }), // de noviembre, pagado en diciembre
+    pago('2026-11-28', 777, { persona: 'gabi', categoria: 'OTROS' }), // no es sueldo
+    pago('2026-10-31', 50, { persona: 'gabi' }), // octubre
+  ]
+
+  it('SE ACUERDA POR MES Y SE PAGA POR SEMANA: las semanas se suman y lo que falta es la diferencia', () => {
+    const mio = miSueldoDelMes(miFicha, movimientos, 'gabi', '2026-11')
+    expect(mio.acordado).toBe(1000)
+    expect(mio.pagos.map((m) => m.concepto)).toEqual(['semana 1', 'semana 2', 'semana 3', 'saldo'])
+    expect(mio.pagado).toBe(850)
+    expect(mio.saldo).toBe(150)
+    expect(estadoDeMiSaldo(mio)).toEqual({ etiqueta: 'Te falta cobrar', monto: 150 })
+  })
+
+  it('solo lo suyo: ni lo de otra persona ni lo que no tiene nombre', () => {
+    const mio = miSueldoDelMes(miFicha, movimientos, 'gabi', '2026-11')
+    expect(mio.pagos.every((m) => m.persona === 'gabi')).toBe(true)
+    expect(mio.pagos.map((m) => m.monto)).not.toContain(999)
+    expect(mio.pagos.map((m) => m.monto)).not.toContain(888)
+  })
+
+  it('el último pago cierra el mes: al día, o de más si se pasó', () => {
+    const alDia = miSueldoDelMes(miFicha, [...movimientos, pago('2026-11-28', 150, { persona: 'gabi' })], 'gabi', '2026-11')
+    expect(estadoDeMiSaldo(alDia)).toEqual({ etiqueta: 'Estás al día', monto: 0 })
+    const deMas = miSueldoDelMes(miFicha, [...movimientos, pago('2026-11-28', 200, { persona: 'gabi' })], 'gabi', '2026-11')
+    expect(estadoDeMiSaldo(deMas)).toEqual({ etiqueta: 'Cobraste de más', monto: 50 })
+  })
+
+  it('sin ficha, o sin un acuerdo que alcance al mes, dice que no hay sueldo cargado y muestra igual lo cobrado', () => {
+    const sinFicha = miSueldoDelMes(null, movimientos, 'gabi', '2026-11')
+    expect(sinFicha.acordado).toBeNull()
+    expect(sinFicha.saldo).toBeNull()
+    expect(sinFicha.pagado).toBe(850)
+    expect(estadoDeMiSaldo(sinFicha)).toEqual({ etiqueta: 'Todavía no hay un sueldo cargado', monto: null })
+    expect(miSueldoDelMes(miFicha, movimientos, 'gabi', '2026-09').acordado).toBeNull()
+  })
+})
+
+describe('quién ve lo acordado, dicho al guardar', () => {
+  it('la confirmación avisa que lo ven los dueños, quien está de encargado y la propia persona', () => {
+    const texto = textoDeConfirmacionSueldo('Gabriela', 1000, '2026-11', null)
+    expect(texto).toContain('Lo ven los dueños, quien está de encargado y Gabriela en «Mi sueldo»')
+    expect(texto).not.toContain('solo el dueño')
+  })
+})
+

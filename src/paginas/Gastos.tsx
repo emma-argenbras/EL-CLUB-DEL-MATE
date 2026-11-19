@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
 import { estaAlMando, puedeVerSueldos } from '../sync/permisos'
-import { personasParaSueldo } from '../lib/sueldos'
+import { duenosParaRetiro, personasParaSueldo, type PersonaConSueldo, type QueParece } from '../lib/sueldos'
+import SugerenciaDeCarga from '../componentes/SugerenciaDeCarga'
 import { esVariablePorDefecto, permisoParaBorrarGasto } from '../lib/borrarGasto'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -153,7 +154,10 @@ export default function Gastos() {
       </div>
 
       {mostrarForm ? (
-        <FormularioGasto personas={personasParaSueldo(usuarios ?? [])} onSalir={() => setMostrarForm(false)} />
+        <FormularioGasto
+          personas={(usuarios ?? []).map((u) => ({ id: u.id, nombre: u.nombre, activo: u.activo, rol: u.rol, apodos: u.apodos }))}
+          onSalir={() => setMostrarForm(false)}
+        />
       ) : (
         <button className="boton-principal" onClick={() => setMostrarForm(true)}>
           + Cargar gasto
@@ -176,7 +180,9 @@ export default function Gastos() {
                   <div className="item-titulo">{m.concepto}</div>
                   <div className="item-sub">
                     {fechaLinda(m.fecha)} · {m.categoria ?? 'OTROS'}
-                    {m.categoria === 'SUELDOS' && m.persona && nombreDe.has(m.persona)
+                    {(m.categoria === 'SUELDOS' || m.categoria === 'RETIRO SOCIOS') &&
+                    m.persona &&
+                    nombreDe.has(m.persona)
                       ? ` de ${nombreDe.get(m.persona)}`
                       : ''}{' '}
                     <span className={m.esVariable ? 'chip' : 'chip chip-banco'}>
@@ -246,10 +252,12 @@ function FormularioGasto({
   personas,
   onSalir,
 }: {
-  /** A quien se le puede cargar un pago de sueldo. */
-  personas: { id: string; nombre: string }[]
+  /** El equipo y los dueños: a quien se le puede cargar un sueldo o un retiro. */
+  personas: PersonaConSueldo[]
   onSalir: () => void
 }) {
+  const activas = personasParaSueldo(personas)
+  const duenos = duenosParaRetiro(personas)
   const [fecha, setFecha] = useState(hoyISO())
   const [persona, setPersona] = useState('')
   const [concepto, setConcepto] = useState('')
@@ -262,10 +270,19 @@ function FormularioGasto({
   const [cuenta, setCuenta] = useState<CuentaDePago | ''>('')
   useCambiosSinGuardar('el gasto', [fecha, concepto, monto, categoria, esVariable, tipo, cuenta, persona])
 
-  function elegirCategoria(nueva: CategoriaGasto) {
+  // De quien es: en un sueldo, cualquiera del equipo; en un retiro de
+  // socios, un dueño (19/11).
+  const paraElegir = categoria === 'SUELDOS' ? activas : categoria === 'RETIRO SOCIOS' ? duenos : []
+
+  function elegirCategoria(nueva: CategoriaGasto, deQuien = '') {
     setCategoria(nueva)
     // Sugerimos fijo/variable segun la categoria, pero se puede cambiar.
     setEsVariable(esVariablePorDefecto(nueva))
+    setPersona(deQuien)
+  }
+
+  function aplicarSugerencia(parece: QueParece, nueva: 'SUELDOS' | 'RETIRO SOCIOS') {
+    elegirCategoria(nueva, parece.persona?.id ?? '')
   }
 
   async function guardar() {
@@ -281,8 +298,8 @@ function FormularioGasto({
       cuenta: cuenta || null,
       jornadaId: null,
       esVariable: tipo === 'INGRESO_CAJA_GRANDE' ? false : esVariable,
-      // De quien es, solo en un pago de sueldo.
-      ...(tipo === 'GASTO_CAJA_GRANDE' && categoria === 'SUELDOS' && persona ? { persona } : {}),
+      // De quien es, solo en un pago de sueldo o en un retiro de socios.
+      ...(tipo === 'GASTO_CAJA_GRANDE' && paraElegir.some((p) => p.id === persona) ? { persona } : {}),
     }
     await db.movimientos.add(registro)
     onSalir()
@@ -366,6 +383,13 @@ function FormularioGasto({
 
       {tipo === 'GASTO_CAJA_GRANDE' && (
         <>
+          <SugerenciaDeCarga
+            concepto={concepto}
+            categoria={categoria}
+            persona={persona || null}
+            personas={activas}
+            onAplicar={aplicarSugerencia}
+          />
           <div className="campo">
             <label htmlFor="g-cat">Categoría</label>
             <select
@@ -381,12 +405,14 @@ function FormularioGasto({
             </select>
           </div>
 
-          {categoria === 'SUELDOS' && personas.length > 0 && (
+          {paraElegir.length > 0 && (
             <div className="campo">
-              <label htmlFor="g-persona">¿De quién es el sueldo?</label>
+              <label htmlFor="g-persona">
+                {categoria === 'SUELDOS' ? '¿De quién es el sueldo?' : '¿De quién es el retiro?'}
+              </label>
               <select id="g-persona" value={persona} onChange={(e) => setPersona(e.target.value)}>
                 <option value="">Elegí…</option>
-                {personas.map((p) => (
+                {paraElegir.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.nombre}
                   </option>
