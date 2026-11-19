@@ -29,32 +29,13 @@ import { fechaLinda, plata } from '../lib/formato'
 import type { Coincidencia, TurnoRetenido } from '../sync/retener'
 import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
+import {
+  importarRespaldo,
+  preguntaAntesDeImportar,
+  TABLAS_RESPALDO,
+  type Respaldo,
+} from '../db/importarRespaldo'
 import { apagarModoConsulta, leerModoConsulta, prenderModoConsulta } from '../lib/modoConsulta'
-
-/**
- * Todo lo que entra en una copia manual. Cada vez que se suma una tabla
- * a la base hay que sumarla aca tambien, o esa informacion no viaja en el
- * respaldo (los usuarios no se incluyen: sus cuentas viven en Firebase
- * Auth, no en la base local, y restaurarlos sin sus logins no serviria).
- */
-const TABLAS_RESPALDO = [
-  'productos',
-  'proveedores',
-  'movimientosProveedor',
-  'jornadas',
-  'ventas',
-  'movimientos',
-  'historialProductos',
-  'ajustes',
-] as const
-
-type TablaRespaldo = (typeof TABLAS_RESPALDO)[number]
-
-interface Respaldo extends Partial<Record<TablaRespaldo, unknown[]>> {
-  app: string
-  version: number
-  fecha: string
-}
 
 export default function Ajustes() {
   const sesion = useSesion()
@@ -99,53 +80,26 @@ export default function Ajustes() {
   }
 
   async function importar(archivo: File) {
-    if (
-      !confirm(
-        'Importar un respaldo reemplaza TODOS los datos que tenés ahora en este dispositivo. ¿Seguís?',
-      )
-    )
-      return
     setTrabajando(true)
     try {
-      const datos = JSON.parse(await archivo.text()) as Respaldo
-      if (datos.app !== 'el-club-del-mate') {
-        throw new Error('El archivo no es un respaldo de esta app.')
-      }
-      // Un respaldo viejo (version 1) no trae proveedores ni cuenta
-      // corriente: se importa igual lo que si tenga, sin vaciar el resto.
-      const presentes = TABLAS_RESPALDO.filter((t) => Array.isArray(datos[t]))
-      await db.transaction(
-        'rw',
-        presentes.map((t) => db.table(t)),
-        async () => {
-          for (const tabla of presentes) {
-            await db.table(tabla).clear()
-            await db.table(tabla).bulkPut(datos[tabla] as never[])
-          }
-        },
-      )
-      const faltantes = TABLAS_RESPALDO.filter((t) => !presentes.includes(t))
+      const datos: unknown = JSON.parse(await archivo.text())
+      // La pregunta va con el archivo ya leido: dice de cuando es y
+      // cuanto trae, y que el servidor no se toca (ver importarRespaldo).
+      if (!confirm(preguntaAntesDeImportar(datos))) return
+      const { faltantes } = await importarRespaldo(datos)
       setMensaje({
         tipo: 'ok',
         texto: faltantes.length
-          ? `Respaldo importado. Era una copia vieja, así que no traía: ${faltantes.join(', ')}. Eso quedó como estaba.`
-          : 'Respaldo importado.',
+          ? `Respaldo importado en este aparato. Era una copia vieja, así que no traía: ${faltantes.join(', ')}. Eso quedó como estaba.`
+          : 'Respaldo importado en este aparato. En el servidor no cambió nada.',
       })
     } catch (e) {
-      setMensaje({ tipo: 'error', texto: `No se pudo importar: ${e}` })
+      setMensaje({ tipo: 'error', texto: `No se pudo importar: ${e instanceof Error ? e.message : e}` })
     } finally {
       setTrabajando(false)
     }
   }
 
-  /**
-   * Arma el mismo catalogo.json que publica scripts/generar-catalogo-publico.py,
-   * pero con los precios que estan HOY en la app. Sirve cuando se
-   * editaron precios desde acá y no desde la planilla de precios.
-   *
-   * Solo salen tres campos: codigo, descripcion y precio de venta. El
-   * costo, la rentabilidad y el proveedor no se publican nunca.
-   */
   async function exportarCatalogoPublico() {
     setTrabajando(true)
     try {
@@ -271,9 +225,10 @@ export default function Ajustes() {
             Descargar copia
           </button>
         </div>
-        {/* Importar pisa el catalogo, los turnos y las ventas con lo que
-            diga el archivo: quien puede importar puede borrar, solo que
-            mas despacio. Va con el mismo candado que la zona peligrosa. */}
+        {/* Importar reemplaza lo de ESTE aparato por lo que diga el
+            archivo; al servidor no le borra ni le pisa nada (19/11, ver
+            db/importarRespaldo.ts). Sigue con el candado de la zona
+            peligrosa: lo que el archivo tenga y el servidor no, se sube. */}
         {puedeImportarRespaldo(sesion.perfil) && (
           <div className="campo" style={{ marginTop: 10 }}>
             <label htmlFor="archivo">Importar un respaldo</label>
