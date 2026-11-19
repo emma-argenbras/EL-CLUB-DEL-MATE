@@ -15,6 +15,22 @@ describe('ayudaParaPerfil', () => {
     expect(suyas.some((e) => e.id === 'desactivar-usuario')).toBe(false)
   })
 
+  it('lo de los sueldos lo ve solo el dueño: ni la encargada ni una empleada (19/11)', () => {
+    const delDueno = TODAS.filter((e) => e.soloDueno).map((e) => e.id)
+    expect(delDueno).toContain('sueldos')
+    // El dueño, todo.
+    expect(ayudaParaPerfil(TODAS, true, [], true).some((e) => e.id === 'sueldos')).toBe(true)
+    // La encargada esta al mando, pero no es la dueña: ve todo lo demas.
+    const deLaEncargada = ayudaParaPerfil(TODAS, true, [], false)
+    expect(deLaEncargada.some((e) => e.soloDueno)).toBe(false)
+    expect(deLaEncargada.length).toBe(TODAS.length - delDueno.length)
+    expect(deLaEncargada.some((e) => e.id === 'crear-usuario')).toBe(true)
+    // Una empleada, tampoco; pero si como anotar su retiro.
+    const deLaEmpleada = ayudaParaPerfil(TODAS, false, ['caja'], false)
+    expect(deLaEmpleada.some((e) => e.soloDueno)).toBe(false)
+    expect(deLaEmpleada.some((e) => e.id === 'retiro-de-sueldo')).toBe(true)
+  })
+
   it('un empleado sin Proveedores no ve como registrar una compra', () => {
     const suyas = ayudaParaPerfil(TODAS, false, ['caja', 'productos'])
     expect(suyas.some((e) => e.id === 'registrar-compra')).toBe(false)

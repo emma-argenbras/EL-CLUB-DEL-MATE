@@ -642,6 +642,18 @@ export interface Movimiento {
    * si ese gasto se borra, vuelve a figurar sin pagar.
    */
   vencimiento?: { id: string; periodo: string } | null
+  /**
+   * En un pago de sueldo (categoria SUELDOS, 19/11): de quien es. El id
+   * de su usuario. Sin esto se sabia cuanto se pago de sueldos en el mes,
+   * pero no a quien (ver lib/sueldos.ts).
+   */
+  persona?: string | null
+  /**
+   * En un pago de sueldo: a que mes corresponde ('yyyy-mm'), cuando no es
+   * el de la fecha. El saldo de noviembre pagado el 3 de diciembre es
+   * sueldo de noviembre. Para el resultado del mes sigue contando la fecha.
+   */
+  periodoSueldo?: string | null
   concepto: string
   monto: number
   categoria: CategoriaGasto | null
@@ -1099,7 +1111,19 @@ class BaseECDM extends Dexie {
       // otro cuando se cargo en el equivocado, y eso mueve plata de una
       // caja a la otra: tiene que quedar escrito.
       ventas: ['codigo', 'descripcion', 'cantidad', 'precioUnitario', 'medioPago', 'jornadaId'],
-      movimientos: ['tipo', 'concepto', 'monto', 'categoria', 'esVariable', 'cuenta', 'cuentaDestino', 'vencimiento'],
+      movimientos: [
+        'tipo',
+        'concepto',
+        'monto',
+        'categoria',
+        'esVariable',
+        'cuenta',
+        'cuentaDestino',
+        'vencimiento',
+        // De quien es un pago de sueldo y a que mes corresponde (19/11).
+        'persona',
+        'periodoSueldo',
+      ],
       proveedores: [
         'nombre',
         'contacto',

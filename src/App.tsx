@@ -6,7 +6,7 @@ import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
 import { marcarArranqueDelHistorial } from './db/db'
-import { estaAlMando } from './sync/permisos'
+import { estaAlMando, puedeVerSueldos } from './sync/permisos'
 import { leerModoConsulta } from './lib/modoConsulta'
 import { useSesion } from './sync/useSesion'
 import { useEstadoNube } from './sync/useEstadoNube'
@@ -36,6 +36,7 @@ import CajaGrande from './paginas/CajaGrande'
 import IngresoMercaderia from './paginas/IngresoMercaderia'
 import Vencimientos from './paginas/Vencimientos'
 import Pedidos from './paginas/Pedidos'
+import Sueldos from './paginas/Sueldos'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
@@ -321,6 +322,10 @@ export default function App() {
           <Route
             path="/gastos"
             element={puedeVer('gastos') ? <Gastos /> : <Navigate to="/mi-actividad" replace />}
+          />
+          <Route
+            path="/sueldos"
+            element={puedeVerSueldos(sesion.perfil) ? <Sueldos /> : <Navigate to="/gastos" replace />}
           />
           <Route
             path="/reportes"

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
-import { estaAlMando } from '../sync/permisos'
+import { estaAlMando, puedeVerSueldos } from '../sync/permisos'
+import { personasParaSueldo } from '../lib/sueldos'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -28,7 +29,12 @@ const FIJOS_POR_DEFECTO: CategoriaGasto[] = [
 ]
 
 export default function Gastos() {
-  const alMando = estaAlMando(useSesion().perfil)
+  const perfil = useSesion().perfil
+  const alMando = estaAlMando(perfil)
+  // De quien es cada pago de sueldo (19/11): el nombre sale de las cuentas
+  // del equipo, que estan en todos los aparatos. Los montos acordados no.
+  const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
+  const nombreDe = useMemo(() => new Map((usuarios ?? []).map((u) => [u.id, u.nombre])), [usuarios])
   const [mes, setMes] = useState(mesActualISO())
   const [mostrarForm, setMostrarForm] = useState(false)
 
@@ -99,6 +105,18 @@ export default function Gastos() {
         </div>
       )}
 
+      {puedeVerSueldos(perfil) && (
+        <div className="tarjeta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div>
+            <p className="tarjeta-titulo" style={{ margin: 0 }}>Sueldos</p>
+            <div className="item-sub">Lo acordado con cada persona, lo que lleva cobrado y lo que falta.</div>
+          </div>
+          <Link className="boton-chico" to="/sueldos">
+            Ver sueldos
+          </Link>
+        </div>
+      )}
+
       <div className="tarjeta">
         <label htmlFor="mes-gastos">Mes</label>
         <input
@@ -136,7 +154,7 @@ export default function Gastos() {
       </div>
 
       {mostrarForm ? (
-        <FormularioGasto onSalir={() => setMostrarForm(false)} />
+        <FormularioGasto personas={personasParaSueldo(usuarios ?? [])} onSalir={() => setMostrarForm(false)} />
       ) : (
         <button className="boton-principal" onClick={() => setMostrarForm(true)}>
           + Cargar gasto
@@ -156,7 +174,10 @@ export default function Gastos() {
                 <div style={{ minWidth: 0 }}>
                   <div className="item-titulo">{m.concepto}</div>
                   <div className="item-sub">
-                    {fechaLinda(m.fecha)} · {m.categoria ?? 'OTROS'}{' '}
+                    {fechaLinda(m.fecha)} · {m.categoria ?? 'OTROS'}
+                    {m.categoria === 'SUELDOS' && m.persona && nombreDe.has(m.persona)
+                      ? ` de ${nombreDe.get(m.persona)}`
+                      : ''}{' '}
                     <span className={m.esVariable ? 'chip' : 'chip chip-banco'}>
                       {m.esVariable ? 'VARIABLE' : 'FIJO'}
                     </span>
@@ -210,15 +231,23 @@ export default function Gastos() {
 
 /* ------------------------------------------------------------------ */
 
-function FormularioGasto({ onSalir }: { onSalir: () => void }) {
+function FormularioGasto({
+  personas,
+  onSalir,
+}: {
+  /** A quien se le puede cargar un pago de sueldo. */
+  personas: { id: string; nombre: string }[]
+  onSalir: () => void
+}) {
   const [fecha, setFecha] = useState(hoyISO())
+  const [persona, setPersona] = useState('')
   const [concepto, setConcepto] = useState('')
   const [monto, setMonto] = useState('')
   const [categoria, setCategoria] = useState<CategoriaGasto>('PROVEEDORES')
   const [esVariable, setEsVariable] = useState(false)
   const [tipo, setTipo] = useState<TipoMovimiento>('GASTO_CAJA_GRANDE')
   const [cuenta, setCuenta] = useState<CuentaDePago | ''>('')
-  useCambiosSinGuardar('el gasto', [fecha, concepto, monto, categoria, esVariable, tipo, cuenta])
+  useCambiosSinGuardar('el gasto', [fecha, concepto, monto, categoria, esVariable, tipo, cuenta, persona])
 
   function elegirCategoria(nueva: CategoriaGasto) {
     setCategoria(nueva)
@@ -239,6 +268,8 @@ function FormularioGasto({ onSalir }: { onSalir: () => void }) {
       cuenta: cuenta || null,
       jornadaId: null,
       esVariable: tipo === 'INGRESO_CAJA_GRANDE' ? false : esVariable,
+      // De quien es, solo en un pago de sueldo.
+      ...(tipo === 'GASTO_CAJA_GRANDE' && categoria === 'SUELDOS' && persona ? { persona } : {}),
     }
     await db.movimientos.add(registro)
     onSalir()
@@ -336,6 +367,20 @@ function FormularioGasto({ onSalir }: { onSalir: () => void }) {
               ))}
             </select>
           </div>
+
+          {categoria === 'SUELDOS' && personas.length > 0 && (
+            <div className="campo">
+              <label htmlFor="g-persona">¿De quién es el sueldo?</label>
+              <select id="g-persona" value={persona} onChange={(e) => setPersona(e.target.value)}>
+                <option value="">Elegí…</option>
+                {personas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="campo">
             <label>¿Cómo afecta al margen?</label>
