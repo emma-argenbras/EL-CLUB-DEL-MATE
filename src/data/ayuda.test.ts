@@ -40,6 +40,12 @@ describe('ayudaParaPerfil', () => {
     expect(buscarAyuda('excel', ayudaParaPerfil(TODAS, true, [], false)).map((e) => e.id)).toContain('planilla-del-proveedor')
   })
 
+  it('por qué no aparece «Borrar» lo ve quien tiene Gastos, sea o no quien manda (19/11)', () => {
+    // La que se queda sin botón es la empleada: es ella la que lo va a buscar.
+    expect(ayudaParaPerfil(TODAS, false, ['caja', 'gastos']).some((e) => e.id === 'borrar-gasto')).toBe(true)
+    expect(ayudaParaPerfil(TODAS, false, ['caja']).some((e) => e.id === 'borrar-gasto')).toBe(false)
+  })
+
   it('un empleado sin Proveedores no ve como registrar una compra', () => {
     const suyas = ayudaParaPerfil(TODAS, false, ['caja', 'productos'])
     expect(suyas.some((e) => e.id === 'registrar-compra')).toBe(false)
