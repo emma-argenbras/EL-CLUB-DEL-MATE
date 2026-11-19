@@ -46,6 +46,7 @@ import {
 } from '../db/db'
 import { aClaveDeNube, aClaveLocal } from './claves'
 import { aplicarCambiosRemotos, type FalloAlRecibir } from './aplicarRemotos'
+import { colaPorClave } from './enOrden'
 import {
   compararConServidor,
   cuelgaDeRetenido,
@@ -1204,6 +1205,9 @@ async function actualizarPerfilPropio(): Promise<void> {
   })
 }
 
+/** Lo que baja de cada tabla se guarda de a un aviso, en el orden en que llego. */
+const guardadoEnOrden = colaPorClave<NombreTabla>()
+
 function escucharColecciones() {
   dejarDeEscuchar()
   for (const tabla of TABLAS) escucharTabla(tabla, false)
@@ -1230,22 +1234,30 @@ function escucharTabla(tabla: NombreTabla, reabriendo: boolean) {
       // este recorrido iba adentro de un solo comoRemoto, y mientras
       // duraba --el primer snapshot trae la tabla entera-- lo que la
       // persona cargaba no se subia (ver comoRemoto en db.ts).
-      aplicarCambiosRemotos(
+      //
+      // Y cada aviso espera a que termine de guardarse el anterior de
+      // su tabla (ver enOrden.ts): si no, el eco de un cambio hecho
+      // mientras se guardaba el primer aviso quedaba pisado por lo viejo.
+      const cambios = instantanea.docChanges().map((cambio) => ({
+        tipo: cambio.type,
+        id: cambio.doc.id,
+        datos: cambio.type === 'removed' ? null : cambio.doc.data(),
+        pendiente: cambio.doc.metadata.hasPendingWrites,
+      }))
+      void guardadoEnOrden.encolar(
         tabla,
-        instantanea.docChanges().map((cambio) => ({
-          tipo: cambio.type,
-          id: cambio.doc.id,
-          datos: cambio.type === 'removed' ? null : cambio.doc.data(),
-          pendiente: cambio.doc.metadata.hasPendingWrites,
-        })),
-        (id) => rechazosRecientes.has(`${tabla}/${id}`),
-        (id) => rechazosRecientes.delete(`${tabla}/${id}`),
-      )
-        .then(async (fallos) => {
+        async () => {
+          const fallos = await aplicarCambiosRemotos(
+            tabla,
+            cambios,
+            (id) => rechazosRecientes.has(`${tabla}/${id}`),
+            (id) => rechazosRecientes.delete(`${tabla}/${id}`),
+          )
           if (fallos.length > 0) avisarFallosAlRecibir(tabla, fallos)
           if (tabla === 'usuarios') await actualizarPerfilPropio()
-        })
-        .catch((e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e))
+        },
+        (e) => console.warn(`Error aplicando cambios remotos de ${tabla}:`, e),
+      )
       if (!instantanea.metadata.fromCache) volvioARecibir(tabla)
       // Con otra tabla caida no es «Sincronizado»: hasta el 13/11 este
       // renglon lo decia igual y tapaba la escucha caida.
@@ -1351,6 +1363,7 @@ function avisarFallosAlRecibir(tabla: NombreTabla, fallos: FalloAlRecibir[]): vo
 function dejarDeEscuchar() {
   for (const cancelar of escuchas.values()) cancelar()
   escuchas.clear()
+  guardadoEnOrden.vaciar()
   for (const pendiente of reaperturas.values()) clearTimeout(pendiente)
   reaperturas.clear()
   fijarEstadoNube({ sinRecibir: [] })
