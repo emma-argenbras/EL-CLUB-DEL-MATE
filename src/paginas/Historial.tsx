@@ -58,6 +58,10 @@ export default function Historial() {
   // este negocio, traerlos es mas simple y los filtros responden al
   // toque, sin un viaje a la base por cada tecla.
   const todo = useLiveQuery(() => db.historial.orderBy('cuando').reverse().toArray(), [])
+  // Los nombres del equipo por id: un pago de sueldo guarda de quien es
+  // con el id de su usuario, y asi no se lee.
+  const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
+  const nombresDelEquipo = useMemo(() => new Map((usuarios ?? []).map((u) => [u.id, u.nombre])), [usuarios])
 
   const personas = useMemo(() => {
     const mapa = new Map<string, string>()
@@ -260,7 +264,7 @@ export default function Historial() {
 
           <ul className="lista">
             {filtrado.slice(0, cuantos).map((h) => (
-              <Renglon entrada={h} key={h.id} />
+              <Renglon entrada={h} nombres={nombresDelEquipo} key={h.id} />
             ))}
           </ul>
 
@@ -279,7 +283,7 @@ export default function Historial() {
   )
 }
 
-function Renglon({ entrada }: { entrada: EntradaHistorial }) {
+function Renglon({ entrada, nombres }: { entrada: EntradaHistorial; nombres: ReadonlyMap<string, string> }) {
   const esEdicion = entrada.accion === 'edito' || entrada.accion === 'archivo'
 
   return (
@@ -292,8 +296,8 @@ function Renglon({ entrada }: { entrada: EntradaHistorial }) {
 
       {esEdicion && (
         <div className="item-sub">
-          {comoSeLee(entrada.valorAnterior, entrada.campo)} →{' '}
-          <strong>{comoSeLee(entrada.valorNuevo, entrada.campo)}</strong>
+          {comoSeLee(entrada.valorAnterior, entrada.campo, nombres)} →{' '}
+          <strong>{comoSeLee(entrada.valorNuevo, entrada.campo, nombres)}</strong>
         </div>
       )}
 

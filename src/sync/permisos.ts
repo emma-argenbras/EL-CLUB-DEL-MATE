@@ -93,6 +93,17 @@ export function rolesQuePuedeAsignar(perfil: Perfil | null): Rol[] {
   return []
 }
 
+/**
+ * Ver y definir los sueldos acordados (19/11).
+ *
+ * Solo el dueño, por ahora: cuanto cobra cada persona es lo mas reservado
+ * que tiene la app. Si mañana la encargada paga los sueldos, se cambia
+ * aca Y en la regla de `sueldos` de firestore.rules: las dos juntas.
+ */
+export function puedeVerSueldos(perfil: Perfil | null): boolean {
+  return esDueno(perfil)
+}
+
 /** Entra a Ajustes (respaldo, usuarios del equipo, catalogo publico). */
 export function puedeVerAjustes(perfil: Perfil | null): boolean {
   return estaAlMando(perfil)

@@ -235,13 +235,33 @@ service cloud.firestore {
         coleccion != 'historial' &&
         coleccion != 'historialProductos' &&
         coleccion != 'productos' &&
-        coleccion != 'jornadas';
+        coleccion != 'jornadas' &&
+        coleccion != 'sueldos';
       allow write: if estoyActivo() &&
         coleccion != 'usuarios' &&
         coleccion != 'historial' &&
         coleccion != 'historialProductos' &&
         coleccion != 'productos' &&
-        coleccion != 'jornadas';
+        coleccion != 'jornadas' &&
+        coleccion != 'sueldos';
+    }
+
+    // Los sueldos acordados (19/11): cuanto cobra cada persona, una
+    // ficha por persona. Es lo mas reservado que guarda la app, y es la
+    // unica coleccion que la app no baja a todos los aparatos: la lee y
+    // la escribe solo el dueño, desde la pantalla Sueldos.
+    //
+    // Va afuera de la regla general de arriba --por eso figura en sus dos
+    // listas-- porque esa deja leer a cualquiera con sesion, y en las
+    // reglas alcanza con que UNA permita.
+    //
+    // Los pagos no estan aca: son gastos de categoria SUELDOS, en
+    // `movimientos`, y se ven en Gastos como cualquier otro.
+    //
+    // Si algun dia los sueldos los lleva la encargada, se cambia aca y en
+    // puedeVerSueldos() (src/sync/permisos.ts): las dos juntas.
+    match /negocios/el-club-del-mate/sueldos/{persona} {
+      allow read, write: if soyOwner();
     }
   }
 }

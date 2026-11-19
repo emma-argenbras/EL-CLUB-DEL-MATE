@@ -1,5 +1,5 @@
 import type { EntradaHistorial } from '../db/db'
-import { plata } from './formato'
+import { mesLindo, plata } from './formato'
 
 /*
  * Como se lee el historial en pantalla. Lo usan la pantalla del historial y
@@ -36,6 +36,8 @@ export const ETIQUETA_CAMPO: Record<string, string> = {
   concepto: 'concepto',
   categoria: 'categoría',
   tipo: 'tipo',
+  persona: 'de quién es',
+  periodoSueldo: 'mes al que corresponde',
 }
 
 /** Los campos que son plata, para mostrarlos con formato de plata. */
@@ -58,8 +60,15 @@ export function etiquetaCampo(campo: string | null): string {
  * Los objetos (un arqueo, un visto bueno) no se despliegan: ocuparian
  * media pantalla y no se leen. Se dice que cambiaron y listo.
  */
-export function comoSeLee(valor: unknown, campo: string | null): string {
+export function comoSeLee(
+  valor: unknown,
+  campo: string | null,
+  /** Los nombres del equipo por id, para leer de quien es un pago de sueldo. */
+  nombres?: ReadonlyMap<string, string>,
+): string {
   if (valor === null || valor === undefined || valor === '') return '—'
+  if (campo === 'persona' && typeof valor === 'string') return nombres?.get(valor) ?? valor
+  if (campo === 'periodoSueldo' && typeof valor === 'string') return mesLindo(valor)
   if (typeof valor === 'boolean') return valor ? 'sí' : 'no'
   if (typeof valor === 'number' && campo && CAMPOS_DE_PLATA.has(campo)) return plata(valor)
   if (typeof valor === 'object') return '(cambió)'

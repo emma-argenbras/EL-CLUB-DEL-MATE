@@ -2261,6 +2261,81 @@ Contra los emuladores:
 La segunda mitad del punto 14, la reposición sugerida por proveedor, necesita que el stock
 esté controlado: hoy la mayoría de los productos no lo lleva.
 
+## Los sueldos (19/11)
+
+Hasta el 19/11 la app sabía cuánto se pagaba de sueldos en el mes (la categoría de gasto
+SUELDOS), pero no a quién, ni cuánto se había acordado con cada persona.
+
+### Dos datos, en dos lugares distintos
+
+- **Lo pagado** es lo de siempre: un gasto de categoría SUELDOS, cargado desde Caja (un
+  retiro del cajón) o desde Gastos. Lo nuevo es que dice de quién es (`persona`, el id de su
+  usuario) y, si hace falta, a qué mes corresponde (`periodoSueldo`). Viaja con la
+  sincronización de todos y se ve en Gastos, como cualquier gasto.
+- **Lo acordado** es privado: cuánto cobra cada persona lo ve solo el dueño. Es la única
+  colección (`sueldos`, una ficha por persona) que **no pasa por el motor de
+  sincronización**: el motor baja cada tabla a todos los aparatos. No tiene tabla en la base
+  local ni ganchos. La pantalla Sueldos la lee y la escribe directo contra el servidor
+  (`src/sync/sueldosNube.ts`), y solo mientras está abierta.
+
+Tampoco pasa por el historial compartido, por el mismo motivo: un renglón «cambió el sueldo
+de tanto a tanto» lo leería todo el que ve el historial. La historia queda adentro de la
+ficha: un cambio de sueldo no pisa el anterior, se agrega con el mes desde el que rige
+(`acuerdos`). Así los meses viejos siguen mostrando lo que se había acordado entonces.
+
+**Los montos no van nunca al código, a las pruebas ni a este repositorio**, que es público.
+Los carga el dueño en la pantalla.
+
+### La pantalla
+
+Gastos → «Ver sueldos» (`/sueldos`), solo para el dueño (`puedeVerSueldos`). Por mes:
+
+- **El total:** lo acordado, lo pagado y lo que falta. Lo que uno cobró de más no tapa lo
+  que le falta a otro.
+- **Por persona:** el sueldo del mes, lo que cobró (con cada pago) y lo que falta o cobró de
+  más. «Definir sueldo» pide el monto y desde qué mes; pregunta antes de guardar, diciendo
+  qué había.
+- **«Pagos de sueldo sin asignar»:** están como SUELDOS y no dicen de quién. Se elige la
+  persona.
+- **«¿Esto es un sueldo?»:** gastos del mes con otra categoría que nombran a alguien del
+  equipo o dicen «sueldo» o «adelanto». Es una sugerencia: si lo es, se elige de quién y pasa
+  a SUELDOS como gasto fijo. Los retiros de socios no se sugieren.
+- **«Corresponde a»:** el saldo de noviembre pagado el 3 de diciembre es sueldo de
+  noviembre. Se cambia en ese pago. Para el resultado del mes sigue contando la fecha.
+
+Cada cambio toca un solo gasto y queda en el historial con el motivo «Ordenado desde
+Sueldos». El historial muestra el nombre de la persona y el mes, no el id.
+
+Al cargar un gasto de categoría SUELDOS, en Caja y en Gastos, aparece «¿De quién es el
+sueldo?». A una empleada que retira el suyo le viene su nombre ya elegido.
+
+### La regla del servidor
+
+`firestore.rules` tiene la colección `sueldos` solo para el dueño, y la saca de la regla
+general (que deja leer a cualquiera con sesión). **Hay que pegarla en la consola de
+Firebase.** Mientras no esté pegada, lo único que protege los sueldos acordados es que la
+app no los muestra ni los baja a ningún otro aparato; alguien con sesión y conocimientos
+técnicos podría pedírselos al servidor.
+
+Si algún día los sueldos los lleva la encargada, se cambia en dos lugares, juntos:
+`puedeVerSueldos()` en `src/sync/permisos.ts` y la regla de `sueldos`.
+
+### Cómo se probó
+
+- 18 pruebas de la cuenta (`src/lib/sueldos.ts`), 1 de la Ayuda y 1 del historial.
+- 6 pruebas de la regla contra el emulador (`pruebas/reglas-sueldos.test.ts`): el dueño lee
+  y escribe; la encargada y una empleada no leen ni la propia; un dueño desactivado tampoco.
+  La regla se rompió a propósito de 6 maneras y las 6 quedaron en rojo.
+- De punta a punta contra los emuladores, con las reglas nuevas: ver el PR.
+
+### Lo que falta
+
+- **Las comisiones por venta.** Cada venta ya guarda quién la hizo (`vendedor`); falta
+  definir sobre qué se calculan y con qué porcentaje.
+- **«Mi sueldo»:** que cada persona vea lo que lleva cobrado y lo que le falta. Necesita
+  que la regla deje a cada uno leer su ficha: es una decisión de Emmanuel.
+- **Sueldos por semana o por quincena.** Hoy el acuerdo es por mes.
+
 ## La compu: opción B (06/11)
 
 Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
@@ -2920,7 +2995,7 @@ error y la revisión no sube nada de esa tabla (ver «Lo que pasó el 13/11» y
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 13/11/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 19/11/2026. Lo de arriba de la lista es lo que
 sigue.
 
 **Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
@@ -2949,6 +3024,12 @@ el contador y con los datos reales cuánto cambia.
 **Hecho el 13/11** — la escucha del servidor que se cae se vuelve a abrir sola, con un
 cartel mientras tanto, y la revisión no sube nada de lo que el aparato no está recibiendo.
 Ver «Lo que pasó el 13/11».
+
+**Hecho el 19/11** — los sueldos: lo acordado con cada persona (solo para el dueño), de
+quién es cada pago y cuánto falta. Ver «Los sueldos».
+
+- [ ] **Pegar en la consola de Firebase las reglas con la colección `sueldos`.** Hasta
+      entonces los sueldos acordados están protegidos solo por la app.
 
 **Hecho el 13/11, publicación aparte** — «Unir proveedores» confirma contra el servidor que
 las constancias llegaron y dice cuántas hay. Ver «Las constancias, confirmadas contra el
