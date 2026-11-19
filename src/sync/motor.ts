@@ -1229,11 +1229,12 @@ function escucharTabla(tabla: NombreTabla, reabriendo: boolean) {
     { includeMetadataChanges: reabriendo },
     (instantanea) => {
       // Cada cambio por su cuenta: uno que falla ya no corta a los que
-      // vienen detras, y cada uno se guarda marcado como remoto en su
-      // propia transaccion (ver aplicarRemotos.ts). Hasta el 19/11 todo
-      // este recorrido iba adentro de un solo comoRemoto, y mientras
-      // duraba --el primer snapshot trae la tabla entera-- lo que la
-      // persona cargaba no se subia (ver comoRemoto en db.ts).
+      // vienen detras, y se guardan marcados como remotos en
+      // transacciones propias, de a tandas (ver aplicarRemotos.ts).
+      // Hasta el 19/11 todo este recorrido iba adentro de un solo
+      // comoRemoto, y mientras duraba --el primer snapshot trae la
+      // tabla entera-- lo que la persona cargaba no se subia (ver
+      // comoRemoto en db.ts).
       //
       // Y cada aviso espera a que termine de guardarse el anterior de
       // su tabla (ver enOrden.ts): si no, el eco de un cambio hecho
