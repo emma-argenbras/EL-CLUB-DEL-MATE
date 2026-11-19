@@ -31,6 +31,15 @@ describe('ayudaParaPerfil', () => {
     expect(deLaEmpleada.some((e) => e.id === 'retiro-de-sueldo')).toBe(true)
   })
 
+  it('la planilla del proveedor la ve quien está al mando: una empleada con Proveedores, no (19/11)', () => {
+    // La pantalla es solo para quien está al mando: explicársela a quien
+    // no puede entrar sería mandarla a un lugar que la rebota.
+    expect(ayudaParaPerfil(TODAS, false, ['caja', 'proveedores']).some((e) => e.id === 'planilla-del-proveedor')).toBe(false)
+    expect(ayudaParaPerfil(TODAS, true, [], false).some((e) => e.id === 'planilla-del-proveedor')).toBe(true)
+    // Y se encuentra buscándola como la llaman: «el Excel».
+    expect(buscarAyuda('excel', ayudaParaPerfil(TODAS, true, [], false)).map((e) => e.id)).toContain('planilla-del-proveedor')
+  })
+
   it('un empleado sin Proveedores no ve como registrar una compra', () => {
     const suyas = ayudaParaPerfil(TODAS, false, ['caja', 'productos'])
     expect(suyas.some((e) => e.id === 'registrar-compra')).toBe(false)
