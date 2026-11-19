@@ -880,7 +880,16 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Gastos',
     pregunta: '¿Cómo cargo un gasto?',
     respuesta:
-      'En Gastos, tocá "+ Cargar gasto". Elegí si es un gasto pagado con la caja grande o un ingreso a la caja grande, la fecha, el monto, el concepto, la categoría, y si es fijo o variable (la app sugiere una opción según la categoría, pero se puede cambiar).',
+      'En Gastos, tocá "+ Cargar gasto". Elegí si es un gasto pagado con la caja grande o un ingreso a la caja grande, la fecha, el monto, el concepto, la categoría, y si es fijo o variable (la app sugiere una opción según la categoría, pero se puede cambiar).\n\nEl formulario abre en PROVEEDORES y marcado como variable, igual que los pagos que se cargan desde Proveedores. Alquiler, servicios, sueldos, contador, impuestos y mantenimiento arrancan como fijos.',
+    requiereSeccion: 'gastos',
+  },
+  {
+    id: 'borrar-gasto',
+    categoria: 'Gastos',
+    pregunta: 'Quiero borrar un gasto y no me aparece el botón, ¿por qué?',
+    respuesta:
+      'Porque ese gasto salió de la caja de un turno que ya está cerrado. Es parte de la cuenta de ese turno: si se borra, cambia el efectivo que tenía que haber y el arqueo deja de coincidir.\n\nEn ese renglón, en lugar de «Borrar», dice «Es de un turno cerrado: lo borra quien está al mando». Avisale a quien está al mando del local: lo puede borrar, y la app le avisa antes qué turno se mueve.\n\nLos gastos de un turno que sigue abierto y los que se pagaron con la caja grande se borran como siempre. Todo borrado queda en el historial con quién lo hizo.',
+    palabrasClave: ['borrar gasto', 'eliminar gasto', 'no puedo borrar', 'turno cerrado', 'egreso', 'no aparece borrar'],
     requiereSeccion: 'gastos',
   },
 

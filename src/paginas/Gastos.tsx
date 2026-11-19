@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
 import { estaAlMando, puedeVerSueldos } from '../sync/permisos'
 import { personasParaSueldo } from '../lib/sueldos'
+import { esVariablePorDefecto, permisoParaBorrarGasto } from '../lib/borrarGasto'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -17,16 +18,6 @@ import {
   type TipoMovimiento,
 } from '../db/db'
 import { fechaLinda, hoyISO, leerNumero, mesActualISO, mesLindo, plata } from '../lib/formato'
-
-/** Gastos que suelen ser fijos: no cambian con cuánto se vende. */
-const FIJOS_POR_DEFECTO: CategoriaGasto[] = [
-  'ALQUILER',
-  'SERVICIOS',
-  'SUELDOS',
-  'CONTADOR',
-  'IMPUESTOS',
-  'MANTENIMIENTO',
-]
 
 export default function Gastos() {
   const perfil = useSesion().perfil
@@ -46,6 +37,14 @@ export default function Gastos() {
         .toArray(),
     [mes],
   )
+
+  // Los turnos del mes, para saber si un gasto salió de una caja que ya
+  // está cerrada (ver permisoParaBorrarGasto).
+  const turnos = useLiveQuery(
+    () => db.jornadas.where('fecha').between(`${mes}-00`, `${mes}-32`).toArray(),
+    [mes],
+  )
+  const turnoDe = useMemo(() => new Map((turnos ?? []).map((j) => [j.id, j])), [turnos])
 
   const { gastos, aCajaGrande, ingresos, fijos, variables } = useMemo(() => {
     const lista = movimientos ?? []
@@ -169,7 +168,9 @@ export default function Gastos() {
           <p className="vacio">Todavía no hay gastos cargados en {mesLindo(mes)}.</p>
         ) : (
           <ul className="lista">
-            {gastos.map((m) => (
+            {gastos.map((m) => {
+              const permiso = permisoParaBorrarGasto(m, m.jornadaId ? turnoDe.get(m.jornadaId) : undefined, alMando)
+              return (
               <li className="item" key={m.id}>
                 <div style={{ minWidth: 0 }}>
                   <div className="item-titulo">{m.concepto}</div>
@@ -208,20 +209,30 @@ export default function Gastos() {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="item-monto">{plata(m.monto)}</div>
-                  <button
-                    className="boton-chico"
-                    style={{ marginTop: 4 }}
-                    onClick={() => {
-                      if (confirm(`¿Borrar el gasto "${m.concepto}"?`)) {
-                        db.movimientos.delete(m.id)
-                      }
-                    }}
-                  >
-                    Borrar
-                  </button>
+                  {permiso.puede ? (
+                    <button
+                      className="boton-chico"
+                      style={{ marginTop: 4 }}
+                      onClick={() => {
+                        const pregunta = permiso.aviso
+                          ? `${permiso.aviso}\n\n¿Borrar igual el gasto "${m.concepto}" de ${plata(m.monto)}?`
+                          : `¿Borrar el gasto "${m.concepto}" de ${plata(m.monto)}?`
+                        if (confirm(pregunta)) {
+                          db.movimientos.delete(m.id)
+                        }
+                      }}
+                    >
+                      Borrar
+                    </button>
+                  ) : (
+                    <div className="item-sub silencio" style={{ marginTop: 4, maxWidth: 150 }}>
+                      {permiso.porQue}
+                    </div>
+                  )}
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
       </div>
@@ -244,7 +255,9 @@ function FormularioGasto({
   const [concepto, setConcepto] = useState('')
   const [monto, setMonto] = useState('')
   const [categoria, setCategoria] = useState<CategoriaGasto>('PROVEEDORES')
-  const [esVariable, setEsVariable] = useState(false)
+  // Arranca como lo pide la categoría que viene elegida: la sugerencia
+  // no puede depender de que alguien cambie de categoría.
+  const [esVariable, setEsVariable] = useState(esVariablePorDefecto('PROVEEDORES'))
   const [tipo, setTipo] = useState<TipoMovimiento>('GASTO_CAJA_GRANDE')
   const [cuenta, setCuenta] = useState<CuentaDePago | ''>('')
   useCambiosSinGuardar('el gasto', [fecha, concepto, monto, categoria, esVariable, tipo, cuenta, persona])
@@ -252,7 +265,7 @@ function FormularioGasto({
   function elegirCategoria(nueva: CategoriaGasto) {
     setCategoria(nueva)
     // Sugerimos fijo/variable segun la categoria, pero se puede cambiar.
-    setEsVariable(!FIJOS_POR_DEFECTO.includes(nueva))
+    setEsVariable(esVariablePorDefecto(nueva))
   }
 
   async function guardar() {
