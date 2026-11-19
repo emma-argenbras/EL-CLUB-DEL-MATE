@@ -2020,6 +2020,8 @@ pase alrededor. No hay nada que prender ni apagar.
   opuestas (ver «Lo que pasó el 14/10»).
 - `src/sync/aplicarRemotos.ts`: cada documento que baja se guarda en su propia transacción
   remota. Antes todo el recorrido iba adentro de una sola marca.
+- `src/sync/enOrden.ts`: lo que baja de cada tabla se guarda de a un aviso, en orden (más
+  abajo).
 - `src/sync/motor.ts` y `src/db/sembrar.ts`: los otros lugares que guardan algo «de todos»
   (el catálogo sembrado, la lista de precios, lo que se saca de un aparato porque ya estaba
   borrado, los turnos retenidos que se descartan).
@@ -2032,6 +2034,20 @@ antes y se pasa ya resuelto.
 De paso se arregló otro error del mismo lugar, que no había llegado a pasar: una edición
 hecha adentro de una transacción anidada perdía su renglón de historial (`anotarEnHistorial`
 esperaba a la transacción de adentro y no a la de más afuera).
+
+### Lo que baja de cada tabla se guarda en orden
+
+Con el arreglo de arriba, lo que se carga al abrir la app ya sube. Quedaba un problema en el
+mismo rato, del lado del aparato: cada aviso de la escucha se guardaba por su cuenta, todos a
+la vez. El primero trae la tabla entera y tarda; si mientras tanto la persona cambiaba un
+precio o borraba algo, el eco de ese cambio llegaba como un segundo aviso, corto, y se
+guardaba **antes** de que el primero llegara a esa fila. Después el primero la pisaba con lo
+viejo: en ese aparato el precio volvía al anterior y lo borrado reaparecía. Y lo que
+reaparece sin estar en el servidor, la revisión de pendientes lo vuelve a subir.
+
+Ahora cada aviso espera a que termine de guardarse el anterior de su tabla
+(`colaPorClave`, en `src/sync/enOrden.ts`). Las tablas no se esperan entre sí, y un aviso que
+falla no frena a los que vienen atrás.
 
 ### «Importar un respaldo», que había que cerrar al mismo tiempo
 
@@ -2055,6 +2071,9 @@ Recuperar el negocio entero desde un respaldo, si algún día hace falta, es otr
 ### Cómo se probó
 
 - 7 pruebas de «Importar un respaldo» (rotas a propósito de 8 maneras, las 8 en rojo).
+- 6 pruebas del guardado en orden (rotas a propósito de 6 maneras, las 6 en rojo). Una de
+  ellas muestra el problema sin la cola: el aviso largo del arranque pisa el precio recién
+  cambiado y revive lo recién borrado.
 - 48 pruebas en los tres archivos de esta parte (`src/db/historial.test.ts`,
   `src/sync/aplicarRemotos.test.ts`, `src/db/sembrarNoSube.test.ts`). Las tres nuevas que
   describen el problema —abrir el turno mientras baja la tabla entera, el ticket de treinta
