@@ -6,7 +6,7 @@ import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
 import { marcarArranqueDelHistorial } from './db/db'
-import { estaAlMando, puedeVerSueldos } from './sync/permisos'
+import { estaAlMando, puedeVerSueldos, tieneMiSueldo } from './sync/permisos'
 import { leerModoConsulta } from './lib/modoConsulta'
 import { useSesion } from './sync/useSesion'
 import { useEstadoNube } from './sync/useEstadoNube'
@@ -38,6 +38,7 @@ import IngresoMercaderia from './paginas/IngresoMercaderia'
 import Vencimientos from './paginas/Vencimientos'
 import Pedidos from './paginas/Pedidos'
 import Sueldos from './paginas/Sueldos'
+import MiSueldo from './paginas/MiSueldo'
 import Notificaciones from './componentes/Notificaciones'
 import ActualizarApp, { BotonActualizarApp } from './componentes/ActualizarApp'
 import PantallaLogin, { PantallaDesactivada, PantallaSinPerfil } from './componentes/PantallaLogin'
@@ -326,7 +327,19 @@ export default function App() {
           />
           <Route
             path="/sueldos"
-            element={puedeVerSueldos(sesion.perfil) ? <Sueldos /> : <Navigate to="/gastos" replace />}
+            element={
+              puedeVerSueldos(sesion.perfil) ? (
+                <Sueldos />
+              ) : (
+                <Navigate to={tieneMiSueldo(sesion.perfil) ? '/mi-sueldo' : '/gastos'} replace />
+              )
+            }
+          />
+          {/* Lo de cada uno: quien no es dueño ve su sueldo del mes. Un
+              dueño no cobra sueldo: lo suyo son los retiros, en Sueldos. */}
+          <Route
+            path="/mi-sueldo"
+            element={tieneMiSueldo(sesion.perfil) ? <MiSueldo /> : <Navigate to="/sueldos" replace />}
           />
           <Route
             path="/reportes"

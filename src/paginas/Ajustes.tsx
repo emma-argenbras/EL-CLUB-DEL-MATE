@@ -36,6 +36,7 @@ import {
   type Respaldo,
 } from '../db/importarRespaldo'
 import { apagarModoConsulta, leerModoConsulta, prenderModoConsulta } from '../lib/modoConsulta'
+import { apodosLimpios } from '../lib/sueldos'
 
 export default function Ajustes() {
   const sesion = useSesion()
@@ -758,6 +759,7 @@ function SelectorSecciones({
 function TarjetaUsuarios() {
   const [creando, setCreando] = useState(false)
   const [editando, setEditando] = useState<string | null>(null)
+  const [conApodos, setConApodos] = useState<string | null>(null)
   const [mensaje, setMensaje] = useState('')
   const sesion = useSesion()
   const usuarios = useLiveQuery(
@@ -804,6 +806,7 @@ function TarjetaUsuarios() {
                     )}
                   </div>
                   <div className="item-sub">{u.email}</div>
+                  {u.apodos && <div className="item-sub">En los gastos también figura como: {u.apodos}</div>}
                 </div>
                 <span className={u.rol === 'owner' ? 'chip chip-banco' : 'chip'}>
                   {ETIQUETA_ROL[u.rol]}
@@ -816,6 +819,14 @@ function TarjetaUsuarios() {
                     {editando === u.id ? 'Cerrar' : 'Qué ve'}
                   </button>
                 )}
+                {puedeTocarUsuarioConRol(sesion.perfil, u.rol) && (
+                  <button
+                    className="boton-chico"
+                    onClick={() => setConApodos(conApodos === u.id ? null : u.id)}
+                  >
+                    {conApodos === u.id ? 'Cerrar' : 'Apodos'}
+                  </button>
+                )}
                 {/* Un encargado no le apaga el acceso a un dueño: si
                     pudiera, el limite de su rol seria una formalidad. */}
                 {u.id !== sesion.uid && puedeTocarUsuarioConRol(sesion.perfil, u.rol) && (
@@ -824,6 +835,15 @@ function TarjetaUsuarios() {
                   </button>
                 )}
               </div>
+              {conApodos === u.id && (
+                <EditorApodos
+                  usuario={u}
+                  onGuardado={() => {
+                    setMensaje(`Se guardó cómo figura ${u.nombre} en los gastos.`)
+                    setConApodos(null)
+                  }}
+                />
+              )}
               {editando === u.id && (
                 <EditorSecciones
                   usuario={u}
@@ -855,6 +875,48 @@ function TarjetaUsuarios() {
           + Usuario nuevo
         </button>
       )}
+    </div>
+  )
+}
+
+/**
+ * Con que otros nombres figura alguien en los conceptos de los gastos
+ * (19/11): «Gabi» por Gabriela. Con eso la app reconoce de quien es un
+ * sueldo o un retiro anotado a mano (ver lib/sueldos.ts).
+ */
+function EditorApodos({ usuario, onGuardado }: { usuario: Usuario; onGuardado: () => void }) {
+  const [texto, setTexto] = useState(usuario.apodos ?? '')
+  const [trabajando, setTrabajando] = useState(false)
+
+  async function guardar() {
+    setTrabajando(true)
+    try {
+      await db.usuarios.update(usuario.id, { apodos: apodosLimpios(texto) })
+      onGuardado()
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta" style={{ marginTop: 10, marginBottom: 0, background: 'var(--crema)' }}>
+      <div className="campo">
+        <label htmlFor={`apodos-${usuario.id}`}>¿Cómo le dicen? (separados por coma)</label>
+        <input
+          id={`apodos-${usuario.id}`}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="Ej: Gabi, Gaby"
+          autoFocus
+        />
+        <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
+          Sirve para reconocer sus pagos: si un gasto dice «SEMANA GABI», la app sabe que es de{' '}
+          {usuario.nombre}. Lo ve todo el equipo, como el nombre.
+        </p>
+      </div>
+      <button className="boton-principal" style={{ width: '100%' }} onClick={guardar} disabled={trabajando}>
+        {trabajando ? 'Guardando…' : 'Guardar'}
+      </button>
     </div>
   )
 }

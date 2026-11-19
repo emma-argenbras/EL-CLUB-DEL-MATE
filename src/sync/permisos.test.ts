@@ -5,9 +5,12 @@ import {
   esDueno,
   estaAlMando,
   puedeBorrarTodo,
+  puedeDefinirSueldos,
   puedeImportarRespaldo,
   puedeTocarUsuarioConRol,
+  puedeVerSueldos,
   rolesQuePuedeAsignar,
+  tieneMiSueldo,
 } from './permisos'
 import { seccionesVisibles } from './sesion'
 import type { Perfil } from './sesion'
@@ -121,5 +124,28 @@ describe('el alta de usuarios ofrece el rol de encargado', () => {
   it('a un encargado el menu no le ofrece dueño', () => {
     const opciones = rolesQuePuedeAsignar(ENCARGADA).map((r) => QUE_HACE_CADA_ROL[r])
     expect(opciones.some((o) => o.startsWith('Dueño/a'))).toBe(false)
+  })
+})
+
+describe('sueldos: quién ve, quién define y quién tiene «Mi sueldo» (19/11)', () => {
+  it('los ven los dueños y quien está de encargado; una empleada no', () => {
+    expect(puedeVerSueldos(DUENO)).toBe(true)
+    expect(puedeVerSueldos(ENCARGADA)).toBe(true)
+    expect(puedeVerSueldos(EMPLEADA)).toBe(false)
+    expect(puedeVerSueldos(null)).toBe(false)
+  })
+
+  it('lo acordado lo define solo un dueño: la encargada lo ve y no lo cambia, ni el suyo', () => {
+    expect(puedeDefinirSueldos(DUENO)).toBe(true)
+    expect(puedeDefinirSueldos(ENCARGADA)).toBe(false)
+    expect(puedeDefinirSueldos(EMPLEADA)).toBe(false)
+    expect(puedeDefinirSueldos(null)).toBe(false)
+  })
+
+  it('«Mi sueldo» lo tiene quien trabaja y no es dueño: un dueño retira, no cobra sueldo', () => {
+    expect(tieneMiSueldo(EMPLEADA)).toBe(true)
+    expect(tieneMiSueldo(ENCARGADA)).toBe(true)
+    expect(tieneMiSueldo(DUENO)).toBe(false)
+    expect(tieneMiSueldo(null)).toBe(false)
   })
 })

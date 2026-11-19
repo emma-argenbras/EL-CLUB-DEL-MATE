@@ -16,9 +16,10 @@ export interface EntradaAyuda {
    */
   soloOwner?: boolean
   /**
-   * Solo la ve el dueño, ni siquiera la encargada: lo de los sueldos
-   * (19/11). `soloOwner` quedo con ese nombre de cuando habia dos roles y
-   * hoy quiere decir «al mando»; esta es la que distingue al dueño.
+   * Solo la ve el dueño, ni siquiera la encargada: definir o cambiar lo
+   * acordado con alguien (19/11). `soloOwner` quedo con ese nombre de
+   * cuando habia dos roles y hoy quiere decir «al mando»; esta es la que
+   * distingue al dueño.
    */
   soloDueno?: boolean
   /**
@@ -398,10 +399,10 @@ export const AYUDA: EntradaAyuda[] = [
   {
     id: 'retiro-de-sueldo',
     categoria: 'Caja',
-    pregunta: '¿Cómo anoto un sueldo o un adelanto que sale de la caja?',
+    pregunta: '¿Cómo anoto un sueldo, un adelanto o un retiro que sale de la caja?',
     respuesta:
-      'En Caja, pestaña "Egresos" → "Gasto pagado con la caja" → en Categoría elegí SUELDOS. Ahí aparece «¿De quién es el sueldo?»: elegí la persona, poné el monto y tocá "Registrar egreso". Si no escribís un concepto, queda como «Sueldo de …».\n\nSi el retiro es tuyo y entraste con tu usuario, tu nombre ya viene elegido.\n\nSe descuenta del efectivo esperado al cerrar, como cualquier egreso. Elegir la persona es lo que permite saber después cuánto lleva cobrado cada uno en el mes.',
-    palabrasClave: ['sueldo', 'adelanto', 'retiro', 'retirar', 'cobrar', 'de quien es', 'semanal'],
+      'En Caja, pestaña "Egresos" → "Gasto pagado con la caja" → escribí el concepto y el monto.\n\nSi el concepto nombra a alguien del equipo —por su nombre o por como le dicen— o dice «sueldo», «adelanto» o «semana», la app pregunta «¿Es el sueldo de …?». Con «Sí, cargarlo así» deja puestas la categoría SUELDOS y la persona. Si no era, tocá «No».\n\nTambién se puede a mano: en Categoría elegí SUELDOS y en «¿De quién es el sueldo?», la persona. Si el retiro es tuyo y entraste con tu usuario, tu nombre ya viene elegido. Si no escribís un concepto, queda como «Sueldo de …».\n\nSi el que retira es un dueño es igual, con la categoría RETIRO SOCIOS: aparece «¿De quién es el retiro?».\n\nSe descuenta del efectivo esperado al cerrar, como cualquier egreso. Decir de quién es lo que permite saber cuánto lleva cobrado cada uno en el mes: el sueldo se acuerda por mes y se puede ir retirando de a poco, por semana.',
+    palabrasClave: ['sueldo', 'adelanto', 'retiro', 'retirar', 'cobrar', 'de quien es', 'semanal', 'semana', 'retiro socios', 'dueño'],
     requiereSeccion: 'caja',
   },
   {
@@ -1152,11 +1153,46 @@ export const AYUDA: EntradaAyuda[] = [
   {
     id: 'sueldos',
     categoria: 'Gastos',
-    pregunta: '¿Dónde defino el sueldo de cada persona y veo lo que lleva cobrado?',
+    pregunta: '¿Dónde veo lo que se acordó con cada persona, lo que lleva cobrado y lo que falta?',
     respuesta:
-      'En Gastos → «Ver sueldos». La pantalla la ve solo el dueño: lo que se acordó con cada persona no baja a los aparatos del resto.\n\nPor cada persona del equipo muestra el sueldo del mes, lo que cobró y lo que falta pagar. «Definir sueldo» pide el monto por mes y desde qué mes rige; antes de guardar pregunta. Cuando el sueldo cambia se carga de nuevo con el mes desde el que vale: los meses anteriores siguen mostrando lo que se había acordado entonces.\n\nLo cobrado sale de los gastos de categoría SUELDOS que dicen de quién son, se hayan cargado desde Caja o desde Gastos. Tres cosas se ordenan desde ahí:\n\n• «Pagos de sueldo sin asignar»: están como sueldo pero no dicen de quién. Elegís la persona.\n• «¿Esto es un sueldo?»: gastos con otra categoría que nombran a alguien del equipo o dicen «sueldo» o «adelanto». Si lo son, elegís de quién y pasan a SUELDOS, como gasto fijo.\n• «Corresponde a»: un pago del 3 de diciembre puede ser sueldo de noviembre. Se cambia el mes en ese pago. Para el resultado del mes sigue contando la fecha en que salió la plata.\n\nCada uno de esos cambios toca un solo gasto y queda en el historial como «Ordenado desde Sueldos».',
-    palabrasClave: ['sueldo', 'sueldos', 'cuanto cobra', 'adelanto', 'falta pagar', 'definir sueldo', 'empleados', 'pagar sueldos'],
+      'En Gastos → «Ver sueldos». La pantalla la ven los dueños y quien está de encargado. Lo acordado no se guarda en el aparato: se lee del servidor cada vez, así que hace falta conexión.\n\nPor cada persona del equipo muestra el sueldo del mes, lo que cobró y lo que falta pagar. El sueldo se acuerda por mes y se paga como convenga, de una vez o por semana: cada pago cuenta para su mes, y el último cierra la diferencia.\n\nLo cobrado sale de los gastos de categoría SUELDOS que dicen de quién son, se hayan cargado desde Caja o desde Gastos. Tres cosas se ordenan desde ahí:\n\n• «Pagos de sueldo sin asignar»: están como sueldo pero no dicen de quién. Elegís la persona.\n• «¿Esto es un sueldo?»: gastos con otra categoría que nombran a alguien del equipo o dicen «sueldo», «adelanto» o «semana». Si la app sabe de quién es, alcanza con tocar «Sí, es de …»; si no, elegís la persona y pasan a SUELDOS, como gasto fijo.\n• «Corresponde a»: un pago del 3 de diciembre puede ser sueldo de noviembre. Se cambia el mes en ese pago. Para el resultado del mes sigue contando la fecha en que salió la plata.\n\nCada uno de esos cambios toca un solo gasto y queda en el historial como «Ordenado desde Sueldos».\n\nLo acordado lo define un dueño. Cada persona ve lo suyo en «Mi sueldo».',
+    palabrasClave: ['sueldo', 'sueldos', 'cuanto cobra', 'adelanto', 'falta pagar', 'empleados', 'pagar sueldos', 'por semana', 'semanal'],
+    soloOwner: true,
+  },
+  {
+    id: 'definir-sueldo',
+    categoria: 'Gastos',
+    pregunta: '¿Cómo defino o cambio el sueldo de alguien?',
+    respuesta:
+      'En Gastos → «Ver sueldos» → en la tarjeta de la persona, «Definir sueldo» (o «Cambiar el sueldo»). Pide el monto por mes y desde qué mes rige; antes de guardar pregunta. Lo puede hacer solo un dueño: quien está de encargado ve lo acordado, pero no lo cambia, tampoco el suyo.\n\nCuando el sueldo cambia se carga de nuevo con el mes desde el que vale: los meses anteriores siguen mostrando lo que se había acordado entonces.\n\nSi la persona empezó a mitad de mes, cargá primero ese mes con lo que le corresponde y después el mes siguiente con el sueldo entero.\n\nSi se le paga por semana no cambia nada: el sueldo sigue siendo por mes, y cada retiro semanal se va descontando de lo que falta.\n\nLo acordado lo ven los dueños, quien está de encargado y la propia persona en «Mi sueldo». No queda en el historial ni guardado en ningún aparato.',
+    palabrasClave: ['definir sueldo', 'cambiar sueldo', 'aumento', 'cuanto cobra', 'mitad de mes', 'proporcional', 'por semana'],
     soloDueno: true,
+  },
+  {
+    id: 'retiros-de-los-duenos',
+    categoria: 'Gastos',
+    pregunta: '¿Dónde veo cuánto retiró cada dueño?',
+    respuesta:
+      'En Gastos → «Ver sueldos», abajo: «Retiros de los dueños». Muestra lo que retiró cada dueño en el mes, de a poco o de una vez, con cada retiro y su fecha.\n\nUn retiro es un gasto de categoría RETIRO SOCIOS que dice de quién es. Se carga desde Caja (si sale del cajón) o desde Gastos: al elegir RETIRO SOCIOS aparece «¿De quién es el retiro?». Si el concepto nombra a un dueño, la app ofrece cargarlo así.\n\nDos listas ayudan a ordenar lo que ya estaba cargado:\n\n• «Retiros sin asignar»: están como retiro pero no dicen de quién.\n• «¿Esto es un retiro de un dueño?»: gastos con otra categoría que nombran a un dueño o dicen «retiro».\n\nPara que un dueño aparezca tiene que estar en Ajustes → «Usuarios del equipo» con el rol Dueño/a, aunque no use la app.\n\nNo es un sueldo: no hay nada acordado contra qué comparar.',
+    palabrasClave: ['retiro', 'retiros', 'socios', 'dueño', 'dueños', 'retiro socios', 'cuanto saco', 'cuanto retiro'],
+    soloOwner: true,
+  },
+  {
+    id: 'apodos',
+    categoria: 'Usuarios y roles',
+    pregunta: 'La app no reconoce de quién es un pago. ¿Cómo le digo cómo le dicen a cada uno?',
+    respuesta:
+      'Con los apodos. Si a Gabriela le dicen Gabi y los pagos se anotan «SEMANA GABI», la app tiene que saber que «Gabi» es Gabriela.\n\nHay dos formas:\n\n• Sola: en Gastos → «Ver sueldos», cuando decís a mano de quién es un gasto, la app pregunta «¿A … le dicen …?». Con «Sí, recordarlo» ya queda.\n• A mano: en Ajustes → «Usuarios del equipo» → «Apodos», separados por coma.\n\nDesde ahí, al cargar un gasto que diga ese apodo la app ofrece cargarlo como sueldo (o como retiro, si es un dueño) de esa persona.\n\nLos apodos los ve todo el equipo, como el nombre.',
+    palabrasClave: ['apodo', 'apodos', 'como le dicen', 'no reconoce', 'no encuentra', 'nombre', 'sobrenombre'],
+    soloOwner: true,
+  },
+  {
+    id: 'mi-sueldo',
+    categoria: 'Primeros pasos',
+    pregunta: '¿Dónde veo mi sueldo: lo acordado, lo que cobré y lo que me falta?',
+    respuesta:
+      'En «Mi día» → «Mi sueldo». Si estás de encargado, en Gastos → «Ver sueldos» → «Ver solo lo mío». Muestra tu sueldo del mes, cada pago que cobraste y lo que te falta cobrar. Podés cambiar el mes para mirar los anteriores.\n\nVes solo lo tuyo. Lo que se acordó con vos lo ven también los dueños y quien está de encargado, y no queda guardado en el aparato: por eso hace falta conexión para verlo.\n\nSi cobraste y el pago no figura, puede estar cargado sin tu nombre: avisale a quien lleva la administración.\n\nLos dueños no tienen «Mi sueldo»: lo suyo son los retiros, que están en Gastos → «Ver sueldos».',
+    palabrasClave: ['mi sueldo', 'cuanto cobre', 'cuanto me falta', 'cobrar', 'lo que me deben', 'adelanto', 'mis pagos'],
   },
   {
     id: 'pago-de-donde-sale',
