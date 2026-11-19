@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ETIQUETA_CUENTA, db, type Movimiento } from '../db/db'
-import { fechaLinda, mesActualISO, mesLindo, plata } from '../lib/formato'
-import { estadoDeMiSaldo, miSueldoDelMes, type FichaSueldo } from '../lib/sueldos'
+import { fechaLinda, hoyISO, mesActualISO, mesLindo, plata } from '../lib/formato'
+import { comoSeCalcula, estadoDeMiSaldo, miSueldoDelMes, type FichaSueldo } from '../lib/sueldos'
 import { nubeConfigurada } from '../sync/config'
 import { useSesion } from '../sync/useSesion'
 
 /**
  * «Mi sueldo» (19/11): lo de una persona en el mes, para que lo vea ella.
- * Lo acordado, lo que lleva cobrado y lo que falta.
+ * Lo que le corresponde (por semana, según los sábados del mes), lo que
+ * lleva cobrado y lo que falta.
  *
  * Lo acordado sale de su ficha, que es la única que el servidor le deja
  * leer, y no se guarda en el aparato: esta pantalla se abre también en la
@@ -72,6 +73,7 @@ export default function MiSueldo() {
   }
 
   const estado = mio ? estadoDeMiSaldo(mio) : null
+  const cuenta = mio && leida ? comoSeCalcula(mio.detalle, hoyISO()) : null
 
   return (
     <>
@@ -110,11 +112,18 @@ export default function MiSueldo() {
         <section className="tarjeta" aria-label="Mi sueldo del mes">
           <p className="tarjeta-titulo">Tu sueldo de {mesLindo(mes)}</p>
           <div className="fila">
-            <span className="fila-etiqueta">Acordado</span>
+            <span className="fila-etiqueta">
+              {mio.detalle?.cada === 'semana' ? 'Te corresponde en el mes' : 'Acordado'}
+            </span>
             <span className="fila-valor">
               {!leida ? '—' : mio.acordado === null ? 'Sin definir' : plata(mio.acordado)}
             </span>
           </div>
+          {cuenta && (
+            <p className="silencio cuenta-del-sueldo" style={{ margin: '0 0 6px' }}>
+              {cuenta}
+            </p>
+          )}
           <div className="fila">
             <span className="fila-etiqueta">
               Cobraste

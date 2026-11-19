@@ -263,11 +263,19 @@ service cloud.firestore {
     // Los pagos no estan aca: son gastos de categoria SUELDOS, en
     // `movimientos`, y se ven en Gastos como cualquier otro.
     //
+    // `forma` es la version del formato de la ficha, y la app la manda al
+    // guardar (FORMA_DE_LA_FICHA en src/lib/sueldos.ts). La 2 es la primera
+    // que conoce los acuerdos por semana. Una version de la app anterior no
+    // la manda: no entiende esos acuerdos, los saltea al leer y, si
+    // guardara la ficha, los borraria. Con esto no puede guardar hasta que
+    // se actualice.
+    //
     // Si esto cambia, cambia tambien en src/sync/permisos.ts
     // (puedeVerSueldos, puedeDefinirSueldos, tieneMiSueldo): juntas.
     match /negocios/el-club-del-mate/sueldos/{persona} {
       allow read: if estoyAlMando() || (estoyActivo() && request.auth.uid == persona);
-      allow write: if soyOwner();
+      allow create, update: if soyOwner() && request.resource.data.forma == 2;
+      allow delete: if soyOwner();
     }
   }
 }
