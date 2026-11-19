@@ -1972,6 +1972,57 @@ los 130 s de la versión anterior.
 Lo que se carga en ese rato sigue siendo de quien lo carga: la marca va en la transacción de
 la tanda, no en el aire.
 
+### Un aparato atrasado ya no vuelve a subir lo que otro borró (publicación aparte, la misma madrugada)
+
+Buscando qué más podía hacer que algo borrado volviera apareció otro camino, distinto del de
+arriba. No es «el borrado no subió»: el borrado llegó bien al servidor, y lo deshace **otro
+aparato** al abrirse.
+
+Cada vez que se abre la app pasan dos cosas a la vez: baja lo del servidor, y la subida del
+arranque (`empujarTodoLocal`) compara lo que hay en el aparato contra lo que hay en el
+servidor para subir lo que falte. Si un aparato estuvo cerrado mientras desde otro se borraba
+un gasto, al abrirse todavía lo tiene. El borrado baja enseguida, pero se guarda **después**
+de lo que Firestore ya tenía guardado en ese aparato, que es la tabla entera. Si la
+comparación se hacía en ese rato, el gasto todavía estaba: «lo tengo yo y el servidor no».
+Lo subía de nuevo, y reaparecía para todos.
+
+En el navegador contra los emuladores, un aparato cerrado, otro que borra un gasto y una
+ficha de proveedor, y el primero que vuelve a abrir:
+
+| Gastos en la tabla | Versión publicada hasta ese momento | Con el arreglo |
+|---|---|---|
+| 300 | Queda borrado | Queda borrado |
+| 1.500 | Queda borrado | Queda borrado |
+| 6.000 | **El gasto vuelve al servidor a los 20 s** | Queda borrado |
+
+Depende de cuánto tarda en guardarse lo que baja: del tamaño de la tabla y de la velocidad
+del aparato. Con la base de hoy y en una compu no pasaba; en un celular lento, o con un año
+más de gastos, iba a empezar a pasar. Y antes de las tandas, cuando guardar lo que bajaba
+tardaba diez veces más, el margen era mucho más chico.
+
+Solo afecta a lo que se borra **sin constancia**: gastos, compras y pagos a proveedores,
+fichas de proveedor borradas a mano. Las ventas, los turnos y las fichas unidas dejan
+constancia en `borrados` y la subida ya no las tocaba.
+
+El arreglo, en `src/sync/enOrden.ts` y `src/sync/motor.ts`:
+
+- **La subida espera.** Antes de leer lo que hay en el aparato de una tabla, espera a que
+  termine de guardarse lo que bajó de esa tabla (`esperarLoBajado`). Lo mismo hace la revisión
+  de pendientes.
+- **Con un límite de tres minutos.** Si se cumple, de esa tabla no se sube nada en esa pasada
+  y el control periódico vuelve a mirar: entre subir tarde y revivir lo borrado, se sube
+  tarde.
+- **Lo que ya no está en el aparato no se sube.** Justo antes de mandar cada fila se vuelve a
+  mirar si sigue ahí, y se manda como está en ese momento, no como estaba cuando se armó la
+  lista.
+
+En la misma prueba, un gasto que estaba **solo** en ese aparato (nunca había subido) sube
+igual: el arreglo no frena lo que tiene que subir.
+
+Lo que no cubre: una fila que está en la base de la app pero que Firestore, en ese aparato,
+no conoce —nunca pasó por él— no se puede distinguir de una que nunca subió. Para eso hacen
+falta constancias en todas las tablas (ver «Próximos pasos»).
+
 ### «Importar un respaldo» ya no le borra nada al servidor
 
 Revisando qué otras operaciones escriben muchas filas de una apareció esta. Importar vacía
@@ -2028,6 +2079,14 @@ Recuperar el negocio entero desde un respaldo, si algún día hace falta, es otr
   diferencias con la versión de a uno salvo los tiempos. Uno de los documentos de prueba
   está roto a propósito y va primero en su tabla: el de atrás llega igual, que es la
   confirmación en un navegador de verdad de que uno malo no tira abajo su tanda.
+
+- **El aparato atrasado:** 8 pruebas nuevas en `src/sync/enOrden.test.ts`. Tres arman el
+  caso —el aparato tiene la fila que el otro borró; baja primero la tabla entera y después
+  el borrado— y muestran que sin esperar la subida todavía la ve, y esperando no. Rotas a
+  propósito de 6 maneras, las 6 en rojo. La espera adentro del motor y el «lo que ya no está
+  acá no se sube» no tienen prueba automática propia: los cubre la prueba de punta a punta
+  de la tabla de arriba, que con la versión anterior da mal, y la batería entera otra vez
+  sobre esta versión.
 
 ### Un cartel rojo que es del emulador, no de la app
 
@@ -3339,16 +3398,21 @@ tandas».
 
 - [ ] **Que la subida del arranque no lea el servidor entero.** Para saber qué le falta al
       servidor, hoy lee cada colección completa cada vez que se abre la app. Son lecturas
-      del plan gratis de Firebase (50.000 por día entre todos los aparatos), y como corre a
-      la par de la bajada puede volver a subir algo que otro aparato acaba de borrar, si de
-      ese borrado no quedó constancia. Lo que sigue: que espere a que termine de guardarse
-      lo que baja y compare contra eso, sin leer de nuevo.
+      del plan gratis de Firebase (50.000 por día entre todos los aparatos). Ahora que
+      espera a que termine de guardarse lo que baja, puede comparar contra eso sin leer de
+      nuevo.
 - [ ] **Que lo borrado deje constancia en todas las tablas.** Hoy la dejan las ventas, los
       turnos (con lo suyo), el código viejo de un producto y las fichas de proveedor unidas.
-      Un gasto, una compra, un pago o una ficha borrados desde un aparato pueden volver
-      desde otro que estaba atrasado.
+      Un gasto, una compra, un pago o una ficha borrados desde un aparato todavía pueden
+      volver desde otro si en ese otro la fila no pasó nunca por Firestore (ver «Un aparato
+      atrasado ya no vuelve a subir lo que otro borró»).
 - [ ] **No volver a guardar lo que no cambió** al abrir la app (ver «Lo que este arreglo no
       hace»).
+**Hecho el 19/11, publicación aparte (sincronización)** — un aparato que estaba cerrado
+mientras otro borraba algo ya no lo vuelve a subir al abrirse: la subida del arranque espera a
+que termine de guardarse lo que bajó antes de comparar. Ver «Un aparato atrasado ya no vuelve
+a subir lo que otro borró».
+
 - [ ] **Pedirle al soporte que busque rechazos de `historial` en la colección `rechazos`**
       del servidor real. No debería haber: es para confirmar que el cartel falso que se ve
       en las pruebas es solo del emulador (ver «Cómo se probó»).

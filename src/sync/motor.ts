@@ -46,7 +46,7 @@ import {
 } from '../db/db'
 import { aClaveDeNube, aClaveLocal } from './claves'
 import { aplicarCambiosRemotos, type FalloAlRecibir } from './aplicarRemotos'
-import { colaPorClave } from './enOrden'
+import { colaPorClave, esperarLoBajado } from './enOrden'
 import {
   compararConServidor,
   cuelgaDeRetenido,
@@ -198,6 +198,14 @@ let controlPeriodico: ReturnType<typeof setInterval> | null = null
 
 /** Cada cuanto se vuelve a controlar si quedo algo sin subir. */
 const CADA_CUANTO_CONTROLAR = 5 * 60 * 1000
+
+/**
+ * Cuanto se espera a que termine de guardarse lo que bajo de una tabla
+ * antes de comparar lo de este aparato contra el servidor. Es mucho a
+ * proposito: en un celular lento con la base entera puede tardar, y lo
+ * que no se sube en esta pasada lo mira el control periodico.
+ */
+const LIMITE_ESPERA_BAJADA = 3 * 60 * 1000
 
 /** Convierte undefined en null: Firestore no acepta valores undefined. */
 function limpiar(obj: Record<string, unknown>): Record<string, unknown> {
@@ -474,7 +482,7 @@ async function dejarConstanciaDelRechazo(
  */
 async function empujarTodoLocal() {
   const firestore = obtenerFirestore()
-  const operaciones: { tabla: NombreTabla; clave: string; datos: Record<string, unknown> }[] = []
+  const operaciones: { tabla: NombreTabla; clave: string }[] = []
 
   // Lo que se borro a proposito, preguntado AL SERVIDOR y no a la copia
   // local: este es justamente el caso en que la copia local esta
@@ -502,6 +510,12 @@ async function empujarTodoLocal() {
       await getDocs(collection(firestore, 'negocios', ID_NEGOCIO, 'jornadas'))
     ).docs.map((d) => d.data() as Pick<Jornada, 'id' | 'fecha' | 'turno'>)
     const ids = new Set(jornadasServidor.map((j) => aClaveDeNube(j.id)))
+    // Sin saber que turnos de este aparato faltan de verdad no se puede
+    // decidir que retener: no se sube nada en esta pasada.
+    if (!(await esperarLoBajado(guardadoEnOrden, 'jornadas', LIMITE_ESPERA_BAJADA))) {
+      console.warn('La subida inicial no corre: todavia se esta guardando lo que bajo de jornadas.')
+      return
+    }
     const jornadasSinSubir = (await db.jornadas.toArray()).filter(
       (j) => !ids.has(aClaveDeNube(j.id)) && !borrados.has(`jornadas/${j.id}`),
     )
@@ -522,6 +536,15 @@ async function empujarTodoLocal() {
     const enElServidor = new Set(
       (await getDocs(collection(firestore, 'negocios', ID_NEGOCIO, tabla))).docs.map((d) => d.id),
     )
+    // Lo de este aparato se lee recien cuando termino de guardarse lo
+    // que bajo de esta tabla (ver esperarLoBajado). Si se lee antes, una
+    // fila que otro aparato borro mientras este estaba cerrado todavia
+    // esta aca, parece "la tengo yo y el servidor no", y se vuelve a
+    // subir: lo borrado reaparece para todos.
+    if (!(await esperarLoBajado(guardadoEnOrden, tabla, LIMITE_ESPERA_BAJADA))) {
+      console.warn(`No se sube nada de ${tabla} en esta pasada: todavia se esta guardando lo que bajo.`)
+      continue
+    }
     const filas = await db.table(tabla).toArray()
     for (const fila of filas) {
       const clave =
@@ -535,7 +558,7 @@ async function empujarTodoLocal() {
       // (ver marcarArranqueDelHistorial): va firmada por 'sistema' y las
       // reglas no la dejan subir. En un lote, tiraba abajo todo el lote.
       if (tabla === 'historial' && clave === ID_ARRANQUE_HISTORIAL) continue
-      operaciones.push({ tabla, clave, datos: limpiar(fila as Record<string, unknown>) })
+      operaciones.push({ tabla, clave })
     }
   }
 
@@ -545,7 +568,14 @@ async function empujarTodoLocal() {
   for (let i = 0; i < operaciones.length; i += TAMANO_LOTE) {
     const lote = writeBatch(firestore)
     const enEsteLote: { tabla: NombreTabla; clave: string }[] = []
-    for (const { tabla, clave, datos } of operaciones.slice(i, i + TAMANO_LOTE)) {
+    for (const { tabla, clave } of operaciones.slice(i, i + TAMANO_LOTE)) {
+      // Entre que se armo la lista y este momento pudo llegar el borrado
+      // de esa fila desde otro aparato: lo que ya no esta aca no se
+      // sube. Y lo que sigue aca se manda como esta ahora, no como
+      // estaba cuando se armo la lista.
+      const fila = (await db.table(tabla).get(clave)) as Record<string, unknown> | undefined
+      if (fila === undefined) continue
+      const datos = limpiar(fila)
       // Cada referencia va en su propio try. doc() tira al armar la
       // referencia, no al enviarla, asi que antes una sola clave mala
       // cortaba el armado del lote y con el se cortaba todo lo que
@@ -1044,6 +1074,12 @@ async function hacerRevision(): Promise<Revision | null> {
       const marca = tabla === 'historial' ? await marcaDeArranqueSoloAca() : 0
       if (aca - marca <= alla) continue
       const enElServidor = new Set((await getDocs(coleccion(tabla))).docs.map((d) => d.id))
+      // Igual que en la subida inicial: lo de aca se lee cuando termino
+      // de guardarse lo que bajo de esta tabla.
+      if (!(await esperarLoBajado(guardadoEnOrden, tabla, LIMITE_ESPERA_BAJADA))) {
+        console.warn(`La revision saltea ${tabla}: todavia se esta guardando lo que bajo.`)
+        continue
+      }
       const filas = (await db.table(tabla).toArray()) as Record<string, unknown>[]
       for (const fila of filas) {
         const clave = claveDeFila(tabla, fila)
@@ -1066,6 +1102,8 @@ async function hacerRevision(): Promise<Revision | null> {
         } else if (destino === 'retenido' || destino === 'firmado-por-otro' || destino === 'sin-recibir') {
           renglones.push({ tabla, clave, que, resultado: destino })
         } else {
+          // Pudo llegar su borrado mientras se revisaban las anteriores.
+          if ((await db.table(tabla).get(clave)) === undefined) continue
           renglones.push({ tabla, clave, que, ...(await subirUno(tabla, clave, fila, alMando)) })
         }
       }
