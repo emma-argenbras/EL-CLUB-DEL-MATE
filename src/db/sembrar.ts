@@ -123,7 +123,7 @@ export async function sembrarCatalogo(): Promise<number> {
   //
   // Sembrar es traer una copia de algo que ya es de todos, igual que
   // aplicar un cambio que baja del servidor. Nunca se sube.
-  await comoRemoto(async () => {
+  await comoRemoto(db.productos, async () => {
     await db.productos.bulkPut(productos)
   })
   await guardarAjuste(CLAVE_SEMILLA, 'si')
@@ -173,35 +173,33 @@ export async function aplicarPreciosNuevos(mes: string): Promise<{
   // asi que cada uno la aplica igual por su cuenta. No tiene sentido
   // anotarlo en el historial a nombre de quien abrio la app, ni mandar
   // los mismos cambios a la nube desde cada telefono.
-  await comoRemoto(async () => {
-    await db.transaction('rw', db.productos, async () => {
-      for (const cambio of parche.cambios) {
-        const producto = await db.productos.get(cambio.codigo)
-        if (!producto) continue
+  await comoRemoto(db.productos, async () => {
+    for (const cambio of parche.cambios) {
+      const producto = await db.productos.get(cambio.codigo)
+      if (!producto) continue
 
-        const aplicar: Partial<Producto> = {}
-        let respetado = false
-        for (const [campo, valor] of Object.entries(cambio.nuevo) as [CampoPrecio, never][]) {
-          if (producto[campo] === cambio.anterior[campo]) {
-            aplicar[campo] = valor
-          } else {
-            respetado = true
-          }
+      const aplicar: Partial<Producto> = {}
+      let respetado = false
+      for (const [campo, valor] of Object.entries(cambio.nuevo) as [CampoPrecio, never][]) {
+        if (producto[campo] === cambio.anterior[campo]) {
+          aplicar[campo] = valor
+        } else {
+          respetado = true
         }
-
-        if (Object.keys(aplicar).length > 0) {
-          await db.productos.update(cambio.codigo, aplicar)
-          resultado.actualizados++
-        }
-        if (respetado) resultado.respetados++
       }
 
-      for (const producto of parche.nuevos) {
-        if (await db.productos.get(producto.codigo)) continue
-        await db.productos.add(producto)
-        resultado.nuevos++
+      if (Object.keys(aplicar).length > 0) {
+        await db.productos.update(cambio.codigo, aplicar)
+        resultado.actualizados++
       }
-    })
+      if (respetado) resultado.respetados++
+    }
+
+    for (const producto of parche.nuevos) {
+      if (await db.productos.get(producto.codigo)) continue
+      await db.productos.add(producto)
+      resultado.nuevos++
+    }
   })
 
   if (resultado.nuevos > 0) await derivarProveedoresDesdeProductos()
