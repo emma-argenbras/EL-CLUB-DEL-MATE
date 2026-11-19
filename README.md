@@ -1996,9 +1996,10 @@ ficha de proveedor, y el primero que vuelve a abrir:
 | 6.000 | **El gasto vuelve al servidor a los 20 s** | Queda borrado |
 
 Depende de cuánto tarda en guardarse lo que baja: del tamaño de la tabla y de la velocidad
-del aparato. Con la base de hoy y en una compu no pasaba; en un celular lento, o con un año
-más de gastos, iba a empezar a pasar. Y antes de las tandas, cuando guardar lo que bajaba
-tardaba diez veces más, el margen era mucho más chico.
+del aparato. Con la base de hoy y en una compu no pasaba; en un celular lento, o con más
+gastos cargados, iba a empezar a pasar. No se pudo mostrar que haya pasado antes: con la
+versión anterior a las tandas y 1.500 gastos tampoco volvía (ahí tardaba todo más, la
+bajada y la subida). Queda cerrado antes de que la base crezca.
 
 Solo afecta a lo que se borra **sin constancia**: gastos, compras y pagos a proveedores,
 fichas de proveedor borradas a mano. Las ventas, los turnos y las fichas unidas dejan
