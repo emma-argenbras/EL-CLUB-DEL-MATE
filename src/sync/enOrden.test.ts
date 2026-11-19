@@ -60,7 +60,7 @@ describe('lo que baja de una tabla se guarda en orden', () => {
     rentabilidad: 1, precioVenta: 45000, fechaPrecioVenta: null, busqueda: codigo.toLowerCase(), stock: 3, activo: true, ...extra,
   })
   const llega = (datos: Record<string, unknown>, pendiente = false): CambioRemoto => ({ tipo: 'modified', id: String(datos.codigo), datos, pendiente })
-  // Al abrir la app: la tabla entera, con TM015 y GASTADO al final.
+  // Al abrir la app: la tabla entera, con TM015 y BORRADO al final.
   const tablaEntera = () => [
     ...Array.from({ length: 300 }, (_, i) => llega(prod(`P${String(i).padStart(3, '0')}`))),
     llega(prod('TM015')),
@@ -75,31 +75,28 @@ describe('lo que baja de una tabla se guarda en orden', () => {
     await db.productos.bulkPut([prod('TM015'), prod('BORRADO')] as unknown as Producto[])
   })
 
+  // Los ecos de lo que la persona acaba de hacer: el precio nuevo de
+  // TM015 (todavía sin confirmar) y el borrado de BORRADO. Llegan
+  // enseguida, cuando el aviso largo recién empieza a guardarse.
+  const ecoDelPrecio = () => [llega(prod('TM015', { precioVenta: 52000 }), true)]
+  const ecoDelBorrado = (): CambioRemoto[] => [{ tipo: 'removed', id: 'BORRADO', datos: null, pendiente: false }]
+
   it('SIN ORDEN, el aviso largo del arranque pisa lo que la persona acaba de cambiar y revive lo que borró', async () => {
-    // Así era: cada aviso se guardaba por su cuenta.
-    const arranque = guardar(tablaEntera())
-    await db.productos.update('TM015', { precioVenta: 52000 })
-    await db.productos.delete('BORRADO')
-    // Los ecos de esos dos cambios, que llegan enseguida.
-    const ecos = Promise.all([
-      guardar([llega(prod('TM015', { precioVenta: 52000 }), true)]),
-      guardar([{ tipo: 'removed', id: 'BORRADO', datos: null, pendiente: false }]),
-    ])
-    await Promise.all([arranque, ecos])
+    // Así era: cada aviso se guardaba por su cuenta, todos a la vez. Los
+    // cortos terminan primero y el largo, que llega a esas filas al
+    // final, las deja como estaban antes.
+    await Promise.all([guardar(tablaEntera()), guardar(ecoDelPrecio()), guardar(ecoDelBorrado())])
     expect((await db.productos.get('TM015'))?.precioVenta).toBe(45000)
     expect(await db.productos.get('BORRADO')).toBeDefined()
   })
 
   it('EN ORDEN, lo último que llegó es lo que queda: el precio nuevo, y lo borrado sigue borrado', async () => {
     const cola = colaPorClave<string>()
-    const arranque = cola.encolar('productos', () => guardar(tablaEntera()))
-    await db.productos.update('TM015', { precioVenta: 52000 })
-    await db.productos.delete('BORRADO')
-    const ecos = Promise.all([
-      cola.encolar('productos', () => guardar([llega(prod('TM015', { precioVenta: 52000 }), true)])),
-      cola.encolar('productos', () => guardar([{ tipo: 'removed', id: 'BORRADO', datos: null, pendiente: false }])),
+    await Promise.all([
+      cola.encolar('productos', () => guardar(tablaEntera())),
+      cola.encolar('productos', () => guardar(ecoDelPrecio())),
+      cola.encolar('productos', () => guardar(ecoDelBorrado())),
     ])
-    await Promise.all([arranque, ecos])
     expect((await db.productos.get('TM015'))?.precioVenta).toBe(52000)
     expect(await db.productos.get('BORRADO')).toBeUndefined()
     expect(await db.productos.count()).toBe(301)
