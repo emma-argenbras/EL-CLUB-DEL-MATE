@@ -3,6 +3,7 @@ import Dexie, {
   type CreatingHookContext,
   type DeletingHookContext,
   type Table,
+  type Transaction,
   type UpdatingHookContext,
 } from 'dexie'
 
@@ -798,49 +799,76 @@ export function engancharAutor(callback: () => Autor | null): void {
 }
 
 /**
- * Mientras se esta aplicando un cambio que llego DESDE la nube, hay que
- * evitar que los ganchos de escritura lo reenvien de vuelta a la nube:
- * eso generaria un eco infinito entre dispositivos.
+ * Lo que llega DESDE la nube se guarda en este dispositivo sin que los
+ * ganchos de escritura lo tomen por algo hecho a mano: si no, cada dato
+ * que baja volveria a subir (un eco infinito entre dispositivos) y
+ * quedaria en el historial a nombre de quien tenga la app abierta.
+ *
+ * Como se marca "esto vino del servidor" cambio dos veces, y las dos por
+ * un error grave. Queda contado porque es la parte mas delicada de la
+ * app.
+ *
+ * 1. Era un booleano global (hasta el 14/10). comoRemoto es asincrono y
+ *    se llama desde varios lados a la vez: los listeners de Firestore, la
+ *    lista de precios, los meses historicos. El PRIMERO que terminaba lo
+ *    apagaba mientras los demas seguian escribiendo, y desde ese instante
+ *    lo que bajaba del servidor se registraba como edicion a mano. En el
+ *    primer login de Sandra quedaron 1.506 cambios de productos a su
+ *    nombre. No habia tocado nada.
+ *
+ * 2. Paso a ser un contador global (hasta el 19/11): "remoto" duraba
+ *    hasta que terminaba el ULTIMO. Eso arreglo lo de arriba y dejo el
+ *    problema inverso, que se anoto como chico y no lo era: TODO lo que
+ *    la persona escribia mientras el contador estaba prendido se tomaba
+ *    por remoto. No se subia y no dejaba historial. Y el contador queda
+ *    prendido cada vez que se abre la app, mientras se guarda el primer
+ *    snapshot de cada tabla, documento por documento: segundos en una
+ *    base de prueba, bastante mas con la base real y en un celular.
+ *    Abrir la app y abrir el turno enseguida dejaba el turno sin subir;
+ *    cerrar la caja en ese rato, el cierre. Las altas las rescataba mas
+ *    tarde la revision de pendientes; las ediciones y los borrados, nadie.
+ *    Se encontro en la auditoria del 19/11, midiendo cuanto tardaba en
+ *    llegar al servidor un gasto cargado despues de recargar.
+ *
+ * 3. Ahora la marca va en la TRANSACCION que escribe (desde el 19/11).
+ *    comoRemoto abre una transaccion sobre las tablas que va a tocar y la
+ *    anota; los ganchos reciben la transaccion de cada escritura y miran
+ *    si es una de esas. Lo que la persona hace mientras tanto va en otra
+ *    transaccion: es suyo, se sube y queda en el historial, pase lo que
+ *    pase alrededor. No hay nada global que prender ni apagar.
+ *
+ * Lo que eso le pide a quien la use: adentro de `fn` solo se escribe en
+ * la base local (operaciones de Dexie sobre las tablas declaradas). No se
+ * puede esperar otra cosa ahi adentro --un fetch, un setTimeout, una
+ * lectura de Firestore--: la transaccion se cerraria sola y la escritura
+ * siguiente fallaria. Lo que venga de afuera se busca antes y se pasa ya
+ * resuelto.
  */
-/**
- * Cuantos "aplicar cambio remoto" hay en curso ahora mismo.
- *
- * Era un booleano, y eso causo el peor error que tuvo esta app.
- *
- * comoRemoto es asincrono y se llama desde varios lados a la vez: los
- * ocho listeners de Firestore, la lista de precios y la carga de los
- * meses historicos. Con un booleano, el PRIMERO que terminaba lo ponia
- * en false mientras los demas seguian escribiendo, y desde ese instante
- * los datos que bajaban del servidor se registraban como ediciones
- * hechas a mano por quien estuviera logueado.
- *
- * Asi fue como el 14/10, en el primer login de Sandra, quedaron 1.506
- * cambios de productos a su nombre: era la sincronizacion inicial
- * trayendo los costos reales del servidor sobre un catalogo recien
- * sembrado sin costos. Ella no habia tocado nada.
- *
- * Con un contador, el modo remoto dura hasta que termina el ULTIMO, que
- * es lo que se queria decir desde el principio.
- *
- * Lo que este arreglo NO resuelve: el marcador sigue siendo global, asi
- * que una edicion hecha a mano justo mientras baja una sincronizacion se
- * toma por remota y no deja renglon. Es un problema mucho mas chico
- * --una edicion suelta contra 1.506 renglones falsos-- y para
- * resolverlo bien hay que pasar el marcador por cada escritura en vez de
- * tenerlo global. Queda anotado y no disimulado.
- */
-let remotoEnCurso = 0
+const transaccionesRemotas = new WeakSet<object>()
 
-export function comoRemoto<T>(fn: () => Promise<T>): Promise<T> {
-  remotoEnCurso++
-  return fn().finally(() => {
-    remotoEnCurso--
+export function comoRemoto<T>(
+  tablas: Table | Table[],
+  fn: () => PromiseLike<T> | T,
+): Promise<T> {
+  // 'rw?': si esto se llama desde adentro de otra transaccion que sirve,
+  // se suma a ella como una parte (y la marca queda solo en esa parte);
+  // si no hay ninguna, o la que hay no sirve, abre una propia.
+  return db.transaction('rw?', Array.isArray(tablas) ? tablas : [tablas], (transaccion) => {
+    transaccionesRemotas.add(transaccion)
+    return fn()
   })
 }
 
-/** Si en este momento se esta aplicando algo que vino del servidor. */
-function esCambioRemoto(): boolean {
-  return remotoEnCurso > 0
+/**
+ * Si esa escritura es de algo que vino del servidor. Mira la transaccion
+ * en la que va, y las que la contienen: una transaccion abierta adentro
+ * de un comoRemoto sigue siendo remota.
+ */
+function esCambioRemoto(transaccion: Transaction | null | undefined): boolean {
+  for (let t = transaccion; t; t = t.parent) {
+    if (transaccionesRemotas.has(t)) return true
+  }
+  return false
 }
 
 class BaseECDM extends Dexie {
@@ -1239,18 +1267,22 @@ class BaseECDM extends Dexie {
         this: CreatingHookContext<Record<string, unknown>, string>,
         _clave,
         obj,
+        transaccion,
       ) {
+        // Si vino del servidor se decide por la transaccion de ESTA
+        // escritura, no por lo que este pasando alrededor (ver comoRemoto).
+        const remoto = esCambioRemoto(transaccion)
         const registro = obj
         const ahora = Date.now()
         if (!registro.creadoEn) registro.creadoEn = ahora
         registro.actualizadoEn = ahora
-        if (nombre === 'productos' && !esCambioRemoto()) {
+        if (nombre === 'productos' && !remoto) {
           const autor = obtenerAutor?.()
           if (autor && !registro.creadoPor) registro.creadoPor = autor.email
         }
 
-        const autorCrea = esCambioRemoto() ? null : (obtenerAutor?.() ?? null)
-        const avisarSyncCrea = !esCambioRemoto() && Boolean(alCambiar)
+        const autorCrea = remoto ? null : (obtenerAutor?.() ?? null)
+        const avisarSyncCrea = !remoto && Boolean(alCambiar)
 
         if (autorCrea || avisarSyncCrea) {
           this.onsuccess = (claveFinal) => {
@@ -1283,7 +1315,9 @@ class BaseECDM extends Dexie {
         mods,
         clave,
         obj,
+        transaccion,
       ) {
+        const remoto = esCambioRemoto(transaccion)
         const combinados: Record<string, unknown> = {
           ...(mods as Record<string, unknown>),
           actualizadoEn: Date.now(),
@@ -1303,7 +1337,7 @@ class BaseECDM extends Dexie {
         // campo que cambio, para poder responder "quien tocó esto y cuándo"
         // sin ambigüedad.
         const entradasHistorial: EntradaHistorial[] = []
-        if (!esCambioRemoto() && !sinHistorialPropio.has(nombre)) {
+        if (!remoto && !sinHistorialPropio.has(nombre)) {
           const autor = obtenerAutor?.()
           if (autor) {
             if (nombre === 'productos') combinados.actualizadoPor = autor.email
@@ -1340,7 +1374,7 @@ class BaseECDM extends Dexie {
           }
         }
 
-        const avisarSync = !esCambioRemoto() && Boolean(alCambiar)
+        const avisarSync = !remoto && Boolean(alCambiar)
         if (avisarSync || entradasHistorial.length > 0) {
           // Solo lo que cambio (ver AccionCambio). Una clave con punto es
           // una ruta adentro de un objeto (Dexie lo permite); el servidor
@@ -1360,9 +1394,11 @@ class BaseECDM extends Dexie {
         this: DeletingHookContext<Record<string, unknown>, string>,
         clave,
         obj,
+        transaccion,
       ) {
-        const autorBorra = esCambioRemoto() ? null : (obtenerAutor?.() ?? null)
-        const avisarSyncBorra = !esCambioRemoto() && Boolean(alCambiar)
+        const remoto = esCambioRemoto(transaccion)
+        const autorBorra = remoto ? null : (obtenerAutor?.() ?? null)
+        const avisarSyncBorra = !remoto && Boolean(alCambiar)
 
         if (autorBorra || avisarSyncBorra) {
           this.onsuccess = () => {
@@ -1500,7 +1536,7 @@ const CUANDO_ARRANCO_EL_HISTORIAL = Date.parse('2026-10-11T00:00:00-03:00')
  * misma y queda un solo renglon.
  */
 export async function marcarArranqueDelHistorial(): Promise<void> {
-  await comoRemoto(async () => {
+  await comoRemoto(db.historial, async () => {
     await db.historial.put({
       id: ID_ARRANQUE_HISTORIAL,
       tabla: 'historial',
@@ -1557,7 +1593,14 @@ function anotarEnHistorial(entradas: EntradaHistorial[]): void {
       })
   }
 
-  const transaccion = Dexie.currentTransaction
+  // Se espera a la transaccion de MAS AFUERA. Una transaccion abierta
+  // adentro de otra "termina" cuando termina su parte, con la de afuera
+  // todavia en curso: guardar ahi era escribir en `historial` desde una
+  // transaccion que no lo incluye, y el renglon se perdia con un
+  // console.warn (encontrado el 19/11; ninguna pantalla anidaba
+  // transacciones, asi que no llego a pasar).
+  let transaccion = Dexie.currentTransaction
+  while (transaccion?.parent) transaccion = transaccion.parent
   if (transaccion) {
     transaccion.on('complete', guardar)
   } else {

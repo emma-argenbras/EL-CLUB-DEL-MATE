@@ -443,11 +443,11 @@ Tres cosas que conviene tener claras de ese episodio:
   arreglarlo. Lo que se hizo fue dejar explicado qué son: acá, en la Ayuda, y en el
   comentario de `comoRemoto`.
 
-El arreglo tiene un límite que no disimulo: el marcador sigue siendo **global**, así
-que una edición hecha a mano justo mientras baja una sincronización se toma por remota
-y no deja renglón. Es un problema mucho más chico —una edición suelta contra 1.506
-renglones falsos— y para resolverlo bien hay que pasar el marcador por cada escritura
-en vez de tenerlo global. Queda anotado en el código.
+El arreglo tenía un límite, que quedó anotado así: «el marcador sigue siendo **global**,
+así que una edición hecha a mano justo mientras baja una sincronización se toma por remota
+y no deja renglón. Es un problema mucho más chico». **No era chico**, y no era solo el
+renglón: esa edición tampoco se subía. Se encontró y se arregló el 19/11, pasando el
+marcador por cada escritura. Ver «Lo que pasó el 19/11».
 
 ### Una acción en bloque avisa cuántos productos toca
 
@@ -1947,6 +1947,113 @@ barrera. Las dos de hoy (la escucha que vuelve y la constancia confirmada) alcan
 repetir la limpieza, pero esta cubre las fichas borradas por fuera de la app, por ejemplo
 desde la consola de Firebase.
 
+## Lo que pasó el 19/11: lo que se cargaba mientras la app recibía, no subía
+
+Es el hallazgo más importante de la auditoría general del 19/11, y lo más probable es que
+sea la causa común de varios problemas que se habían tratado por separado: turnos y ventas
+«sin subir», cierres de caja que al día siguiente aparecían abiertos, cosas borradas que
+volvían, y la limpieza de proveedores del 13/11.
+
+### Cómo se encontró
+
+Probando otra cosa: un gasto cargado a los pocos segundos de recargar la página no llegaba
+al servidor. Sin recargar llegaba en un segundo. Se midió, y se siguió el hilo.
+
+### La causa
+
+Lo que baja del servidor se guarda en el aparato marcado como «remoto», para que no vuelva
+a subir ni quede en el historial a nombre de quien tiene la app abierta. Esa marca era un
+**contador global** (`remotoEnCurso`, en `src/db/db.ts`): mientras hubiera alguna bajada en
+curso, **todo** lo que se escribía en la base se tomaba por remoto. También lo que cargaba
+la persona. No se subía y no dejaba historial.
+
+El contador quedaba prendido en dos situaciones, y las dos son de todos los días:
+
+1. **Al abrir la app.** La primera respuesta de cada tabla trae la tabla entera, y se
+   guarda documento por documento. En la prueba, con una base chica, eran 7 segundos; con
+   la base real y en un celular es bastante más. Abrir la app y abrir el turno enseguida
+   dejaba el turno sin subir.
+2. **En el medio de cualquier operación de varios pasos.** Cada escritura propia vuelve
+   enseguida como eco por la escucha. Guardar ese eco prendía el contador, y como el eco
+   tiene que esperar a que la operación suelte la tabla, el contador quedaba prendido
+   **hasta que la operación terminaba**: lo que faltaba de la operación no se subía. Un
+   ticket de varios productos, un ingreso de mercadería, un remarcado, un cierre.
+
+Lo que pasaba después dependía de qué era lo que no había subido:
+
+- **Un alta** (una venta, un turno, un gasto) quedaba en el aparato y la subía más tarde la
+  revisión de pendientes o el arranque siguiente. Es el «hay N cosas sin subir» que
+  aparecía y se iba.
+- **Una edición** (cerrar un turno, cambiar un precio, descontar stock) no la subía nadie:
+  la subida del arranque solo manda lo que el servidor no tiene. Y al abrir la app de nuevo,
+  lo del servidor pisaba lo del aparato: el cierre desaparecía.
+- **Un borrado** tampoco: al abrir la app de nuevo, lo borrado volvía.
+
+### La prueba, con la versión que estaba publicada
+
+En el navegador, contra los emuladores, la limpieza de «Fichas repetidas vacías» sobre 60
+pares:
+
+| | En el aparato | En el servidor, 30 s después |
+|---|---|---|
+| **Versión publicada hasta el 19/11** | 0 copias, 60 constancias, 2 renglones de historial | **59 de 60 copias siguen**, **1 de 60 constancias** |
+| **Con el arreglo** | 0 copias, 60 constancias, 120 renglones de historial | 0 copias, 60 de 60 constancias, 60 de 60 datos rescatados (a los 12 s) |
+
+Es lo que pasó el 13/11: la limpieza se veía hecha en el aparato de Sandra y al servidor
+había llegado una parte mínima. Las fichas no «volvieron»: nunca se habían ido. La
+confirmación de constancias del 13/11 lo avisa bien («Faltan 59 de las 60 constancias»),
+pero no podía decir por qué.
+
+### El arreglo
+
+La marca dejó de ser global: va en la **transacción** que escribe (`comoRemoto(tablas, fn)`
+abre una transacción sobre las tablas que va a tocar y la anota; los ganchos de escritura
+reciben la transacción de cada escritura y miran si es una de esas). Lo que la persona hace
+mientras tanto va en otra transacción: es suyo, se sube y queda en el historial, pase lo que
+pase alrededor. No hay nada que prender ni apagar.
+
+- `src/db/db.ts`: `comoRemoto` y los tres ganchos. Es la tercera versión de esa marca; las
+  tres están contadas en el comentario, porque las dos anteriores fallaron de formas
+  opuestas (ver «Lo que pasó el 14/10»).
+- `src/sync/aplicarRemotos.ts`: cada documento que baja se guarda en su propia transacción
+  remota. Antes todo el recorrido iba adentro de una sola marca.
+- `src/sync/motor.ts` y `src/db/sembrar.ts`: los otros lugares que guardan algo «de todos»
+  (el catálogo sembrado, la lista de precios, lo que se saca de un aparato porque ya estaba
+  borrado, los turnos retenidos que se descartan).
+
+**Lo que eso le pide a quien toque el código:** adentro de `comoRemoto` solo se escribe en
+la base local. No se puede esperar otra cosa ahí adentro (un `fetch`, un `setTimeout`, una
+lectura de Firestore): la transacción se cerraría sola. Lo que venga de afuera se busca
+antes y se pasa ya resuelto.
+
+De paso se arregló otro error del mismo lugar, que no había llegado a pasar: una edición
+hecha adentro de una transacción anidada perdía su renglón de historial (`anotarEnHistorial`
+esperaba a la transacción de adentro y no a la de más afuera).
+
+### Cómo se probó
+
+- 48 pruebas en los tres archivos de esta parte (`src/db/historial.test.ts`,
+  `src/sync/aplicarRemotos.test.ts`, `src/db/sembrarNoSube.test.ts`). Las tres nuevas que
+  describen el problema —abrir el turno mientras baja la tabla entera, el ticket de treinta
+  productos con el eco, editar el mismo producto que está bajando— **se corrieron contra el
+  código que estaba publicado y las tres quedaron en rojo**: del ticket subían 2 de 30.
+- El arreglo se rompió a propósito de 14 maneras: 13 en rojo. La que no, es el `?` del modo
+  de la transacción (`'rw?'`), una defensa que en las pruebas no cambia nada.
+- De punta a punta en el navegador contra los emuladores: la limpieza de 60 pares con las
+  dos versiones (la tabla de arriba), el gasto cargado después de recargar, y las pruebas
+  que ya había de lo que toca sincronización (ticket, ingreso, rechazo de una escritura,
+  turnos retenidos, escuchas, constancias), con las dos versiones para comparar. Ver el PR.
+
+### Lo que este arreglo no hace
+
+- **No recupera lo que ya se perdió.** Una edición o un borrado que no subió y después fue
+  pisado por lo del servidor no está en ningún lado.
+- **No vuelve a hacer la limpieza de proveedores.** Hay que repetirla, con el OK de
+  Emmanuel y mirando la lista antes (ver «Próximos pasos»). Esta vez tiene que llegar.
+- **No acorta el arranque.** La tabla entera se sigue guardando documento por documento
+  cada vez que se abre la app; lo que cambió es que mientras tanto se puede trabajar.
+  Guardarla en tandas es lo que sigue.
+
 ## Los avisos por plazo, y el cambio en una línea (06/11)
 
 Dos pedidos del 06/11 que no tocan cómo se guardan los datos:
@@ -3076,6 +3183,11 @@ otros dispositivos a la base local. Cada turno, venta y gasto tiene un id propio
 generado en el dispositivo (no un número correlativo), así dos celulares pueden
 crear datos al mismo tiempo sin internet sin pisarse entre sí.
 
+Lo que baja se guarda marcado como «remoto» para que no vuelva a subir ni quede en el
+historial. La marca va en la transacción que lo escribe (`comoRemoto`, en `db.ts`), no en
+un estado global: lo que la persona carga mientras tanto se sube como siempre (ver «Lo que
+pasó el 19/11»).
+
 Cada tabla se escucha por separado. Si la escucha de una termina en error, el motor
 la vuelve a abrir solo, cada vez con más espera, y mientras tanto el estado queda en
 error y la revisión no sube nada de esa tabla (ver «Lo que pasó el 13/11» y
@@ -3152,6 +3264,20 @@ variable según su categoría. Ver «Gastos: dos arreglos de la auditoría».
 - [ ] **Los pagos a proveedores cargados desde Gastos que quedaron como fijos** (decisión de
       Emmanuel): contarlos y, si corresponde, pasarlos a variable de una, con su pregunta y
       su motivo. Cambia el margen de contribución de los meses que toque.
+
+**Hecho el 19/11, publicación aparte (sincronización)** — lo que se carga mientras la app
+recibe datos del servidor ahora se sube y queda en el historial. Era la causa de la limpieza
+de proveedores que no llegaba, y muy probablemente de los «sin subir», de los cierres que
+aparecían abiertos y de lo borrado que volvía. Ver «Lo que pasó el 19/11».
+
+- [ ] **Repetir la limpieza de fichas de proveedor** (con el OK de Emmanuel, después de las
+      21, mirando la lista antes). Con esta versión en todos los aparatos tiene que llegar:
+      la pantalla lo confirma contra el servidor.
+- [ ] **Pedirle al soporte que mire si quedó algo sin subir de antes**: turnos que en el
+      servidor figuran abiertos y en el aparato cerrados, y el número de «sin subir» de
+      cada aparato después de actualizar.
+- [ ] **Guardar en tandas lo que baja al abrir la app.** Hoy es un documento por vez, y con
+      la base entera son muchos segundos en cada arranque.
 
 **Hecho el 13/11, publicación aparte** — «Unir proveedores» confirma contra el servidor que
 las constancias llegaron y dice cuántas hay. Ver «Las constancias, confirmadas contra el

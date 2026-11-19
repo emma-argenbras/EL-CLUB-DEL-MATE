@@ -1037,6 +1037,26 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['sin subir', 'pendiente', 'no sincroniza', 'no llega', 'cartel', 'ver que es', 'revisar', 'no baja', '1 cosa', '3 cosas'],
   },
   {
+    id: 'cargar-apenas-abro',
+    categoria: 'Sincronización y respaldo',
+    pregunta: 'Cargué algo y después no estaba, o volvió algo que había borrado. ¿Puede pasar?',
+    respuesta:
+      'Podía pasar hasta el 19/11, y ese día se arregló.\n\nEl problema: mientras la app estaba recibiendo datos del servidor —al abrirla, sobre todo, o en el medio de una carga de varios pasos— lo que uno cargaba en ese rato quedaba guardado en el aparato pero no se mandaba al servidor. Si era algo nuevo (una venta, un turno) subía más tarde, y de ahí el cartel de «cosas sin subir» que aparecía y se iba. Si era un cambio sobre algo que ya existía (cerrar un turno, cambiar un precio) o un borrado, no subía, y al abrir la app de nuevo se veía otra vez lo viejo.\n\nDesde el 19/11 lo que cargás se manda siempre, esté la app recibiendo o no. No hace falta esperar a que termine de abrir para empezar a trabajar.\n\nLo que se haya perdido antes de esa fecha no se recupera solo. Si ves un turno abierto que estabas segura de haber cerrado, o un dato que habías cambiado y está como antes, avisale a quien está al mando: se corrige a mano.\n\nPara tener la versión nueva, tocá «Actualizar» cuando la app lo ofrezca.',
+    palabrasClave: [
+      'no se guardo',
+      'no me guardo',
+      'desaparecio',
+      'volvio',
+      'volvio lo borrado',
+      'turno abierto',
+      'cerre y aparece abierto',
+      'se perdio',
+      'no subio',
+      'apenas abro',
+      'esperar',
+    ],
+  },
+  {
     id: 'no-esta-recibiendo',
     categoria: 'Sincronización y respaldo',
     pregunta: 'Apareció un cartel: «Este aparato no está recibiendo los cambios de …». ¿Qué hago?',
