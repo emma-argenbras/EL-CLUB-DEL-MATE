@@ -1972,6 +1972,58 @@ los 130 s de la versión anterior.
 Lo que se carga en ese rato sigue siendo de quien lo carga: la marca va en la transacción de
 la tanda, no en el aire.
 
+### Un aparato atrasado ya no vuelve a subir lo que otro borró (publicación aparte, la misma madrugada)
+
+Buscando qué más podía hacer que algo borrado volviera apareció otro camino, distinto del de
+arriba. No es «el borrado no subió»: el borrado llegó bien al servidor, y lo deshace **otro
+aparato** al abrirse.
+
+Cada vez que se abre la app pasan dos cosas a la vez: baja lo del servidor, y la subida del
+arranque (`empujarTodoLocal`) compara lo que hay en el aparato contra lo que hay en el
+servidor para subir lo que falte. Si un aparato estuvo cerrado mientras desde otro se borraba
+un gasto, al abrirse todavía lo tiene. El borrado baja enseguida, pero se guarda **después**
+de lo que Firestore ya tenía guardado en ese aparato, que es la tabla entera. Si la
+comparación se hacía en ese rato, el gasto todavía estaba: «lo tengo yo y el servidor no».
+Lo subía de nuevo, y reaparecía para todos.
+
+En el navegador contra los emuladores, un aparato cerrado, otro que borra un gasto y una
+ficha de proveedor, y el primero que vuelve a abrir:
+
+| Gastos en la tabla | Versión publicada hasta ese momento | Con el arreglo |
+|---|---|---|
+| 300 | Queda borrado | Queda borrado |
+| 1.500 | Queda borrado | Queda borrado |
+| 6.000 | **El gasto vuelve al servidor a los 20 s** | Queda borrado |
+
+Depende de cuánto tarda en guardarse lo que baja: del tamaño de la tabla y de la velocidad
+del aparato. Con la base de hoy y en una compu no pasaba; en un celular lento, o con más
+gastos cargados, iba a empezar a pasar. No se pudo mostrar que haya pasado antes: con la
+versión anterior a las tandas y 1.500 gastos tampoco volvía (ahí tardaba todo más, la
+bajada y la subida). Queda cerrado antes de que la base crezca.
+
+Solo afecta a lo que se borra **sin constancia**: gastos, compras y pagos a proveedores,
+fichas de proveedor borradas a mano. Las ventas, los turnos y las fichas unidas dejan
+constancia en `borrados` y la subida ya no las tocaba.
+
+El arreglo, en `src/sync/enOrden.ts` y `src/sync/motor.ts`:
+
+- **La subida espera.** Antes de leer lo que hay en el aparato de una tabla, espera a que
+  termine de guardarse lo que bajó de esa tabla (`esperarLoBajado`). Lo mismo hace la revisión
+  de pendientes.
+- **Con un límite de tres minutos.** Si se cumple, de esa tabla no se sube nada en esa pasada
+  y el control periódico vuelve a mirar: entre subir tarde y revivir lo borrado, se sube
+  tarde.
+- **Lo que ya no está en el aparato no se sube.** Justo antes de mandar cada fila se vuelve a
+  mirar si sigue ahí, y se manda como está en ese momento, no como estaba cuando se armó la
+  lista.
+
+En la misma prueba, un gasto que estaba **solo** en ese aparato (nunca había subido) sube
+igual: el arreglo no frena lo que tiene que subir.
+
+Lo que no cubre: una fila que está en la base de la app pero que Firestore, en ese aparato,
+no conoce —nunca pasó por él— no se puede distinguir de una que nunca subió. Para eso hacen
+falta constancias en todas las tablas (ver «Próximos pasos»).
+
 ### «Importar un respaldo» ya no le borra nada al servidor
 
 Revisando qué otras operaciones escriben muchas filas de una apareció esta. Importar vacía
@@ -2029,6 +2081,14 @@ Recuperar el negocio entero desde un respaldo, si algún día hace falta, es otr
   está roto a propósito y va primero en su tabla: el de atrás llega igual, que es la
   confirmación en un navegador de verdad de que uno malo no tira abajo su tanda.
 
+- **El aparato atrasado:** 8 pruebas nuevas en `src/sync/enOrden.test.ts`. Tres arman el
+  caso —el aparato tiene la fila que el otro borró; baja primero la tabla entera y después
+  el borrado— y muestran que sin esperar la subida todavía la ve, y esperando no. Rotas a
+  propósito de 6 maneras, las 6 en rojo. La espera adentro del motor y el «lo que ya no está
+  acá no se sube» no tienen prueba automática propia: los cubre la prueba de punta a punta
+  de la tabla de arriba, que con la versión anterior da mal, y la batería entera otra vez
+  sobre esta versión.
+
 ### Un cartel rojo que es del emulador, no de la app
 
 En las pruebas contra el emulador, después de una escritura que el servidor rechaza **de
@@ -2065,8 +2125,7 @@ del historial.
 - **No evita que al abrir la app se vuelva a guardar todo.** Cada vez que se abre, lo que
   baja —o lo que Firestore tiene guardado en el aparato— se escribe otra vez en la base
   local, aunque sea igual a lo que ya estaba. En tandas son segundos, pero es trabajo de
-  más. Y la subida del arranque sigue leyendo cada colección entera del servidor para saber
-  qué falta (ver «Próximos pasos»).
+  más.
 
 ## Los avisos por plazo, y el cambio en una línea (06/11)
 
@@ -3337,18 +3396,28 @@ en tandas de 200. En la prueba, la primera sincronización pasó de 130 s a 10 s
 carga apenas se abre la app llega al servidor en 2 a 4 s. Ver «Lo que baja se guarda en
 tandas».
 
-- [ ] **Que la subida del arranque no lea el servidor entero.** Para saber qué le falta al
-      servidor, hoy lee cada colección completa cada vez que se abre la app. Son lecturas
-      del plan gratis de Firebase (50.000 por día entre todos los aparatos), y como corre a
-      la par de la bajada puede volver a subir algo que otro aparato acaba de borrar, si de
-      ese borrado no quedó constancia. Lo que sigue: que espere a que termine de guardarse
-      lo que baja y compare contra eso, sin leer de nuevo.
+- [ ] **Leer menos al abrir la app.** Medido el 19/11 mirando lo que la app le pide al
+      servidor: al abrirse pide cada colección **una sola vez**, que es la escucha. La
+      subida del arranque no agrega lecturas: se cuelga de la escucha que ya está abierta.
+      Lo anotado el 27/10 —que `empujarTodoLocal` leía todo otra vez— estaba mal, y sacarle
+      ese `getDocs` no ahorraría nada. Lo que sí cuesta, según la documentación de
+      facturación de Firestore: una escucha que estuvo más de 30 minutos desconectada se
+      cobra como una consulta nueva, o sea la colección entera, esté o no guardada en el
+      aparato. Cada aparato que se abre a la mañana lee todo, y el historial es lo que más
+      crece. Si la consola de Firebase muestra que se está cerca de las 50.000 lecturas por
+      día, lo que sigue es escuchar solo lo reciente del historial y de las ventas.
 - [ ] **Que lo borrado deje constancia en todas las tablas.** Hoy la dejan las ventas, los
       turnos (con lo suyo), el código viejo de un producto y las fichas de proveedor unidas.
-      Un gasto, una compra, un pago o una ficha borrados desde un aparato pueden volver
-      desde otro que estaba atrasado.
+      Un gasto, una compra, un pago o una ficha borrados desde un aparato todavía pueden
+      volver desde otro si en ese otro la fila no pasó nunca por Firestore (ver «Un aparato
+      atrasado ya no vuelve a subir lo que otro borró»).
 - [ ] **No volver a guardar lo que no cambió** al abrir la app (ver «Lo que este arreglo no
       hace»).
+**Hecho el 19/11, publicación aparte (sincronización)** — un aparato que estaba cerrado
+mientras otro borraba algo ya no lo vuelve a subir al abrirse: la subida del arranque espera a
+que termine de guardarse lo que bajó antes de comparar. Ver «Un aparato atrasado ya no vuelve
+a subir lo que otro borró».
+
 - [ ] **Pedirle al soporte que busque rechazos de `historial` en la colección `rechazos`**
       del servidor real. No debería haber: es para confirmar que el cartel falso que se ve
       en las pruebas es solo del emulador (ver «Cómo se probó»).
@@ -3369,9 +3438,9 @@ servidor».
 - [ ] **Una tercera barrera para las fichas de proveedor.** La revisión no tiene que volver
       a subir una ficha vacía si el servidor ya tiene otra con el mismo nombre exacto,
       aunque no haya constancia (por ejemplo, si se borró desde la consola).
-- [ ] **Leer menos al abrir la app.** Cada apertura lee la base entera (ver la auditoría del
-      27/10, más abajo). Con la cuota de 50.000 lecturas diarias del plan Spark puede ser lo
-      que tira las escuchas. Antes, mirar en la consola de Firebase las lecturas por día.
+- [ ] **Mirar en la consola de Firebase las lecturas por día.** Con la cuota de 50.000
+      lecturas diarias del plan Spark, quedarse sin lecturas puede ser lo que tira las
+      escuchas (ver «Leer menos al abrir la app», más arriba).
 
 **La limpieza de fichas de proveedor repetidas (10/11) no se repite todavía.** El 13/11 había
 252 fichas con 93 nombres repetidos y ninguna constancia de proveedores en `borrados`.
@@ -3423,14 +3492,14 @@ celular sin dejar datos. Ver "Lo que no se sube".
 
 **Encontrado en la auditoría del 27/10** (sin cambios de código todavía)
 
-- [ ] **Cada apertura de la app lee la base entera del servidor.** `empujarTodoLocal`
-      hace `getDocs` de las diez colecciones en cada inicio de sesión —también al tocar
-      "Actualizar"— para comparar con la copia local: del orden de 8.000 a 15.000
-      lecturas por apertura y por dispositivo, contra las 50.000 diarias del plan Spark.
-      Y `controlarSinSubir` hace diez conteos cada cinco minutos, unas 5.000 lecturas
-      por día en la PC que queda prendida. Corrección: comparar los conteos primero y
-      leer una colección entera solo cuando el conteo local supera al del servidor;
-      controlar cada 15 minutos. Antes, mirar el uso real en la consola de Firebase.
+- [ ] **Cada apertura de la app lee la base entera del servidor.** Corregido el 19/11, con
+      la medición: no es `empujarTodoLocal`. Su `getDocs` de cada colección se cuelga de la
+      escucha que ya está abierta y no agrega lecturas. Las que leen todo son las escuchas
+      mismas, cuando el aparato estuvo más de 30 minutos desconectado (ver «Leer menos al
+      abrir la app», más arriba). Lo que sigue en pie de esta nota: `controlarSinSubir` hace
+      un conteo por tabla cada cinco minutos, unas 5.000 lecturas por día en la PC que queda
+      prendida; se puede controlar cada 15 minutos. Antes, mirar el uso real en la consola
+      de Firebase.
 - [ ] **El historial crece sin límite** y cada dispositivo lo escucha y lo carga entero
       (`Historial.tsx` trae todos los renglones a memoria). Escuchar solo los últimos
       90 días y traer lo viejo a pedido; en la pantalla, de a 300 con "ver más".
