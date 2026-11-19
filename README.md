@@ -2411,6 +2411,37 @@ terminar, porque además deja el stock y la deuda al día.
 - **Una fecha para dejar el Excel.** Lo decide Emmanuel; hasta entonces hay dos listas de
   precios que pueden no decir lo mismo.
 
+## Gastos: dos arreglos de la auditoría (19/11)
+
+Los dos salieron de leer la pantalla en la auditoría general, no de un pedido. La regla de
+cada uno está en `src/lib/borrarGasto.ts`, suelta de la pantalla para poder probarla.
+
+**Borrar un gasto de un turno cerrado.** Un gasto que salió de la caja de un turno es parte
+de la cuenta de ese turno: cuánto efectivo tenía que haber al cerrar. En la Caja, un turno
+cerrado no deja borrar nada. Desde la lista de Gastos se podía igual, cualquiera con la
+sección, y el arqueo de un turno ya cerrado y revisado dejaba de coincidir sin que nadie se
+enterara. Ahora (`permisoParaBorrarGasto`):
+
+- sin turno (caja grande) o con el turno abierto, se borra como siempre;
+- con el turno cerrado, solo quien está al mando, y la pregunta dice qué turno se mueve;
+- una empleada ve, en lugar del botón, «Es de un turno cerrado: lo borra quien está al
+  mando»;
+- un gasto que apunta a un turno que no está en ese aparato se trata como de turno
+  cerrado: no se puede afirmar que esté abierto.
+
+**Fijo o variable, según la categoría que viene puesta.** El formulario abría en PROVEEDORES
+con «Fijo» marcado: la sugerencia solo se aplicaba al *cambiar* de categoría, y la que venía
+puesta nunca se cambiaba. Un pago a proveedor cargado desde Gastos quedaba fijo, y el mismo
+pago cargado desde Proveedores, variable: el margen de contribución del mes dependía de por
+dónde se había cargado. Ahora arranca como lo pide su categoría (`esVariablePorDefecto`).
+Los gastos ya cargados no se tocan: revisar los de PROVEEDORES que figuran como fijos es una
+decisión de Emmanuel (ver «Próximos pasos»).
+
+Probado con 7 pruebas (rotas a propósito de 6 maneras, las 6 en rojo) y de punta a punta
+contra los emuladores, como una empleada con Gastos y como la encargada; la pantalla también
+se rompió a propósito (el botón a la vista de la empleada, el formulario abriendo en «Fijo»)
+y las dos se vieron.
+
 ## La compu: opción B (06/11)
 
 Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
@@ -3113,6 +3144,14 @@ Excel. Ver «La planilla del proveedor».
 
 - [ ] **Ponerle fecha al Excel** (decisión de Emmanuel). Mientras se anote en los dos lados,
       la lista de precios del Excel y la de la app pueden no decir lo mismo.
+
+**Hecho el 19/11, publicación aparte** — en Gastos, un gasto de un turno cerrado solo lo
+borra quien está al mando (avisado de qué turno mueve), y el formulario arranca fijo o
+variable según su categoría. Ver «Gastos: dos arreglos de la auditoría».
+
+- [ ] **Los pagos a proveedores cargados desde Gastos que quedaron como fijos** (decisión de
+      Emmanuel): contarlos y, si corresponde, pasarlos a variable de una, con su pregunta y
+      su motivo. Cambia el margen de contribución de los meses que toque.
 
 **Hecho el 13/11, publicación aparte** — «Unir proveedores» confirma contra el servidor que
 las constancias llegaron y dice cuántas hay. Ver «Las constancias, confirmadas contra el
