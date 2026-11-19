@@ -46,6 +46,11 @@ describe('ayudaParaPerfil', () => {
     expect(ayudaParaPerfil(TODAS, false, ['caja']).some((e) => e.id === 'borrar-gasto')).toBe(false)
   })
 
+  it('«Cómo venimos» es de quien está al mando: una empleada no lo ve (19/11)', () => {
+    expect(ayudaParaPerfil(TODAS, false, ['caja', 'gastos', 'reportes']).some((e) => e.id === 'como-venimos')).toBe(false)
+    expect(ayudaParaPerfil(TODAS, true, [], false).some((e) => e.id === 'como-venimos')).toBe(true)
+  })
+
   it('un empleado sin Proveedores no ve como registrar una compra', () => {
     const suyas = ayudaParaPerfil(TODAS, false, ['caja', 'productos'])
     expect(suyas.some((e) => e.id === 'registrar-compra')).toBe(false)

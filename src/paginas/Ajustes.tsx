@@ -413,6 +413,17 @@ export default function Ajustes() {
       </div>
 
       <div className="tarjeta">
+        <p className="tarjeta-titulo">Cómo venimos</p>
+        <p className="silencio" style={{ marginTop: 0 }}>
+          El uso de la app semana por semana: días con la caja cargada, ventas cargadas en el
+          momento o después, y lo que entró de los proveedores. Para el seguimiento del lunes.
+        </p>
+        <Link className="boton-chico" style={{ width: '100%', textAlign: 'center' }} to="/uso">
+          Ver cómo venimos
+        </Link>
+      </div>
+
+      <div className="tarjeta">
         <p className="tarjeta-titulo">Historial de modificaciones</p>
         <p className="silencio" style={{ marginTop: 0 }}>
           Quién creó, editó, archivó o borró cada cosa, con el valor de antes y el de después.

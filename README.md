@@ -2549,6 +2549,44 @@ contra los emuladores, como una empleada con Gastos y como la encargada; la pant
 se rompió a propósito (el botón a la vista de la empleada, el formulario abriendo en «Fijo»)
 y las dos se vieron.
 
+## «Cómo venimos»: el uso de la app, semana por semana (19/11)
+
+**Ajustes → «Cómo venimos»**. Solo para quien está al mando. No escribe nada.
+
+Sale de una pregunta de Emmanuel: si había mejorado el uso de la app y si se había dejado el
+Excel. Desde afuera no se podía contestar: hubo que ir a mirar la fecha de modificación del
+Excel (ver «La planilla del proveedor»). Estos números salen de lo que ya está en cada
+aparato, sin leer nada nuevo del servidor, y contestan lo mismo cada lunes.
+
+Una tarjeta por semana, las últimas seis (`usoPorSemana`, en `src/lib/usoDeLaApp.ts`):
+
+- **Caja cargada:** de lunes a sábado, cuántos días tienen al menos un turno, y cuáles no.
+  En la semana en curso solo cuentan los días que ya pasaron. El domingo no se reclama; un
+  feriado en el que no se abrió sí figura, porque la app no sabe de feriados.
+- **Turnos de días anteriores sin cerrar.**
+- **Ventas, y qué parte se cargó el mismo día.** Se compara el día de la venta con el día en
+  que se cargó (`creadoEn`, en la hora del aparato). Las «después» se pasaron más tarde,
+  casi siempre desde el cuaderno. Las que no tienen ese dato (las importadas de la planilla
+  vieja) no cuentan para ningún lado. El recargo de tarjeta no es una venta.
+- **Ventas sin código.**
+- **Costos actualizados e ingresos de mercadería:** los productos cuyo costo tiene fecha de
+  esa semana y las compras cargadas. Es la cuenta que se compara con lo que llegó de los
+  proveedores: si llegó mercadería y los dos están en cero, se anotó en otro lado.
+
+Cada semana lleva un cartel (`senalDeLaSemana`): **FALTA CARGAR** si faltó la caja de algún
+día o quedó un turno sin cerrar, **PARA MIRAR** si más de una de cada diez ventas se cargó
+después, **BIEN** lo demás. Los cortes son a ojo y están en un solo lugar.
+
+**«Copiar el resumen»** deja las seis semanas en texto para pegar en WhatsApp. Si el aparato
+no deja copiar solo, muestra el texto para copiarlo a mano.
+
+**No hay números por persona, a propósito.** La pantalla es para ver qué parte de la app
+todavía cuesta más que el cuaderno y arreglar esa parte, no para marcarle nada a nadie.
+
+Probado con 14 pruebas de la cuenta (rotas a propósito de 14 maneras, las 14 en rojo; una
+fija la hora del local para que el «día de carga» no dependa de dónde corre la prueba), 1 de
+la Ayuda, y de punta a punta contra los emuladores.
+
 ## La compu: opción B (06/11)
 
 Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
@@ -3278,6 +3316,14 @@ aparecían abiertos y de lo borrado que volvía. Ver «Lo que pasó el 19/11».
       cada aparato después de actualizar.
 - [ ] **Guardar en tandas lo que baja al abrir la app.** Hoy es un documento por vez, y con
       la base entera son muchos segundos en cada arranque.
+
+**Hecho el 19/11, publicación aparte** — «Cómo venimos»: el uso de la app semana por semana
+(días con caja, ventas cargadas en el día o después, costos e ingresos de mercadería), con un
+resumen para copiar. Ver «Cómo venimos».
+
+- [ ] **Mirar «Cómo venimos» cada lunes con Sandra**, y comparar los costos actualizados
+      con lo que se siga anotando en el Excel hasta que tenga fecha de corte.
+- [ ] **Feriados:** que la pantalla (y el aviso del Panel) no reclamen la caja de un feriado.
 
 **Hecho el 13/11, publicación aparte** — «Unir proveedores» confirma contra el servidor que
 las constancias llegaron y dice cuántas hay. Ver «Las constancias, confirmadas contra el
