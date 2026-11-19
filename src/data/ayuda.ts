@@ -1239,7 +1239,7 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Productos',
     pregunta: 'Tengo que actualizar muchos costos, ¿hay forma de no entrar uno por uno?',
     respuesta:
-      'Sí: Ajustes → "Revisión de costos", o el enlace que aparece en Productos junto al aviso de costo vencido.\n\nMuestra los productos sin costo o con el costo vencido, se puede filtrar por proveedor —lo más cómodo es tener la factura de ese proveedor delante— y el costo se corrige en la misma lista, sin abrir cada ficha.\n\nSe guardan el costo y su fecha, y nada más: el precio de venta, la rentabilidad, el stock y el proveedor quedan como están. Y solo cambian los renglones que cargás vos.\n\nDos cosas que hace sola: mientras escribís te muestra en cuánto quedaría el margen, y si el número no cierra —un cero de más o de menos— te pregunta antes de guardar. Si alguien cambió ese costo desde otro dispositivo mientras tenías la lista abierta, no lo pisa: te avisa para que mires cuál de los dos va.\n\nSi un costo vencido sigue siendo el mismo —el proveedor cobra lo mismo que la última vez—, no hace falta volver a escribirlo: con el casillero vacío, el botón dice "Sigue igual". Tocándolo se renueva la fecha y el producto sale de la lista. Queda en el historial como "Costo confirmado: sigue valiendo lo mismo", así se distingue de una corrección.\n\nLos descontinuados no aparecen: nadie los va a reponer.',
+      'Sí: Ajustes → "Revisión de costos", o el enlace que aparece en Productos junto al aviso de costo vencido.\n\nMuestra los productos sin costo o con el costo vencido, se puede filtrar por proveedor —lo más cómodo es tener la factura de ese proveedor delante— y el costo se corrige en la misma lista, sin abrir cada ficha.\n\nSe guardan el costo y su fecha, y nada más: el precio de venta, la rentabilidad, el stock y el proveedor quedan como están. Y solo cambian los renglones que cargás vos.\n\nDos cosas que hace sola: mientras escribís te muestra en cuánto quedaría el margen, y si el número no cierra —un cero de más o de menos— te pregunta antes de guardar. Si alguien cambió ese costo desde otro dispositivo mientras tenías la lista abierta, no lo pisa: te avisa para que mires cuál de los dos va.\n\nSi un costo vencido sigue siendo el mismo —el proveedor cobra lo mismo que la última vez—, no hace falta volver a escribirlo: con el casillero vacío, el botón dice "Sigue igual". Tocándolo se renueva la fecha y el producto sale de la lista. Queda en el historial como "Costo confirmado: sigue valiendo lo mismo", así se distingue de una corrección.\n\nLos descontinuados no aparecen: nadie los va a reponer.\n\nSi lo que tenés delante es la factura de una entrega y querés ver TODOS los productos de ese proveedor, no solo los vencidos, eso es la planilla del proveedor: buscá «Llegó mercadería y cambiaron los costos».',
     palabrasClave: [
       'actualizar costos',
       'muchos costos',
@@ -1252,6 +1252,29 @@ export const AYUDA: EntradaAyuda[] = [
       'mismo costo',
     ],
     requiereSeccion: 'productos',
+    soloOwner: true,
+  },
+  {
+    id: 'planilla-del-proveedor',
+    categoria: 'Proveedores',
+    pregunta: 'Llegó mercadería y cambiaron los costos de un proveedor, ¿cómo los actualizo todos juntos?',
+    respuesta:
+      'Con la planilla del proveedor: es lo que se hacía en el Excel, adentro de la app.\n\nEntrá a Proveedores, tocá el proveedor y después «Actualizar costos (planilla)». También se llega desde Ajustes → «Revisión de costos», eligiendo el proveedor y la pestaña «Todos sus productos».\n\nAparecen todos sus productos en el orden de sus códigos, cada uno con su costo, la fecha de ese costo, el precio de venta y el markup. Con la factura delante:\n\n• Arriba, poné la «Fecha de la compra» si no es la de hoy: es la fecha con la que queda cada costo que guardes.\n• Escribí el costo nuevo y apretá Enter: se guarda y pasa solo al producto de abajo, como en una planilla. Con el botón «Guardar» también se guarda, sin pasar al siguiente.\n• Si un costo no cambió, tocá «Sigue igual»: se renueva la fecha sin escribir nada.\n\nEl precio de venta no cambia solo. Cuando el costo nuevo deja el precio por debajo de lo que pide su markup, en ese renglón aparece «Su markup pide $…» con el botón para ponerlo. Y al final de la lista, «Precios por debajo de su markup» los junta a todos: un botón los cambia de una, después de preguntarte diciendo cuántos son. Queda en el historial como «Remarcado desde la planilla del proveedor». Acordate de cambiar las etiquetas en el local.\n\nSi la diferencia con lo que pide el markup es chica (menos del 5 %), la app no dice nada: lo toma como redondeo o como una decisión de precio.\n\nLo que la planilla NO hace: no suma stock ni anota la compra en la cuenta del proveedor. Para eso está «📦 Ingreso de mercadería», que además deja el costo al día. Si cargás el ingreso, no hace falta pasar por la planilla.\n\nLos descontinuados no aparecen (la planilla dice cuántos hay). Si llegó un producto que todavía no existe, dalo de alta en Productos → «+ Producto nuevo» con ese proveedor, y aparece en su planilla.',
+    palabrasClave: [
+      'planilla',
+      'excel',
+      'lista de precios',
+      'actualizar costos',
+      'factura',
+      'llego mercaderia',
+      'todos los productos del proveedor',
+      'enter',
+      'fecha de la compra',
+      'poner precios',
+      'remarcar',
+      'markup',
+    ],
+    requiereSeccion: 'proveedores',
     soloOwner: true,
   },
   {

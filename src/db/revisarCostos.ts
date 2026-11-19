@@ -1,6 +1,6 @@
 import { conMotivo, db, type Producto } from './db'
-import { costoDesactualizado } from '../lib/calculos'
-import { hoyISO } from '../lib/formato'
+import { costoDesactualizado, precioAtrasado } from '../lib/calculos'
+import { hoyISO, plata } from '../lib/formato'
 
 /**
  * Corregir costos de a muchos, sin entrar producto por producto.
@@ -57,6 +57,152 @@ export function productosParaRevisar(
   })
 }
 
+/** Como esta el costo de un producto en la planilla de su proveedor. */
+export type EstadoDelCosto = MotivoRevision | 'al-dia'
+
+export interface EnPlanilla {
+  producto: Producto
+  estado: EstadoDelCosto
+}
+
+export interface Planilla {
+  filas: EnPlanilla[]
+  /** Cuantos de ese proveedor no se muestran por estar descontinuados. */
+  descontinuados: number
+}
+
+/**
+ * La planilla de un proveedor (19/11): TODOS sus productos, no solo los
+ * que tienen el costo vacio o vencido.
+ *
+ * Sale de mirar el Excel: un mes despues de dejarlo, cada entrega de un
+ * proveedor se seguia anotando ahi (140 productos entre el 21/10 y el
+ * 18/11). En el Excel los productos de un proveedor estan todos juntos y
+ * actualizar una lista de precios es bajar por una columna; la revision
+ * de costos mostraba solo los vencidos, y el ingreso de mercaderia pide
+ * buscar cada producto. Esto es esa misma columna.
+ *
+ * Van en el orden de sus codigos, que es como estan en el Excel y en la
+ * factura. Los archivados y los descontinuados no: no se reponen.
+ */
+export function planillaDelProveedor(productos: Producto[], proveedorId: string): Planilla {
+  const filas: EnPlanilla[] = []
+  let descontinuados = 0
+  for (const producto of productos) {
+    if (producto.proveedorId !== proveedorId || producto.archivado) continue
+    if (producto.descontinuado) {
+      descontinuados++
+      continue
+    }
+    const estado: EstadoDelCosto =
+      producto.precioCompra == null ? 'sin-costo' : costoDesactualizado(producto) ? 'vencido' : 'al-dia'
+    filas.push({ producto, estado })
+  }
+  filas.sort((a, b) => a.producto.codigo.localeCompare(b.producto.codigo, 'es', { numeric: true }))
+  return { filas, descontinuados }
+}
+
+export interface PrecioParaPoner {
+  codigo: string
+  descripcion: string
+  actual: number
+  sugerido: number
+}
+
+/**
+ * Los productos de la planilla que se venden por debajo de lo que pide
+ * su markup, con el costo al dia.
+ *
+ * En el Excel el precio se movia solo al cambiar el costo. Aca se
+ * ofrece: uno por uno en su renglon, o todos juntos al final de la
+ * planilla. Con el costo vencido o vacio no se ofrece nada: seria
+ * remarcar sobre un numero que nadie confirmo.
+ */
+export function preciosParaPoner(filas: EnPlanilla[]): PrecioParaPoner[] {
+  const lista: PrecioParaPoner[] = []
+  for (const { producto, estado } of filas) {
+    if (estado !== 'al-dia') continue
+    const atrasado = precioAtrasado(producto)
+    if (!atrasado) continue
+    lista.push({
+      codigo: producto.codigo,
+      descripcion: producto.descripcion,
+      actual: atrasado.actual,
+      sugerido: atrasado.sugerido,
+    })
+  }
+  return lista
+}
+
+/**
+ * Lo que se pregunta antes de poner varios precios de una: cuantos son,
+ * de quien, y un ejemplo con sus dos numeros.
+ */
+export function preguntaAntesDePonerPrecios(lista: PrecioParaPoner[], proveedor: string): string {
+  const cuantos = lista.length === 1 ? '1 producto' : `${lista.length} productos`
+  const ej = lista[0]
+  return (
+    `Vas a cambiar el precio de venta de ${cuantos} de ${proveedor} al que pide su markup.` +
+    (ej ? `\n\nPor ejemplo, ${ej.descripcion}: de ${plata(ej.actual)} a ${plata(ej.sugerido)}.` : '') +
+    '\n\nQueda en el historial con el motivo. Acordate de cambiar las etiquetas en el local.'
+  )
+}
+
+export interface ProveedorConCostos {
+  /** '' es «sin proveedor». */
+  id: string
+  nombre: string
+  /** Productos que se reponen: ni archivados ni descontinuados. */
+  productos: number
+  paraRevisar: number
+}
+
+/**
+ * Los proveedores para elegir: primero los que tienen costos para
+ * revisar, del que mas tiene al que menos (por donde conviene empezar);
+ * despues el resto, por nombre, para encontrar al que acaba de entregar.
+ */
+export function proveedoresConCostos(
+  productos: Producto[],
+  proveedores: { id: string; nombre: string }[],
+): ProveedorConCostos[] {
+  const nombre = new Map(proveedores.map((p) => [p.id, p.nombre]))
+  const cuenta = new Map<string, { productos: number; paraRevisar: number }>()
+  for (const p of productos) {
+    if (p.archivado || p.descontinuado) continue
+    const id = p.proveedorId ?? ''
+    const c = cuenta.get(id) ?? { productos: 0, paraRevisar: 0 }
+    c.productos++
+    if (p.precioCompra == null || costoDesactualizado(p)) c.paraRevisar++
+    cuenta.set(id, c)
+  }
+  return [...cuenta.entries()]
+    .map(([id, c]) => ({
+      id,
+      nombre: id ? (nombre.get(id) ?? `(ficha que no existe: ${id})`) : '(sin proveedor)',
+      ...c,
+    }))
+    .sort(
+      (a, b) =>
+        Number(b.paraRevisar > 0) - Number(a.paraRevisar > 0) ||
+        b.paraRevisar - a.paraRevisar ||
+        a.nombre.localeCompare(b.nombre, 'es'),
+    )
+}
+
+/**
+ * La fecha de una compra: un dia de verdad y no del futuro. En el Excel
+ * anotaban la fecha de la factura, que no siempre es la del dia en que
+ * la cargan.
+ */
+export function problemaDeLaFecha(fecha: string, hoy: string = hoyISO()): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(new Date(`${fecha}T12:00:00`).getTime())) {
+    return 'Elegí la fecha de la compra.'
+  }
+  if (fecha > hoy) return 'La fecha de la compra no puede ser futura.'
+  return null
+}
+
 export type ResultadoGuardar =
   | { estado: 'guardado' }
   | { estado: 'no-existe' }
@@ -77,7 +223,11 @@ export async function guardarCosto(
   codigo: string,
   costoNuevo: number,
   costoQueSeVeia: number | null,
+  /** La fecha de la compra. Si no se dice, hoy. */
+  fecha: string = hoyISO(),
 ): Promise<ResultadoGuardar> {
+  const mal = problemaDeLaFecha(fecha)
+  if (mal) throw new Error(mal)
   return conMotivo(MOTIVO_REVISION_COSTOS, async () => {
     const producto = await db.productos.get(codigo)
     if (!producto) return { estado: 'no-existe' } as const
@@ -87,7 +237,7 @@ export async function guardarCosto(
       return { estado: 'cambio-mientras-tanto', costoAhora } as const
     }
 
-    await db.productos.update(codigo, { precioCompra: costoNuevo, fechaCompra: hoyISO() })
+    await db.productos.update(codigo, { precioCompra: costoNuevo, fechaCompra: fecha })
     return { estado: 'guardado' } as const
   })
 }
@@ -111,7 +261,11 @@ export const MOTIVO_COSTO_CONFIRMADO = 'Costo confirmado: sigue valiendo lo mism
 export async function confirmarCosto(
   codigo: string,
   costoQueSeVeia: number,
+  /** La fecha de la compra. Si no se dice, hoy. */
+  fecha: string = hoyISO(),
 ): Promise<ResultadoGuardar> {
+  const mal = problemaDeLaFecha(fecha)
+  if (mal) throw new Error(mal)
   return conMotivo(MOTIVO_COSTO_CONFIRMADO, async () => {
     const producto = await db.productos.get(codigo)
     if (!producto) return { estado: 'no-existe' } as const
@@ -121,7 +275,7 @@ export async function confirmarCosto(
       return { estado: 'cambio-mientras-tanto', costoAhora } as const
     }
 
-    await db.productos.update(codigo, { fechaCompra: hoyISO() })
+    await db.productos.update(codigo, { fechaCompra: fecha })
     return { estado: 'guardado' } as const
   })
 }
