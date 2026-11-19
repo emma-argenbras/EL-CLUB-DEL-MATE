@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { personasParaSueldo } from '../lib/sueldos'
 import { useCambiosSinGuardar, useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
@@ -1254,7 +1255,22 @@ function PanelEgresos({
   const [monto, setMonto] = useState('')
   const [tipo, setTipo] = useState<'EGRESO_CAJA' | 'A_CAJA_GRANDE'>('EGRESO_CAJA')
   const [categoria, setCategoria] = useState<CategoriaGasto>('OTROS')
+  // De quien es, cuando lo que sale del cajon es un sueldo (19/11). Una
+  // empleada que retira el suyo lo encuentra ya elegido; lo puede cambiar.
+  const sesion = useSesion()
+  const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
+  const personas = personasParaSueldo(usuarios ?? [])
+  const [persona, setPersona] = useState('')
   useSinGuardar('un egreso de caja', concepto.trim() !== '' || monto.trim() !== '')
+
+  function elegirCategoria(nueva: CategoriaGasto) {
+    setCategoria(nueva)
+    if (nueva !== 'SUELDOS') {
+      setPersona('')
+    } else if (!persona && sesion.perfil?.rol === 'empleado' && personas.some((p) => p.id === sesion.uid)) {
+      setPersona(sesion.uid ?? '')
+    }
+  }
 
   async function agregar() {
     const valor = leerNumero(monto)
@@ -1267,11 +1283,15 @@ function PanelEgresos({
       const igual = egresoIgual(valor, jornada.fecha, delDia)
       if (igual && !confirm(preguntaEgresoRepetido(igual))) return
     }
+    const esSueldo = tipo === 'EGRESO_CAJA' && categoria === 'SUELDOS'
+    const deQuien = esSueldo ? personas.find((p) => p.id === persona) : undefined
     await db.movimientos.add({
       id: nuevoId(),
       fecha: jornada.fecha,
       tipo,
-      concepto: concepto.trim() || (tipo === 'A_CAJA_GRANDE' ? 'Pase a caja grande' : 'Egreso'),
+      concepto:
+        concepto.trim() ||
+        (tipo === 'A_CAJA_GRANDE' ? 'Pase a caja grande' : deQuien ? `Sueldo de ${deQuien.nombre}` : 'Egreso'),
       monto: valor,
       categoria: tipo === 'EGRESO_CAJA' ? categoria : null,
       jornadaId: jornada.id,
@@ -1279,10 +1299,12 @@ function PanelEgresos({
       // Y que un gasto sea fijo o variable depende de QUE se pago, no de
       // con que caja: un sueldo pagado de la caja del turno es fijo igual.
       esVariable: tipo === 'EGRESO_CAJA' && !CATEGORIAS_FIJAS.includes(categoria),
+      ...(deQuien ? { persona: deQuien.id } : {}),
     })
     setConcepto('')
     setMonto('')
     setCategoria('OTROS')
+    setPersona('')
   }
 
   return (
@@ -1331,7 +1353,7 @@ function PanelEgresos({
               <select
                 id="cat-egreso"
                 value={categoria}
-                onChange={(e) => setCategoria(e.target.value as CategoriaGasto)}
+                onChange={(e) => elegirCategoria(e.target.value as CategoriaGasto)}
               >
                 {CATEGORIAS_GASTO.map((c) => (
                   <option key={c} value={c}>
@@ -1344,6 +1366,20 @@ function PanelEgresos({
                   ? 'Se cuenta como gasto fijo: se paga igual se venda mucho o poco.'
                   : 'Se cuenta como gasto variable: sube cuando se vende más.'}
               </p>
+            </div>
+          )}
+
+          {tipo === 'EGRESO_CAJA' && categoria === 'SUELDOS' && personas.length > 0 && (
+            <div className="campo">
+              <label htmlFor="persona-egreso">¿De quién es el sueldo?</label>
+              <select id="persona-egreso" value={persona} onChange={(e) => setPersona(e.target.value)}>
+                <option value="">Elegí…</option>
+                {personas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

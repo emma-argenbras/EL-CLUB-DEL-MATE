@@ -15,6 +15,15 @@ describe('el historial en palabras', () => {
     expect(etiquetaCampo('otroCampo')).toBe('otroCampo')
     expect(comoSeLee(19000, 'precioVenta')).toBe(plata(19000))
     expect(comoSeLee(4, 'stock')).toBe('4')
+    // De quien es un pago de sueldo (19/11): el nombre, no el id.
+    const nombres = new Map([['uid-gabi', 'Gabriela']])
+    expect(comoSeLee('uid-gabi', 'persona', nombres)).toBe('Gabriela')
+    expect(comoSeLee('uid-otro', 'persona', nombres)).toBe('uid-otro')
+    expect(comoSeLee('uid-gabi', 'persona')).toBe('uid-gabi')
+    expect(comoSeLee(null, 'persona', nombres)).toBe('—')
+    expect(comoSeLee('2026-11', 'periodoSueldo')).toBe('noviembre 2026')
+    expect(etiquetaCampo('persona')).toBe('de quién es')
+    expect(etiquetaCampo('periodoSueldo')).toBe('mes al que corresponde')
     expect(comoSeLee(null, 'stock')).toBe('—')
   })
 

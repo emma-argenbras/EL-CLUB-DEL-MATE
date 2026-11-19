@@ -8,7 +8,7 @@ import {
 } from '../data/ayuda'
 import { seccionesVisibles } from '../sync/sesion'
 import { useSesion } from '../sync/useSesion'
-import { estaAlMando } from '../sync/permisos'
+import { esDueno, estaAlMando } from '../sync/permisos'
 
 export default function Ayuda() {
   const [consulta, setConsulta] = useState('')
@@ -19,7 +19,7 @@ export default function Ayuda() {
   // secciones que tiene apagadas.
   const disponibles = useMemo(() => {
     const esOwner = estaAlMando(sesion.perfil)
-    return ayudaParaPerfil(AYUDA, esOwner, seccionesVisibles(sesion.perfil))
+    return ayudaParaPerfil(AYUDA, esOwner, seccionesVisibles(sesion.perfil), esDueno(sesion.perfil))
   }, [sesion.perfil])
 
   const resultados = useMemo(() => buscarAyuda(consulta, disponibles), [consulta, disponibles])

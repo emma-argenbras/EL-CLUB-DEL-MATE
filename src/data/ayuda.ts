@@ -16,6 +16,12 @@ export interface EntradaAyuda {
    */
   soloOwner?: boolean
   /**
+   * Solo la ve el dueño, ni siquiera la encargada: lo de los sueldos
+   * (19/11). `soloOwner` quedo con ese nombre de cuando habia dos roles y
+   * hoy quiere decir «al mando»; esta es la que distingue al dueño.
+   */
+  soloDueno?: boolean
+  /**
    * Solo tiene sentido si la persona tiene esa seccion habilitada. Un
    * empleado al que le apagaron Proveedores no necesita leer como se
    * registra una compra.
@@ -387,6 +393,15 @@ export const AYUDA: EntradaAyuda[] = [
     respuesta:
       'En Caja, pestaña "Egresos" → elegí "Gasto pagado con la caja" → escribí el concepto (ej: flete, café), el monto y la categoría → "Registrar egreso". Se descuenta solo del efectivo esperado en la caja al momento de cerrar.\n\nLa categoría importa: según cuál elijas, la app lo cuenta como gasto fijo o variable, y eso cambia dónde entra en el reporte del mes. Abajo del selector te dice cuál de los dos va a ser. Un sueldo pagado de la caja del turno es un gasto fijo igual, aunque no salga de la caja grande.',
     palabrasClave: ['flete', 'gasto chico', 'plata que sale'],
+    requiereSeccion: 'caja',
+  },
+  {
+    id: 'retiro-de-sueldo',
+    categoria: 'Caja',
+    pregunta: '¿Cómo anoto un sueldo o un adelanto que sale de la caja?',
+    respuesta:
+      'En Caja, pestaña "Egresos" → "Gasto pagado con la caja" → en Categoría elegí SUELDOS. Ahí aparece «¿De quién es el sueldo?»: elegí la persona, poné el monto y tocá "Registrar egreso". Si no escribís un concepto, queda como «Sueldo de …».\n\nSi el retiro es tuyo y entraste con tu usuario, tu nombre ya viene elegido.\n\nSe descuenta del efectivo esperado al cerrar, como cualquier egreso. Elegir la persona es lo que permite saber después cuánto lleva cobrado cada uno en el mes.',
+    palabrasClave: ['sueldo', 'adelanto', 'retiro', 'retirar', 'cobrar', 'de quien es', 'semanal'],
     requiereSeccion: 'caja',
   },
   {
@@ -1086,6 +1101,15 @@ export const AYUDA: EntradaAyuda[] = [
     requiereSeccion: 'gastos',
   },
   {
+    id: 'sueldos',
+    categoria: 'Gastos',
+    pregunta: '¿Dónde defino el sueldo de cada persona y veo lo que lleva cobrado?',
+    respuesta:
+      'En Gastos → «Ver sueldos». La pantalla la ve solo el dueño: lo que se acordó con cada persona no baja a los aparatos del resto.\n\nPor cada persona del equipo muestra el sueldo del mes, lo que cobró y lo que falta pagar. «Definir sueldo» pide el monto por mes y desde qué mes rige; antes de guardar pregunta. Cuando el sueldo cambia se carga de nuevo con el mes desde el que vale: los meses anteriores siguen mostrando lo que se había acordado entonces.\n\nLo cobrado sale de los gastos de categoría SUELDOS que dicen de quién son, se hayan cargado desde Caja o desde Gastos. Tres cosas se ordenan desde ahí:\n\n• «Pagos de sueldo sin asignar»: están como sueldo pero no dicen de quién. Elegís la persona.\n• «¿Esto es un sueldo?»: gastos con otra categoría que nombran a alguien del equipo o dicen «sueldo» o «adelanto». Si lo son, elegís de quién y pasan a SUELDOS, como gasto fijo.\n• «Corresponde a»: un pago del 3 de diciembre puede ser sueldo de noviembre. Se cambia el mes en ese pago. Para el resultado del mes sigue contando la fecha en que salió la plata.\n\nCada uno de esos cambios toca un solo gasto y queda en el historial como «Ordenado desde Sueldos».',
+    palabrasClave: ['sueldo', 'sueldos', 'cuanto cobra', 'adelanto', 'falta pagar', 'definir sueldo', 'empleados', 'pagar sueldos'],
+    soloDueno: true,
+  },
+  {
     id: 'pago-de-donde-sale',
     categoria: 'Proveedores',
     pregunta: 'Le pagué a un proveedor con plata del cajón, ¿cómo lo cargo?',
@@ -1357,10 +1381,12 @@ export function ayudaParaPerfil(
   entradas: EntradaAyuda[],
   esOwner: boolean,
   secciones: SeccionId[],
+  /** Si es el dueño. Sin decirlo, vale lo mismo que estar al mando (como antes). */
+  esElDueno: boolean = esOwner,
 ): EntradaAyuda[] {
-  if (esOwner) return entradas
+  if (esOwner) return esElDueno ? entradas : entradas.filter((e) => !e.soloDueno)
   return entradas.filter((e) => {
-    if (e.soloOwner) return false
+    if (e.soloOwner || e.soloDueno) return false
     if (e.requiereSeccion && !secciones.includes(e.requiereSeccion)) return false
     return true
   })
