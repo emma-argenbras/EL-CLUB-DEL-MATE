@@ -2049,21 +2049,29 @@ Ahora cada aviso espera a que termine de guardarse el anterior de su tabla
 (`colaPorClave`, en `src/sync/enOrden.ts`). Las tablas no se esperan entre sí, y un aviso que
 falla no frena a los que vienen atrás.
 
-### «Importar un respaldo», que había que cerrar al mismo tiempo
+### «Importar un respaldo» ya no le borra nada al servidor
 
-Importar vacía cada tabla y la vuelve a llenar, en una sola operación. Con la marca global,
-el eco del primer borrado dejaba todo lo demás sin subir: de casualidad, importar un
-respaldo casi no tocaba el servidor. Con el arreglo, cada fila vaciada habría sido un
-borrado que viaja y cada fila llenada un alta: decenas de miles de escrituras de a una, más
-un renglón de historial por cada una. El plan gratis de Firebase corta mucho antes de
-terminar, y el servidor habría quedado borrado a medias, para todos.
+Revisando qué otras operaciones escriben muchas filas de una apareció esta. Importar vacía
+cada tabla y la vuelve a llenar, y con la sesión abierta cada fila vaciada era un borrado
+que viajaba al servidor y cada fila llenada un alta, de a una. La pregunta decía «reemplaza
+los datos de este dispositivo»; lo que hacía era reemplazar los del negocio.
 
-Por eso importar pasó a `src/db/importarRespaldo.ts` y va marcado como remoto: reemplaza
-los datos **de ese aparato** y nada más. No sube un solo cambio ni deja historial. La
-pregunta de antes dice de cuándo es el archivo, cuántos productos, turnos y ventas trae, y
-qué pasa con el servidor: lo que el servidor ya tiene manda y vuelve a bajar al abrir la
-app; lo que el archivo tenga y el servidor no, se sube como lo de cualquier aparato
-atrasado. Si el archivo está roto a la mitad, no cambia nada. Sigue siendo solo del dueño.
+En la prueba contra los emuladores, con la versión que estaba publicada, importar un
+respaldo de dos productos fue borrando el catálogo del servidor: de 1.283 productos a 1.210
+en un minuto, y seguía. Con la base real son decenas de miles de escrituras; el plan gratis
+de Firebase corta antes de terminar y el servidor queda borrado a medias, para todos. No hay
+registro de que alguien lo haya usado con la sincronización prendida.
+
+Ahora importar está en `src/db/importarRespaldo.ts` y va marcado como remoto: reemplaza los
+datos **de ese aparato** y nada más. No sube un solo cambio ni deja historial. La pregunta de
+antes dice de cuándo es el archivo, cuántos productos, turnos y ventas trae, y qué pasa con
+el servidor: lo que el servidor ya tiene manda y vuelve a bajar al abrir la app; lo que el
+archivo tenga y el servidor no, se sube como lo de cualquier aparato atrasado. Si el archivo
+está roto a la mitad, no cambia nada. Sigue siendo solo del dueño.
+
+La misma prueba con esta versión: el servidor queda con sus 1.283 productos, sus ventas y
+sus gastos; al volver a abrir la app el aparato vuelve a tener lo del servidor, y lo único
+que sube es lo que el archivo tenía de más (un producto y un gasto).
 
 Recuperar el negocio entero desde un respaldo, si algún día hace falta, es otra herramienta
 (en lotes, contando y preguntando) y no existe todavía.
