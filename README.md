@@ -254,9 +254,11 @@ Hay **tres roles**:
 
 El corte entre dueño y encargado no es "cuánto confío": es que esas tres
 cosas pueden **destruir el negocio o repartirlo**, y no se delegan. Importar
-un respaldo está del lado del dueño porque pisa el catálogo, los turnos y las
-ventas con lo que diga el archivo: quien puede importar puede borrar, solo
-que más despacio.
+un respaldo está del lado del dueño porque reemplaza el catálogo, los turnos y
+las ventas de ese aparato con lo que diga el archivo. Desde el 19/11 no le
+borra ni le pisa nada al servidor (ver «Lo que pasó el 19/11»), pero lo que el
+archivo tenga y el servidor no, se sube: con un archivo viejo puede revivir
+cosas borradas a propósito.
 
 Un encargado tampoco puede **ascenderse a sí mismo** ni **degradar a un dueño**
 para después tocarlo. La regla mira el rol de los dos lados —el que el
@@ -1693,7 +1695,8 @@ arqueo. No hay ninguna constancia de borrado.
 ### Lo que se sabe y lo que no
 
 - **No se borraron del servidor.** Ningún camino de la app borra un turno allá sin dejar
-  constancia en `borrados`. La excepción es «Importar un respaldo», en Ajustes. «Copias
+  constancia en `borrados`. La excepción es «Importar un respaldo», en Ajustes (desde el
+  19/11 ya no: importar no le borra nada al servidor). «Copias
   retenidas» (usado el 06/11 a las 12:18) solo saca copias del aparato donde se toca.
 - **El 04/11 el aviso estaba mal diagnosticado.** Ese día la PC de Gabriela marcaba «3 sin
   subir» fijo, y faltan justo tres turnos. Aquel arreglo se probó con un turno retenido de
@@ -1921,8 +1924,28 @@ De paso se arregló otro error del mismo lugar, que no había llegado a pasar: u
 hecha adentro de una transacción anidada perdía su renglón de historial (`anotarEnHistorial`
 esperaba a la transacción de adentro y no a la de más afuera).
 
+### «Importar un respaldo», que había que cerrar al mismo tiempo
+
+Importar vacía cada tabla y la vuelve a llenar, en una sola operación. Con la marca global,
+el eco del primer borrado dejaba todo lo demás sin subir: de casualidad, importar un
+respaldo casi no tocaba el servidor. Con el arreglo, cada fila vaciada habría sido un
+borrado que viaja y cada fila llenada un alta: decenas de miles de escrituras de a una, más
+un renglón de historial por cada una. El plan gratis de Firebase corta mucho antes de
+terminar, y el servidor habría quedado borrado a medias, para todos.
+
+Por eso importar pasó a `src/db/importarRespaldo.ts` y va marcado como remoto: reemplaza
+los datos **de ese aparato** y nada más. No sube un solo cambio ni deja historial. La
+pregunta de antes dice de cuándo es el archivo, cuántos productos, turnos y ventas trae, y
+qué pasa con el servidor: lo que el servidor ya tiene manda y vuelve a bajar al abrir la
+app; lo que el archivo tenga y el servidor no, se sube como lo de cualquier aparato
+atrasado. Si el archivo está roto a la mitad, no cambia nada. Sigue siendo solo del dueño.
+
+Recuperar el negocio entero desde un respaldo, si algún día hace falta, es otra herramienta
+(en lotes, contando y preguntando) y no existe todavía.
+
 ### Cómo se probó
 
+- 7 pruebas de «Importar un respaldo» (rotas a propósito de 8 maneras, las 8 en rojo).
 - 48 pruebas en los tres archivos de esta parte (`src/db/historial.test.ts`,
   `src/sync/aplicarRemotos.test.ts`, `src/db/sembrarNoSube.test.ts`). Las tres nuevas que
   describen el problema —abrir el turno mientras baja la tabla entera, el ticket de treinta
@@ -3169,6 +3192,9 @@ aparecían abiertos y de lo borrado que volvía. Ver «Lo que pasó el 19/11».
       cada aparato después de actualizar.
 - [ ] **Guardar en tandas lo que baja al abrir la app.** Hoy es un documento por vez, y con
       la base entera son muchos segundos en cada arranque.
+- [ ] **Una herramienta para recuperar el negocio desde un respaldo** (decisión de
+      Emmanuel): «Importar un respaldo» ahora cambia solo ese aparato. Subir un respaldo
+      entero al servidor tiene que ir en lotes, diciendo cuánto toca y preguntando.
 
 **Hecho el 13/11, publicación aparte** — «Unir proveedores» confirma contra el servidor que
 las constancias llegaron y dice cuántas hay. Ver «Las constancias, confirmadas contra el
