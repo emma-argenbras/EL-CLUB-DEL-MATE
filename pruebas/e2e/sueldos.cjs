@@ -32,10 +32,10 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   const uidS = await A.crearUsuario('sandra@prueba.test')
   const uidG = await A.crearUsuario('gabi@prueba.test')
   await A.poner(`usuarios/${uidE}`, { id: uidE, email: 'emma@prueba.test', nombre: 'Emmanuel', rol: 'owner', activo: true })
-  await A.poner('usuarios/uid-elena', { id: 'uid-elena', email: 'elena@prueba.test', nombre: 'Elena', rol: 'owner', activo: true })
+  // Elena es dueña y no usa la app: no tiene cuenta. La agrega el dueño desde Ajustes, mas abajo.
   await A.poner(`usuarios/${uidS}`, { id: uidS, email: 'sandra@prueba.test', nombre: 'Sandra', rol: 'encargado', activo: true })
   await A.poner(`usuarios/${uidG}`, { id: uidG, email: 'gabi@prueba.test', nombre: 'Gabriela Pérez', rol: 'empleado', activo: true, secciones: null })
-  const nombres = { [uidE]: 'Emmanuel', 'uid-elena': 'Elena', [uidS]: 'Sandra', [uidG]: 'Gabriela' }
+  const nombres = { [uidE]: 'Emmanuel', [uidS]: 'Sandra', [uidG]: 'Gabriela' }
   // Como estaba cargado: los pagos por semana con apodo y en OTROS, y los retiros de Elena igual.
   await A.sembrar('movimientos', [
     gasto('g1', '01', 'SEMANA GABI', 100001),
@@ -60,6 +60,26 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   const pE = await A.entrar(ctxE, 'emma@prueba.test')
   const preguntas = []
   pE.on('dialog', async (dl) => { preguntas.push(dl.message().replace(/\n+/g, ' / ')); await dl.accept() })
+  // Elena, dueña sin cuenta: para anotarle los retiros sin darle acceso.
+  await pE.goto(A.URL + '#/ajustes'); await pE.waitForTimeout(2500)
+  await pE.locator('button', { hasText: '+ Dueño que no usa la app' }).click()
+  await pE.locator('#dueno-sin-cuenta').fill('Elena')
+  await pE.locator('button', { hasText: /^Agregar$/ }).click(); await pE.waitForTimeout(2000)
+  console.log('DUEÑO SIN CUENTA, pregunta:', preguntas.shift())
+  console.log('   aviso:', await A.texto(pE.locator('.aviso-ok').first()))
+  console.log('   en la lista:', await A.texto(pE.locator('li.item', { hasText: 'Elena' })))
+  const elena = (await A.listar('usuarios')).find((u) => u.nombre === 'Elena')
+  console.log('   SERVIDOR:', elena ? `id ${elena.id.startsWith('sin-cuenta-') ? 'sin-cuenta-…' : elena.id} · rol ${elena.rol} · activo ${elena.activo} · sinCuenta ${elena.sinCuenta} · mail «${elena.email}»` : '(NO LLEGÓ)')
+  const uidElena = elena.id
+  nombres[uidElena] = 'Elena'
+  const lasCuentas = await A.cuentas()
+  console.log('   cuentas en el servidor de cuentas:', lasCuentas.length, `(${lasCuentas.map((c) => c.email).sort().join(', ')})`, '| ¿alguna de Elena?', lasCuentas.some((c) => (c.email ?? '').includes('elena')))
+  await pE.locator('button', { hasText: '+ Dueño que no usa la app' }).click()
+  await pE.locator('#dueno-sin-cuenta').fill('  elena ')
+  await pE.locator('button', { hasText: /^Agregar$/ }).click(); await pE.waitForTimeout(800)
+  console.log('   otra «elena»:', (await pE.locator('.aviso-error').count()) ? await A.texto(pE.locator('.aviso-error').first()) : '(LA DEJÓ)')
+  await pE.locator('.tarjeta', { hasText: 'Usuarios del equipo' }).first().screenshot({ path: `${CAP}/ajustes-dueno-sin-cuenta.png` })
+  await pE.locator('button', { hasText: 'Cancelar' }).last().click()
   await pE.goto(A.URL + '#/sueldos'); await pE.waitForTimeout(3500)
   console.log('TÍTULO:', await pE.locator('h2').innerText(), '|', (await A.texto(pE.locator('.aviso-ojo').first())).slice(0, 150))
   console.log('EN SUELDOS FIGURAN:', (await pE.locator('section[aria-label^="Sueldo de "]').evaluateAll((l) => l.map((x) => x.getAttribute('aria-label')))).join(', '))
@@ -183,6 +203,7 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   await pS.goto(A.URL + '#/mi-sueldo'); await pS.waitForTimeout(3000)
   console.log('MI SUELDO de Sandra:', (await A.texto(pS.locator('section[aria-label="Mi sueldo del mes"]'))).slice(0, 260))
   await pS.goto(A.URL + '#/ajustes'); await pS.waitForTimeout(2500)
+  console.log('AJUSTES, botón para agregar un dueño sin cuenta:', await pS.locator('button', { hasText: '+ Dueño que no usa la app' }).count(), '| botones en la fila de Elena:', await pS.locator('li.item', { hasText: 'Elena' }).locator('button').count())
   const filaG = pS.locator('li.item', { hasText: 'Gabriela Pérez' })
   console.log('AJUSTES, Gabriela:', (await A.texto(filaG)).slice(0, 150))
   await filaG.locator('button', { hasText: 'Apodos' }).click(); await pS.waitForTimeout(400)
@@ -210,6 +231,13 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   // Retira su semana desde la Caja, como lo viene anotando.
   await pG.goto(A.URL + '#/caja'); await pG.waitForTimeout(3000)
   await pG.locator('button.pestana', { hasText: /^Egresos/ }).click(); await pG.waitForTimeout(600)
+  // Un retiro de Elena tambien se reconoce, aunque no tenga cuenta.
+  await pG.locator('#concepto').fill('ELENA'); await pG.waitForTimeout(400)
+  const pistaE = pG.locator('[role="status"]', { hasText: '¿Es ' })
+  console.log('EN CAJA, al escribir «ELENA» ofrece:', (await pistaE.count()) ? (await A.texto(pistaE)).slice(0, 70) : '(NADA)')
+  await pistaE.locator('button', { hasText: 'Sí, cargarlo así' }).click(); await pG.waitForTimeout(400)
+  console.log('   queda:', await pG.locator('#cat-egreso').inputValue(), '·', nombres[await pG.locator('#persona-egreso').inputValue()] ?? '(sin persona)', '(no se guarda)')
+  await pG.locator('#cat-egreso').selectOption('OTROS')
   await pG.locator('#concepto').fill('SEMANA GABI'); await pG.locator('#monto-egreso').fill('100006')
   const pistaG = pG.locator('[role="status"]', { hasText: '¿Es ' })
   console.log('EN CAJA, al escribir «SEMANA GABI» ofrece:', (await pistaG.count()) ? (await A.texto(pistaG)).slice(0, 80) : '(NADA)')
@@ -232,6 +260,8 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   console.log('EMMANUEL: guardar como una versión vieja de la app (sin la versión del formato)', await A.estado('sueldos/uid-prueba', tE, 'PATCH', prueba), '| con la versión de ahora', await A.estado('sueldos/uid-prueba', tE, 'PATCH', { ...prueba, forma: 2 }))
   console.log('GABRIELA: su ficha', await A.estado(`sueldos/${uidG}`, tG), '| la de Sandra', await A.estado(`sueldos/${uidS}`, tG), '| todas', await A.estado('sueldos', tG), '| cambiar la suya', await A.estado(`sueldos/${uidG}`, tG, 'PATCH', { id: uidG, acuerdos: [] }))
   console.log('SANDRA: la de Gabriela', await A.estado(`sueldos/${uidG}`, tS), '| todas', await A.estado('sueldos', tS), '| cambiar la suya', await A.estado(`sueldos/${uidS}`, tS, 'PATCH', { id: uidS, acuerdos: [] }), '| cambiar la de Gabriela', await A.estado(`sueldos/${uidG}`, tS, 'PATCH', { id: uidG, acuerdos: [] }))
+  const otroDueno = { id: 'sin-cuenta-x', email: '', nombre: 'Otro', rol: 'owner', activo: true, sinCuenta: true }
+  console.log('DUEÑO SIN CUENTA: agregarlo como Sandra', await A.estado('usuarios/sin-cuenta-x', tS, 'PATCH', otroDueno), '| como Gabriela', await A.estado('usuarios/sin-cuenta-x', tG, 'PATCH', otroDueno), '| cambiarle el nombre a Elena como Sandra', await A.estado(`usuarios/${uidElena}?updateMask.fieldPaths=nombre`, tS, 'PATCH', { nombre: 'Otra' }))
 
   // ───────────────────────── CON LAS REGLAS DE ANTES ─────────────────────────
   // Lo que pasa entre que se publica y que alguien pega las reglas nuevas en

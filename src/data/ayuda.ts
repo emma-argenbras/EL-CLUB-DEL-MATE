@@ -1173,9 +1173,18 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Gastos',
     pregunta: '¿Dónde veo cuánto retiró cada dueño?',
     respuesta:
-      'En Gastos → «Ver sueldos», abajo: «Retiros de los dueños». Muestra lo que retiró cada dueño en el mes, de a poco o de una vez, con cada retiro y su fecha.\n\nUn retiro es un gasto de categoría RETIRO SOCIOS que dice de quién es. Se carga desde Caja (si sale del cajón) o desde Gastos: al elegir RETIRO SOCIOS aparece «¿De quién es el retiro?». Si el concepto nombra a un dueño, la app ofrece cargarlo así.\n\nDos listas ayudan a ordenar lo que ya estaba cargado:\n\n• «Retiros sin asignar»: están como retiro pero no dicen de quién.\n• «¿Esto es un retiro de un dueño?»: gastos con otra categoría que nombran a un dueño o dicen «retiro».\n\nPara que un dueño aparezca tiene que estar en Ajustes → «Usuarios del equipo» con el rol Dueño/a, aunque no use la app.\n\nNo es un sueldo: no hay nada acordado contra qué comparar.',
+      'En Gastos → «Ver sueldos», abajo: «Retiros de los dueños». Muestra lo que retiró cada dueño en el mes, de a poco o de una vez, con cada retiro y su fecha.\n\nUn retiro es un gasto de categoría RETIRO SOCIOS que dice de quién es. Se carga desde Caja (si sale del cajón) o desde Gastos: al elegir RETIRO SOCIOS aparece «¿De quién es el retiro?». Si el concepto nombra a un dueño, la app ofrece cargarlo así.\n\nDos listas ayudan a ordenar lo que ya estaba cargado:\n\n• «Retiros sin asignar»: están como retiro pero no dicen de quién.\n• «¿Esto es un retiro de un dueño?»: gastos con otra categoría que nombran a un dueño o dicen «retiro».\n\nAparecen los dueños de la lista de Ajustes → «Usuarios del equipo». Un dueño que no usa la app está ahí sin cuenta: no hace falta crearle una.\n\nNo es un sueldo: no hay nada acordado contra qué comparar.',
     palabrasClave: ['retiro', 'retiros', 'socios', 'dueño', 'dueños', 'retiro socios', 'cuanto saco', 'cuanto retiro'],
     soloOwner: true,
+  },
+  {
+    id: 'dueno-sin-cuenta',
+    categoria: 'Usuarios y roles',
+    pregunta: '¿Cómo anoto los retiros de un dueño que no usa la app?',
+    respuesta:
+      'Agregalo sin cuenta: Ajustes → «Usuarios del equipo» → «+ Dueño que no usa la app», con su nombre. Antes de guardar pregunta.\n\nQueda sin mail ni clave, así que no puede entrar a la app: está solo para anotarle los retiros. No le crees una cuenta si no la va a usar: una cuenta de dueño que nadie usa es un acceso total de más.\n\nDesde ahí aparece en «¿De quién es el retiro?», en Caja y en Gastos, y en Gastos → «Ver sueldos» → «Retiros de los dueños». Si en los gastos figura con otro nombre, cargale los apodos.\n\nSi deja de retirar, «Desactivar» lo saca de la lista. Lo que ya retiró queda a su nombre.\n\nLo puede hacer solo un dueño.',
+    palabrasClave: ['dueño', 'dueños', 'socio', 'socios', 'sin cuenta', 'no usa la app', 'retiro', 'retiros', 'agregar dueño'],
+    soloDueno: true,
   },
   {
     id: 'apodos',

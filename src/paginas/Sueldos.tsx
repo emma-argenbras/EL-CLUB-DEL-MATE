@@ -91,7 +91,14 @@ export default function Sueldos() {
 
   const personas: PersonaConSueldo[] = useMemo(
     () =>
-      (usuarios ?? []).map((u) => ({ id: u.id, nombre: u.nombre, activo: u.activo, rol: u.rol, apodos: u.apodos })),
+      (usuarios ?? []).map((u) => ({
+        id: u.id,
+        nombre: u.nombre,
+        activo: u.activo,
+        rol: u.rol,
+        apodos: u.apodos,
+        sinCuenta: u.sinCuenta,
+      })),
     [usuarios],
   )
   // Se puede trabajar con los pagos aunque lo acordado no se haya podido
@@ -376,7 +383,8 @@ export default function Sueldos() {
         </p>
         {duenos.length === 0 && (
           <p className="silencio" style={{ marginBottom: 0 }}>
-            No hay ningún dueño cargado en Ajustes → Usuarios del equipo.
+            No hay ningún dueño en la lista. Un dueño que no usa la app se agrega sin cuenta: Ajustes →
+            Usuarios del equipo → «+ Dueño que no usa la app».
           </p>
         )}
       </section>

@@ -1,4 +1,4 @@
-import type { Movimiento, Rol } from '../db/db'
+import type { Movimiento, Rol, Usuario } from '../db/db'
 import { fechaLinda, mesLindo, normalizar, plata } from './formato'
 
 /**
@@ -86,6 +86,8 @@ export interface PersonaConSueldo {
    * se reconocía como de Gabriela.
    */
   apodos?: string | null
+  /** Un dueño que no usa la app: no tiene cuenta y solo retira (ver duenoSinCuenta). */
+  sinCuenta?: boolean
 }
 
 const MES = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -634,14 +636,82 @@ export function parecenRetiro(
   return losQueParecen('retiro', movimientos, personas, mes)
 }
 
-/** Quiénes se pueden elegir al cargar un pago de sueldo: los activos, por nombre. */
-export function personasParaSueldo<T extends { nombre: string; activo: boolean }>(usuarios: T[]): T[] {
-  return usuarios.filter((u) => u.activo).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+const activosPorNombre = <T extends { nombre: string; activo: boolean }>(usuarios: T[]): T[] =>
+  usuarios.filter((u) => u.activo).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+
+/**
+ * Quiénes se pueden elegir al cargar un pago de sueldo: los activos, por
+ * nombre. Un dueño sin cuenta no: no trabaja en el local, solo retira.
+ */
+export function personasParaSueldo<T extends { nombre: string; activo: boolean; sinCuenta?: boolean }>(
+  usuarios: T[],
+): T[] {
+  return activosPorNombre(usuarios).filter((u) => !u.sinCuenta)
 }
 
-/** De quién puede ser un retiro de socios: los dueños activos, por nombre. */
+/** De quién puede ser un retiro de socios: los dueños activos, con cuenta o sin, por nombre. */
 export function duenosParaRetiro<T extends { nombre: string; activo: boolean; rol?: Rol }>(usuarios: T[]): T[] {
-  return personasParaSueldo(usuarios).filter((u) => u.rol === 'owner')
+  return activosPorNombre(usuarios).filter((u) => u.rol === 'owner')
+}
+
+/**
+ * A quiénes puede nombrar el concepto de un gasto: todos los activos, el
+ * equipo y los dueños, con cuenta o sin. Es la lista que mira la pregunta
+ * «¿Es el sueldo de …?» / «¿Es un retiro de …?» al cargar.
+ */
+export function personasConocidas<T extends { nombre: string; activo: boolean }>(usuarios: T[]): T[] {
+  return activosPorNombre(usuarios)
+}
+
+/**
+ * El comienzo del id de un dueño sin cuenta. Los de las cuentas son el uid
+ * de Firebase Auth (letras y números, sin guiones), así que no se pisan.
+ */
+export const PREFIJO_SIN_CUENTA = 'sin-cuenta-'
+
+/** El motivo con el que queda en el historial. */
+export const MOTIVO_DUENO_SIN_CUENTA = 'Dueño sin cuenta, para anotar sus retiros'
+
+const nombreLimpio = (nombre: string) => nombre.trim().replace(/\s+/g, ' ')
+
+/**
+ * Por qué no se puede agregar ese dueño sin cuenta, o null si está bien.
+ * Con el mismo nombre que alguien activo no: la app no sabría a quién se
+ * refiere un gasto que lo nombra.
+ */
+export function problemaDelDuenoSinCuenta(
+  nombre: string,
+  existentes: { nombre: string; activo: boolean }[],
+): string | null {
+  const limpio = nombreLimpio(nombre)
+  if (!limpio) return 'Escribí el nombre.'
+  const igual = existentes.find((u) => u.activo && normalizar(u.nombre) === normalizar(limpio))
+  return igual ? `Ya hay alguien activo que se llama ${igual.nombre}.` : null
+}
+
+/**
+ * Un dueño que no usa la app (19/11), listo para guardar: sin mail ni
+ * clave, así que no puede entrar. Está para anotarle los retiros. Lo que
+ * se evita es crearle una cuenta que nadie usa, que sería un acceso total
+ * de más.
+ */
+export function duenoSinCuenta(nombre: string, id: string): Usuario {
+  return {
+    id: `${PREFIJO_SIN_CUENTA}${id}`,
+    email: '',
+    nombre: nombreLimpio(nombre),
+    rol: 'owner',
+    activo: true,
+    secciones: null,
+    apodos: null,
+    sinCuenta: true,
+  }
+}
+
+/** La pregunta antes de agregarlo. */
+export function textoDeConfirmacionDuenoSinCuenta(nombre: string): string {
+  const limpio = nombreLimpio(nombre)
+  return `¿Agregar a ${limpio} a los dueños, sin cuenta?\n\nNo va a tener mail ni clave: no puede entrar a la app. Está para anotarle los retiros, que se ven en Sueldos → «Retiros de los dueños».`
 }
 
 /** Un retiro de socios: lo que un dueño saca para él, del cajón o de otra cuenta. */

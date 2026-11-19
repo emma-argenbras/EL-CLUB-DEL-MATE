@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  conMotivo,
   db,
+  nuevoId,
   SECCIONES_CONFIGURABLES,
   SECCIONES_POR_DEFECTO_EMPLEADO,
   type Rol,
@@ -36,7 +38,13 @@ import {
   type Respaldo,
 } from '../db/importarRespaldo'
 import { apagarModoConsulta, leerModoConsulta, prenderModoConsulta } from '../lib/modoConsulta'
-import { apodosLimpios } from '../lib/sueldos'
+import {
+  MOTIVO_DUENO_SIN_CUENTA,
+  apodosLimpios,
+  duenoSinCuenta,
+  problemaDelDuenoSinCuenta,
+  textoDeConfirmacionDuenoSinCuenta,
+} from '../lib/sueldos'
 
 export default function Ajustes() {
   const sesion = useSesion()
@@ -758,6 +766,7 @@ function SelectorSecciones({
 
 function TarjetaUsuarios() {
   const [creando, setCreando] = useState(false)
+  const [sumandoDueno, setSumandoDueno] = useState(false)
   const [editando, setEditando] = useState<string | null>(null)
   const [conApodos, setConApodos] = useState<string | null>(null)
   const [mensaje, setMensaje] = useState('')
@@ -774,12 +783,23 @@ function TarjetaUsuarios() {
 
   async function cambiarActivo(u: Usuario) {
     const verbo = u.activo === false ? 'reactivar' : 'desactivar'
-    if (!confirm(`¿Seguro que querés ${verbo} a ${u.nombre}?`)) return
+    // Un dueño sin cuenta no tiene acceso que apagar: desactivarlo es
+    // sacarlo de la lista para anotarle retiros.
+    const pregunta = !u.sinCuenta
+      ? `¿Seguro que querés ${verbo} a ${u.nombre}?`
+      : u.activo === false
+        ? `¿Volver a poner a ${u.nombre} en la lista de dueños para anotarle retiros?`
+        : `¿Sacar a ${u.nombre} de la lista de dueños? Ya no aparece para anotarle retiros nuevos; los que tiene quedan.`
+    if (!confirm(pregunta)) return
     await db.usuarios.update(u.id, { activo: u.activo === false })
     setMensaje(
-      u.activo === false
-        ? `${u.nombre} vuelve a tener acceso.`
-        : `Se desactivó el acceso de ${u.nombre}. Si estaba usando la app, se le cierra la sesión sola.`,
+      u.sinCuenta
+        ? u.activo === false
+          ? `${u.nombre} vuelve a aparecer para anotarle retiros.`
+          : `${u.nombre} ya no aparece para anotarle retiros. Los que tiene quedan.`
+        : u.activo === false
+          ? `${u.nombre} vuelve a tener acceso.`
+          : `Se desactivó el acceso de ${u.nombre}. Si estaba usando la app, se le cierra la sesión sola.`,
     )
   }
 
@@ -805,11 +825,14 @@ function TarjetaUsuarios() {
                       </span>
                     )}
                   </div>
-                  <div className="item-sub">{u.email}</div>
+                  <div className="item-sub">
+                    {u.sinCuenta ? 'Sin cuenta: no entra a la app. Está para anotarle los retiros.' : u.email}
+                  </div>
                   {u.apodos && <div className="item-sub">En los gastos también figura como: {u.apodos}</div>}
                 </div>
                 <span className={u.rol === 'owner' ? 'chip chip-banco' : 'chip'}>
                   {ETIQUETA_ROL[u.rol]}
+                  {u.sinCuenta ? ' · sin cuenta' : ''}
                 </span>
                 {u.rol === 'empleado' && puedeTocarUsuarioConRol(sesion.perfil, u.rol) && (
                   <button
@@ -875,6 +898,85 @@ function TarjetaUsuarios() {
           + Usuario nuevo
         </button>
       )}
+
+      {/* Los dueños que no usan la app (19/11): solo un dueño los agrega. */}
+      {esDueno(sesion.perfil) &&
+        (sumandoDueno ? (
+          <FormularioDuenoSinCuenta
+            existentes={usuarios ?? []}
+            onSalir={() => setSumandoDueno(false)}
+            onAgregado={(nombre) => {
+              setMensaje(`${nombre} quedó entre los dueños, sin cuenta. Ya se le pueden anotar retiros.`)
+              setSumandoDueno(false)
+            }}
+          />
+        ) : (
+          <button style={{ width: '100%', marginTop: 8 }} onClick={() => setSumandoDueno(true)}>
+            + Dueño que no usa la app
+          </button>
+        ))}
+    </div>
+  )
+}
+
+/**
+ * Un dueño que no usa la app (19/11): queda en la lista para anotarle los
+ * retiros, sin mail ni clave. Crearle una cuenta que nadie usa sería un
+ * acceso total de más; esto no da acceso a nada.
+ */
+function FormularioDuenoSinCuenta({
+  existentes,
+  onSalir,
+  onAgregado,
+}: {
+  existentes: Usuario[]
+  onSalir: () => void
+  onAgregado: (nombre: string) => void
+}) {
+  const [nombre, setNombre] = useState('')
+  const [error, setError] = useState('')
+  const [trabajando, setTrabajando] = useState(false)
+  useSinGuardar('el dueño nuevo', nombre.trim() !== '')
+
+  async function agregar() {
+    const problema = problemaDelDuenoSinCuenta(nombre, existentes)
+    setError(problema ?? '')
+    if (problema || !confirm(textoDeConfirmacionDuenoSinCuenta(nombre))) return
+    setTrabajando(true)
+    try {
+      const nuevo = duenoSinCuenta(nombre, nuevoId())
+      await conMotivo(MOTIVO_DUENO_SIN_CUENTA, () => db.usuarios.add(nuevo))
+      onAgregado(nuevo.nombre)
+    } catch (e) {
+      setError(`No se pudo agregar: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta" style={{ marginTop: 10, marginBottom: 0, background: 'var(--crema)' }}>
+      {error && <div className="aviso aviso-error">{error}</div>}
+      <div className="campo">
+        <label htmlFor="dueno-sin-cuenta">Nombre del dueño</label>
+        <input
+          id="dueno-sin-cuenta"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Ej: Elena"
+          autoFocus
+        />
+        <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
+          Para quien es dueño y no usa la app: queda en la lista para anotarle los retiros, sin mail ni
+          clave, así que no puede entrar. No hace falta crearle una cuenta.
+        </p>
+      </div>
+      <div className="botonera">
+        <button onClick={onSalir}>Cancelar</button>
+        <button className="boton-principal" onClick={agregar} disabled={trabajando}>
+          {trabajando ? 'Agregando…' : 'Agregar'}
+        </button>
+      </div>
     </div>
   )
 }

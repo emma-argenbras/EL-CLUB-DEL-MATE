@@ -17,22 +17,26 @@ describe('ayudaParaPerfil', () => {
 
   it('sueldos: cada uno ve la ayuda de lo que puede hacer (19/11)', () => {
     const esta = (lista: typeof AYUDA, id: string) => lista.some((e) => e.id === id)
-    // Definir o cambiar lo acordado es lo único que queda solo para el dueño.
-    expect(TODAS.filter((e) => e.soloDueno).map((e) => e.id)).toEqual(['definir-sueldo'])
+    // Definir o cambiar lo acordado y agregar un dueño sin cuenta es lo único que queda solo para el dueño.
+    expect(TODAS.filter((e) => e.soloDueno).map((e) => e.id)).toEqual(['definir-sueldo', 'dueno-sin-cuenta'])
     const delDueno = ayudaParaPerfil(TODAS, true, [], true)
-    for (const id of ['sueldos', 'definir-sueldo', 'retiros-de-los-duenos', 'apodos']) expect(esta(delDueno, id)).toBe(true)
+    for (const id of ['sueldos', 'definir-sueldo', 'retiros-de-los-duenos', 'apodos', 'dueno-sin-cuenta']) {
+      expect(esta(delDueno, id)).toBe(true)
+    }
+    expect(buscarAyuda('dueño que no usa la app', delDueno).map((e) => e.id)).toContain('dueno-sin-cuenta')
     // La encargada ve Sueldos, los retiros y los apodos; cómo definir un sueldo, no.
     const deLaEncargada = ayudaParaPerfil(TODAS, true, [], false)
     for (const id of ['sueldos', 'retiros-de-los-duenos', 'apodos', 'mi-sueldo', 'crear-usuario']) {
       expect(esta(deLaEncargada, id)).toBe(true)
     }
     expect(esta(deLaEncargada, 'definir-sueldo')).toBe(false)
-    expect(deLaEncargada.length).toBe(TODAS.length - 1)
+    expect(esta(deLaEncargada, 'dueno-sin-cuenta')).toBe(false)
+    expect(deLaEncargada.length).toBe(TODAS.length - 2)
     // Una empleada: «Mi sueldo» y cómo anotar su retiro. Nada de lo de los demás.
     const deLaEmpleada = ayudaParaPerfil(TODAS, false, ['caja'], false)
     expect(esta(deLaEmpleada, 'mi-sueldo')).toBe(true)
     expect(esta(deLaEmpleada, 'retiro-de-sueldo')).toBe(true)
-    for (const id of ['sueldos', 'definir-sueldo', 'retiros-de-los-duenos', 'apodos']) {
+    for (const id of ['sueldos', 'definir-sueldo', 'retiros-de-los-duenos', 'apodos', 'dueno-sin-cuenta']) {
       expect(esta(deLaEmpleada, id)).toBe(false)
     }
     // Y se encuentra como lo van a buscar.
