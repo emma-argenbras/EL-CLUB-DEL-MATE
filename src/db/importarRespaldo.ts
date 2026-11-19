@@ -87,12 +87,13 @@ export interface ResultadoImportar {
  * se llena es un alta: con la base real son decenas de miles de
  * escrituras, de a una, mas un renglon de historial por cada una. El
  * plan gratis de Firebase corta mucho antes de terminar, y el servidor
- * quedaria borrado a medias, para todos los aparatos.
+ * queda borrado a medias, para todos los aparatos.
  *
- * Nunca llego a pasar por un error que lo frenaba de casualidad: la
- * marca global de «remoto» se prendia con el eco del primer borrado y
- * el resto no subia (ver «Lo que paso el 19/11» en el README). Al
- * arreglar ese error, esto habia que cerrarlo aparte.
+ * Y asi era. En la prueba contra los emuladores, con la version que
+ * estaba publicada, importar un respaldo de dos productos con la sesion
+ * abierta fue borrando el catalogo del servidor: de 1.283 productos a
+ * 1.210 en un minuto, y seguia. Nadie lo habia usado con la
+ * sincronizacion prendida, que se sepa.
  *
  * Lo que queda: el aparato muestra lo del archivo; el servidor manda
  * sobre todo lo que ya tiene (vuelve a bajar al abrir la app), y lo que
