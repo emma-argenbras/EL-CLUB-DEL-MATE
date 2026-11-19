@@ -21,6 +21,7 @@ import { enlaceWhatsApp, soloDigitos } from '../lib/whatsapp'
 import { fechaLinda, hoyISO, leerNumero, normalizar, plata } from '../lib/formato'
 import { egresoIgual, preguntaPagoRepetido } from '../lib/egresoRepetido'
 import { useSesion } from '../sync/useSesion'
+import { estaAlMando } from '../sync/permisos'
 
 export default function Proveedores() {
   const [params] = useSearchParams()
@@ -347,6 +348,7 @@ function DetalleProveedor({
   onVolver: () => void
 }) {
   const [editando, setEditando] = useState(false)
+  const alMando = estaAlMando(useSesion().perfil)
   const [ficha, setFicha] = useState<FichaProveedor>(() => fichaDe(proveedor))
   const [porcentaje, setPorcentaje] = useState('')
   const [mensaje, setMensaje] = useState('')
@@ -545,6 +547,18 @@ function DetalleProveedor({
             {productos.length} productos
             {vencidos > 0 ? ` · ${vencidos} con costo vencido` : ''}
           </p>
+          {/* La planilla del proveedor (19/11): todos sus productos para
+              cargar los costos de una entrega, como se hacia en el Excel.
+              Solo al mando, que es quien puede entrar a esa pantalla. */}
+          {alMando && productos.length > 0 && (
+            <Link
+              className="boton-chico"
+              style={{ display: 'inline-block', marginTop: 8 }}
+              to={`/revision-costos?proveedor=${encodeURIComponent(proveedor.id)}&todos=1`}
+            >
+              Actualizar costos (planilla)
+            </Link>
+          )}
 
           {/* La ficha se lee acá. Si estos datos solo se vieran al
               editar, cargarlos no serviría de nada: se cargan para

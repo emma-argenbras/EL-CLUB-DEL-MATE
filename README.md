@@ -940,6 +940,9 @@ de la lista.
 **Ajustes → "Revisión de costos"**. Los productos sin costo o con el costo vencido,
 filtrables por proveedor y corregibles en la misma lista.
 
+Desde el 19/11 la misma pantalla tiene una segunda vista con todos los productos de un
+proveedor: ver «La planilla del proveedor».
+
 Sandra actualiza costos con la factura del proveedor delante. Entrando y saliendo de la
 ficha de cada producto, de a cien, eso no se termina nunca.
 
@@ -2227,6 +2230,78 @@ Si algún día los sueldos los lleva la encargada, se cambia en dos lugares, jun
   que la regla deje a cada uno leer su ficha: es una decisión de Emmanuel.
 - **Sueldos por semana o por quincena.** Hoy el acuerdo es por mes.
 
+## La planilla del proveedor (19/11)
+
+**Proveedores → un proveedor → «Actualizar costos (planilla)»**, o Ajustes → «Revisión de
+costos» → elegir el proveedor → «Todos sus productos». Solo para quien está al mando.
+
+### Por qué
+
+El 19/11 se miró si el Excel viejo se había dejado de usar. No: un mes después de pasar a la
+app, cada entrega de mercadería se seguía anotando ahí. En el Excel los productos de un
+proveedor están todos juntos, y actualizar una lista de precios es bajar por una columna:
+fecha, costo, y el precio sale solo del markup.
+
+La app tenía dos caminos y ninguno era ese. La «Revisión de costos» mostraba solo los
+productos sin costo o con el costo vencido: los de una entrega, que casi siempre tienen el
+costo al día, no aparecían. Y el «Ingreso de mercadería» pide buscar cada producto y contar
+cuántos llegaron, que es más trabajo que el que hacían en el Excel (ahí no llevaban stock).
+
+### Qué es
+
+La misma pantalla de la revisión, con una segunda vista (`planillaDelProveedor`, en
+`src/db/revisarCostos.ts`): **todos** los productos del proveedor, en el orden de sus
+códigos —`MN2` antes que `MN10`, como los lee una persona—, cada uno con su costo, la
+fecha, el precio y el markup, y un cartel `VENCIDO` o `SIN COSTO` donde corresponde.
+
+- **Enter guarda y pasa al de abajo.** Veinte productos son veinte números y veinte Enter.
+- **La fecha de la compra** se elige arriba y vale para todo lo que se guarde: la de la
+  factura, si no es la de hoy. No puede ser futura.
+- **«Sigue igual»** está en todos los renglones con costo, no solo en los vencidos: renueva
+  la fecha sin escribir el número.
+- **El precio de venta no cambia solo.** En el Excel se movía con el costo; acá, cambiar un
+  precio es también cambiar una etiqueta en el local. Cuando el costo —ya al día— deja el
+  precio por debajo de lo que pide su markup, el renglón lo dice y ofrece ponerlo. Al final
+  de la lista, **«Precios por debajo de su markup»** los junta: un botón los cambia todos,
+  después de preguntar diciendo **cuántos** son y con un ejemplo. Queda en el historial como
+  «Remarcado desde la planilla del proveedor».
+- Sobre un costo vencido o vacío no se sugiere ningún precio: sería remarcar con un número
+  que nadie confirmó.
+- La diferencia tiene que pasar del 5 % (`precioAtrasado`): menos que eso es redondeo o una
+  decisión de precio.
+- Los descontinuados no están; la planilla dice cuántos hay.
+
+El proveedor y la vista van en la dirección (`?proveedor=…&todos=1`): se llega directo desde
+la ficha del proveedor y recargar no los pierde.
+
+### Lo que no hace
+
+No suma stock ni anota la compra en la cuenta del proveedor: eso es el «Ingreso de
+mercadería». La planilla es el puente para dejar el Excel; el ingreso es donde conviene
+terminar, porque además deja el stock y la deuda al día.
+
+### Cómo se probó
+
+- 21 pruebas en `src/db/revisarCostos.test.ts` (7 nuevas) y 1 de la Ayuda. La cuenta se
+  rompió a propósito de 14 maneras y las 14 quedaron en rojo.
+- De punta a punta contra los emuladores, como la encargada: el orden y el estado de cada
+  renglón, tres Enter seguidos con el foco bajando, los dos precios puestos de una (con su
+  pregunta), uno puesto desde su renglón, «Sigue igual» con otra fecha, una fecha futura que
+  no deja guardar, y lo que quedó en el servidor y en el historial. Una empleada con
+  Proveedores no ve el enlace ni puede entrar. Se rompió a propósito de 4 maneras (el foco
+  no baja, el botón no pregunta, «Sigue igual» ignora la fecha, el enlace a la vista de una
+  empleada) y las 4 se vieron.
+
+### Lo que falta
+
+- **Dar de alta un producto desde la planilla**, con el proveedor ya puesto. Hoy es
+  Productos → «+ Producto nuevo».
+- **Cambiar el markup desde la planilla.** Hoy se cambia en la ficha del producto.
+- **La lista para las etiquetas:** después de cambiar precios, lo que hay que volver a
+  etiquetar.
+- **Una fecha para dejar el Excel.** Lo decide Emmanuel; hasta entonces hay dos listas de
+  precios que pueden no decir lo mismo.
+
 ## La compu: opción B (06/11)
 
 Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
@@ -2921,6 +2996,14 @@ quién es cada pago y cuánto falta. Ver «Los sueldos».
 
 - [ ] **Pegar en la consola de Firebase las reglas con la colección `sueldos`.** Hasta
       entonces los sueldos acordados están protegidos solo por la app.
+
+**Hecho el 19/11, publicación aparte** — la planilla del proveedor: todos sus productos en
+una lista para cargar los costos de una entrega con Enter, la fecha de la factura y los
+precios que pide el markup, de a uno o todos juntos. Es lo que se seguía haciendo en el
+Excel. Ver «La planilla del proveedor».
+
+- [ ] **Ponerle fecha al Excel** (decisión de Emmanuel). Mientras se anote en los dos lados,
+      la lista de precios del Excel y la de la app pueden no decir lo mismo.
 
 **Hecho el 13/11, publicación aparte** — «Unir proveedores» confirma contra el servidor que
 las constancias llegaron y dice cuántas hay. Ver «Las constancias, confirmadas contra el
