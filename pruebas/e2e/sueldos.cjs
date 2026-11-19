@@ -7,8 +7,23 @@ const A = require('./ayudas.cjs')
 const CAP = A.CAPTURAS
 // Los montos acordados son numeros que no aparecen en ningun otro lado:
 // asi se pueden buscar en todo lo que guarda cada aparato.
+// Son montos POR SEMANA: se cobra cada sabado (decision de Emmanuel, 19/11).
 const DE_SANDRA = '912345', DE_GABI = '654321'
 const hoy = A.dia(0), mes = hoy.slice(0, 7)
+/** Cuantos sabados tiene este mes desde ese dia: es por lo que se multiplica el monto de la semana. */
+const sabadosDesde = (desde) => {
+  const [a, m] = mes.split('-').map(Number)
+  let n = 0
+  for (let dd = 1; dd <= 31; dd++) {
+    const f = new Date(Date.UTC(a, m - 1, dd))
+    if (f.getUTCMonth() !== m - 1) break
+    if (f.toISOString().slice(0, 10) >= desde && f.getUTCDay() === 6) n++
+  }
+  return n
+}
+// A Sandra se le define desde el dia 2 y a Gabriela desde el 1.
+const MES_SANDRA = String(Number(DE_SANDRA) * sabadosDesde(`${mes}-02`)), MES_GABI = String(Number(DE_GABI) * sabadosDesde(`${mes}-01`))
+const ACORDADO = [DE_SANDRA, DE_GABI, MES_SANDRA, MES_GABI]
 const gasto = (id, dia, concepto, monto, extra = {}) => ({ id, fecha: `${mes}-${dia}`, tipo: 'EGRESO_CAJA', concepto, monto, categoria: 'OTROS', cuenta: 'cajon', jornadaId: null, esVariable: true, ...extra })
 const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`); return m ? `${m.categoria}/${m.persona ?? 'sin persona'}` : '(no está)' }
 
@@ -48,15 +63,43 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   await pE.goto(A.URL + '#/sueldos'); await pE.waitForTimeout(3500)
   console.log('TÍTULO:', await pE.locator('h2').innerText(), '|', (await A.texto(pE.locator('.aviso-ojo').first())).slice(0, 150))
   console.log('EN SUELDOS FIGURAN:', (await pE.locator('section[aria-label^="Sueldo de "]').evaluateAll((l) => l.map((x) => x.getAttribute('aria-label')))).join(', '))
-  for (const [nombre, monto] of [['Sandra', DE_SANDRA], ['Gabriela Pérez', DE_GABI]]) {
-    const t = pE.locator(`section[aria-label="Sueldo de ${nombre}"]`)
-    await t.locator('button', { hasText: 'Definir sueldo' }).click()
-    await t.locator('input[id^="sueldo-"]').fill(monto)
-    await t.locator('button', { hasText: 'Guardar' }).click(); await pE.waitForTimeout(2500)
-  }
-  console.log('PREGUNTA al definir:', preguntas[0])
+  // Por semana, que es como se cobra en el local. A Sandra se le mira antes
+  // la opcion «por mes», que tiene que seguir estando.
+  const pide = async (t) => `${await t.locator('label[for^="sueldo-"]').innerText()} + ${await t.locator('label[for^="desde-"]').innerText()} (${await t.locator('input[id^="desde-"]').getAttribute('type')}, ${await t.locator('input[id^="desde-"]').inputValue()})`
+  const tS0 = pE.locator('section[aria-label="Sueldo de Sandra"]')
+  await tS0.locator('button', { hasText: 'Definir sueldo' }).click()
+  const cadaS = tS0.locator('select[id^="cada-"]')
+  console.log('DEFINIR, cómo cobra (viene elegido):', await cadaS.inputValue(), '| opciones:', (await cadaS.locator('option').allInnerTexts()).join(' / '))
+  console.log('   por semana pide:', await pide(tS0))
+  await cadaS.selectOption('mes')
+  console.log('   por mes pide:', await pide(tS0))
+  await cadaS.selectOption('semana')
+  await tS0.locator('input[id^="sueldo-"]').fill(DE_SANDRA)
+  await tS0.locator('input[id^="desde-"]').fill(`${mes}-02`)
+  await tS0.screenshot({ path: `${CAP}/definir-por-semana.png` })
+  await tS0.locator('button', { hasText: 'Guardar' }).click(); await pE.waitForTimeout(2500)
+  const tG0 = pE.locator('section[aria-label="Sueldo de Gabriela Pérez"]')
+  await tG0.locator('button', { hasText: 'Definir sueldo' }).click()
+  await tG0.locator('input[id^="sueldo-"]').fill(DE_GABI)
+  await tG0.locator('button', { hasText: 'Guardar' }).click(); await pE.waitForTimeout(2500)
+  console.log('PREGUNTA al definir el de Sandra (desde el 2):', preguntas[0])
+  console.log('PREGUNTA al definir el de Gabriela (desde el 1.º):', preguntas[1])
   console.log('AVISO:', await A.texto(pE.locator('.aviso-ok').first()))
-  console.log('SERVIDOR fichas:', (await A.listar('sueldos')).map((f) => `${f.nombre}=${f.acuerdos?.[0]?.monto}`).join(' ; '))
+  console.log('SERVIDOR fichas:', (await A.listar('sueldos')).map((f) => `${f.nombre}=${f.acuerdos.map((a) => `${a.monto} por ${a.cada} desde ${a.desde}`).join(' + ')} (forma ${f.forma})`).join(' ; '))
+  console.log(`ESPERADO en el mes: Sandra ${DE_SANDRA} × ${sabadosDesde(`${mes}-02`)} = ${MES_SANDRA} · Gabriela ${DE_GABI} × ${sabadosDesde(`${mes}-01`)} = ${MES_GABI}`)
+  for (const nombre of ['Sandra', 'Gabriela Pérez']) {
+    const t = pE.locator(`section[aria-label="Sueldo de ${nombre}"]`)
+    console.log(`TARJETA de ${nombre}:`, await A.texto(t.locator('.fila').first()), '|', (await t.locator('.cuenta-del-sueldo').count()) ? await t.locator('.cuenta-del-sueldo').innerText() : '(SIN LA CUENTA)')
+  }
+  // Volver a «por mes» desde este mes, con uno por semana que empezó el 2: avisa y no guarda.
+  await tS0.locator('button', { hasText: 'Cambiar el sueldo' }).click()
+  console.log('CAMBIAR, viene con:', await tS0.locator('select[id^="cada-"]').inputValue(), await tS0.locator('input[id^="sueldo-"]').inputValue())
+  await tS0.locator('select[id^="cada-"]').selectOption('mes')
+  await tS0.locator('input[id^="sueldo-"]').fill('777777')
+  const antesDeIntentar = preguntas.length
+  await tS0.locator('button', { hasText: 'Guardar' }).click(); await pE.waitForTimeout(2500)
+  console.log('POR MES desde este mes:', (await pE.locator('.aviso-error').count()) ? (await A.texto(pE.locator('.aviso-error').first())).slice(0, 240) : '(SIN AVISO)', '| ¿preguntó?', preguntas.length > antesDeIntentar, '| ¿llegó al servidor?', JSON.stringify(await A.leer(`sueldos/${uidS}`)).includes('777777'))
+  await tS0.locator('button', { hasText: 'Cancelar' }).click()
 
   const sug = pE.locator('section[aria-label="Gastos que parecen un sueldo"]')
   console.log('¿ESTO ES UN SUELDO? (antes):', (await sug.locator('li.item').evaluateAll((l) => l.map((x) => x.querySelector('.item-titulo').textContent + ' → ' + (x.querySelectorAll('.item-sub')[0].textContent.includes('parece de') ? 'sabe de quién' : 'no sabe de quién')))).join(' ; '))
@@ -89,12 +132,15 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   console.log('SERVIDOR apodos:', (await A.listar('usuarios')).filter((u) => u.apodos).map((u) => `${u.nombre}: ${u.apodos}`).join(' ; ') || '(ninguno)')
   const hist = (await A.listar('historial')).filter((h) => h.motivo === 'Ordenado desde Sueldos')
   console.log('SERVIDOR historial «Ordenado desde Sueldos»:', hist.length, 'renglones ·', [...new Set(hist.map((h) => `${h.tabla}.${h.campo}`))].sort().join(', '))
-  console.log('  ¿el historial nombra los montos acordados?', hist.some((h) => JSON.stringify(h).includes(DE_SANDRA) || JSON.stringify(h).includes(DE_GABI)), '| ¿y la colección sueldos?', (await A.listar('historial')).some((h) => h.tabla === 'sueldos'))
-  let r = await A.rastros(pE, [DE_SANDRA, DE_GABI])
-  console.log(`APARATO DEL DUEÑO: ${r.bases} bases, ${r.filas} filas revisadas | rastros de lo acordado: ${r.hallados.join(', ') || 'ninguno'}`)
+  console.log('  ¿el historial nombra los montos acordados?', hist.some((h) => ACORDADO.some((x) => JSON.stringify(h).includes(x))), '| ¿y la colección sueldos?', (await A.listar('historial')).some((h) => h.tabla === 'sueldos'))
+  let r = await A.rastros(pE, ACORDADO)
+  console.log(`APARATO DEL DUEÑO: ${r.bases} bases, ${r.filas} filas y ${r.guardadas} archivos de la caché revisados | rastros de lo acordado: ${r.hallados.join(', ') || 'ninguno'}`)
   // Control: un pago, que SI se guarda en el aparato, tiene que aparecer. Si no, la busqueda no sirve.
   const control = await A.rastros(pE, ['100001'])
   console.log('   control (un pago, que sí se guarda): aparece en', control.hallados.map((h) => h.split(' en ')[1].split('/')[0]).filter((x, i, l) => l.indexOf(x) === i).join(' y ') || 'NINGÚN LADO: LA BÚSQUEDA NO SIRVE')
+  // Y el de la cache: un texto de la propia app tiene que estar entre lo que guardo el service worker.
+  const controlCache = await A.rastros(pE, ['Mi sueldo'])
+  console.log('   control de la caché (un texto de la app):', controlCache.hallados.some((h) => h.includes(' en la cache ')) ? 'aparece' : 'NO APARECE: LA CACHÉ NO SE ESTÁ REVISANDO')
   // En el celular.
   const ctxEc = await b.newContext({ viewport: { width: 390, height: 844 }, ...opciones, storageState: await ctxE.storageState({ indexedDB: true }) })
   const pEc = await ctxEc.newPage()
@@ -135,7 +181,7 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   const cargados = (await A.listar('movimientos')).filter((m) => [100005, 200004].includes(m.monto))
   console.log('SERVIDOR lo cargado:', cargados.map((m) => `${m.concepto}=${quien(m)}`).sort().join(' ; '))
   await pS.goto(A.URL + '#/mi-sueldo'); await pS.waitForTimeout(3000)
-  console.log('MI SUELDO de Sandra:', (await A.texto(pS.locator('section[aria-label="Mi sueldo del mes"]'))).slice(0, 170))
+  console.log('MI SUELDO de Sandra:', (await A.texto(pS.locator('section[aria-label="Mi sueldo del mes"]'))).slice(0, 260))
   await pS.goto(A.URL + '#/ajustes'); await pS.waitForTimeout(2500)
   const filaG = pS.locator('li.item', { hasText: 'Gabriela Pérez' })
   console.log('AJUSTES, Gabriela:', (await A.texto(filaG)).slice(0, 150))
@@ -144,8 +190,8 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   await filaG.screenshot({ path: `${CAP}/ajustes-apodos.png` })
   await filaG.locator('button', { hasText: 'Guardar' }).click(); await pS.waitForTimeout(1500)
   console.log('SERVIDOR apodos de Gabriela:', (await A.leer(`usuarios/${uidG}`)).apodos)
-  r = await A.rastros(pS, [DE_SANDRA, DE_GABI])
-  console.log(`COMPU DEL LOCAL, después de que la encargada vio Sueldos: ${r.bases} bases, ${r.filas} filas | rastros de lo acordado: ${r.hallados.join(', ') || 'ninguno'}`)
+  r = await A.rastros(pS, ACORDADO)
+  console.log(`COMPU DEL LOCAL, después de que la encargada vio Sueldos: ${r.bases} bases, ${r.filas} filas y ${r.guardadas} archivos de la caché | rastros de lo acordado: ${r.hallados.join(', ') || 'ninguno'}`)
 
   // ───────────────────────── LA EMPLEADA ─────────────────────────
   console.log('\n===== GABRIELA (empleada), en su celular =====')
@@ -156,7 +202,7 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   const tarjeta = pG.locator('.tarjeta', { hasText: 'Mi sueldo' })
   console.log('MI DÍA, tarjeta «Mi sueldo»:', await tarjeta.count())
   await tarjeta.locator('a', { hasText: 'Ver' }).click(); await pG.waitForTimeout(3000)
-  console.log('MI SUELDO de Gabriela:', (await A.texto(pG.locator('section[aria-label="Mi sueldo del mes"]'))).slice(0, 330))
+  console.log('MI SUELDO de Gabriela:', (await A.texto(pG.locator('section[aria-label="Mi sueldo del mes"]'))).slice(0, 420))
   console.log('  desborde horizontal:', await pG.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1))
   await pG.screenshot({ path: `${CAP}/mi-sueldo-celular.png`, fullPage: true })
   await pG.goto(A.URL + '#/sueldos'); await pG.waitForTimeout(1500)
@@ -175,12 +221,15 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   console.log('SERVIDOR su retiro:', retiro ? `${quien(retiro)} · ${retiro.tipo} · turno ${retiro.jornadaId} · ${retiro.esVariable ? 'variable' : 'fijo'}` : '(NO LLEGÓ)')
   await pG.goto(A.URL + '#/mi-sueldo'); await pG.waitForTimeout(3000)
   console.log('MI SUELDO después:', (await A.texto(pG.locator('section[aria-label="Mi sueldo del mes"] .fila').nth(1))), '|', await A.texto(pG.locator('section[aria-label="Mi sueldo del mes"] .fila.destacada')))
-  r = await A.rastros(pG, [DE_SANDRA, DE_GABI])
-  console.log(`CELULAR DE GABRIELA: ${r.bases} bases, ${r.filas} filas | rastros de lo acordado (ni el suyo): ${r.hallados.join(', ') || 'ninguno'}`)
+  r = await A.rastros(pG, ACORDADO)
+  console.log(`CELULAR DE GABRIELA: ${r.bases} bases, ${r.filas} filas y ${r.guardadas} archivos de la caché | rastros de lo acordado (ni el suyo): ${r.hallados.join(', ') || 'ninguno'}`)
 
   // ───────────────────────── EL SERVIDOR, PEDIDO DIRECTO ─────────────────────────
   console.log('\n===== Pidiéndole al servidor directo, con la sesión de cada una =====')
-  const tG = await A.tokenDe('gabi@prueba.test'), tS = await A.tokenDe('sandra@prueba.test')
+  const tG = await A.tokenDe('gabi@prueba.test'), tS = await A.tokenDe('sandra@prueba.test'), tE = await A.tokenDe('emma@prueba.test')
+  // Una version vieja de la app guarda la ficha sin la version del formato: ni al dueño se lo acepta.
+  const prueba = { id: 'uid-prueba', nombre: 'Prueba', acuerdos: [], actualizadoEn: 1 }
+  console.log('EMMANUEL: guardar como una versión vieja de la app (sin la versión del formato)', await A.estado('sueldos/uid-prueba', tE, 'PATCH', prueba), '| con la versión de ahora', await A.estado('sueldos/uid-prueba', tE, 'PATCH', { ...prueba, forma: 2 }))
   console.log('GABRIELA: su ficha', await A.estado(`sueldos/${uidG}`, tG), '| la de Sandra', await A.estado(`sueldos/${uidS}`, tG), '| todas', await A.estado('sueldos', tG), '| cambiar la suya', await A.estado(`sueldos/${uidG}`, tG, 'PATCH', { id: uidG, acuerdos: [] }))
   console.log('SANDRA: la de Gabriela', await A.estado(`sueldos/${uidG}`, tS), '| todas', await A.estado('sueldos', tS), '| cambiar la suya', await A.estado(`sueldos/${uidS}`, tS, 'PATCH', { id: uidS, acuerdos: [] }), '| cambiar la de Gabriela', await A.estado(`sueldos/${uidG}`, tS, 'PATCH', { id: uidG, acuerdos: [] }))
 
@@ -189,10 +238,11 @@ const delServidor = async (id) => { const m = await A.leer(`movimientos/${id}`);
   // la consola: el servidor sigue con «solo el dueño».
   const actuales = fs.readFileSync(path.join(__dirname, '..', '..', 'firestore.rules'), 'utf8')
   const deAntes = actuales.replace(
-    /allow read: if estoyAlMando\(\) \|\| \(estoyActivo\(\) && request\.auth\.uid == persona\);\s*allow write: if soyOwner\(\);/,
+    /allow read: if estoyAlMando\(\) \|\| \(estoyActivo\(\) && request\.auth\.uid == persona\);\s*allow create, update: if soyOwner\(\) && request\.resource\.data\.forma == 2;\s*allow delete: if soyOwner\(\);/,
     'allow read, write: if soyOwner();',
   )
-  if (deAntes !== actuales) {
+  if (deAntes === actuales) console.log('\n¡NO SE PUDO ARMAR LA REGLA DE ANTES! La regla de sueldos cambió: actualizá este guion.')
+  else {
     console.log('\n===== Con la regla de antes pegada en el servidor (solo el dueño) =====')
     console.log('regla de antes puesta:', await A.ponerReglas(deAntes))
     await pS.goto(A.URL + '#/sueldos'); await pS.waitForTimeout(4000)

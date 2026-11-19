@@ -2448,7 +2448,8 @@ esté controlado: hoy la mayoría de los productos no lo lleva.
 
 Hasta el 19/11 la app sabía cuánto se pagaba de sueldos en el mes (la categoría de gasto
 SUELDOS), pero no a quién, ni cuánto se había acordado con cada persona. Ese día salió la
-primera versión, y a la tarde Emmanuel decidió quién ve qué. Lo de abajo es como quedó.
+primera versión, y a la tarde Emmanuel decidió quién ve qué y que en el local se cobra por
+semana. Lo de abajo es como quedó.
 
 ### Dos datos, en dos lugares distintos
 
@@ -2463,8 +2464,8 @@ primera versión, y a la tarde Emmanuel decidió quién ve qué. Lo de abajo es 
 
 Tampoco pasa por el historial compartido, por el mismo motivo: un renglón «cambió el sueldo
 de tanto a tanto» lo leería todo el que ve el historial. La historia queda adentro de la
-ficha: un cambio de sueldo no pisa el anterior, se agrega con el mes desde el que rige
-(`acuerdos`). Así los meses viejos siguen mostrando lo que se había acordado entonces.
+ficha: un cambio de sueldo no pisa el anterior, se agrega con el día o el mes desde el que
+rige (`acuerdos`). Así los meses viejos siguen mostrando lo que se había acordado entonces.
 
 **Los montos no van nunca al código, a las pruebas ni a este repositorio**, que es público.
 Los carga un dueño en la pantalla.
@@ -2482,15 +2483,41 @@ Que definir quede solo para un dueño es para que nadie se cambie el propio suel
 permiso tiene su nombre en `src/sync/permisos.ts` (`puedeVerSueldos`, `puedeDefinirSueldos`,
 `tieneMiSueldo`) y la regla del servidor dice lo mismo: se cambian juntas.
 
-### Por mes, se pague como se pague
+### Por semana, cada sábado, o por mes
 
-El sueldo se acuerda **por mes**. Cómo se paga es otra cosa: de una vez, o de a poco, como
-quien retira por semana del cajón. Cada pago cuenta para su mes, lo que falta es lo acordado
-menos lo cobrado, y el último pago del mes cierra la diferencia. No hace falta un «acuerdo
-semanal»: los meses de cinco sábados se ordenan solos.
+La primera versión acordaba solo por mes. El 19/11 Emmanuel decidió que en el local se cobra
+**por semana**: un monto fijo cada sábado. «Por mes» quedó como opción.
 
-Si alguien empezó a mitad de mes, se carga primero ese mes con lo que le corresponde y
-después el mes siguiente con el sueldo entero (son dos acuerdos).
+**Por semana.** El acuerdo dice el monto de la semana y desde qué día rige. A cada mes le
+corresponde ese monto por los sábados que tiene, contando desde ese día: noviembre de 2026
+tiene cuatro, octubre tuvo cinco. Así el mes cierra solo: quien cobró sus cinco sábados de
+octubre está al día, no «cobró de más». La pantalla muestra la cuenta («… por semana × 4
+sábados · van 2»): mientras el mes no termina, lo que falta es lo de los sábados que todavía
+no llegaron.
+
+- El día de inicio no tiene que ser sábado. Si alguien empezó un miércoles, su primer sábado
+  es el de esa semana. Antes de guardar, la confirmación dice cuánto le queda correspondiendo
+  ese mes, con los sábados contados: ahí se ve si el día elegido es el que se quería.
+- Un aumento a mitad de mes se carga con el día desde el que vale: cada sábado cuenta lo que
+  regía ese día.
+- Si dos acuerdos empiezan el mismo día vale el último que se cargó: así se corrige un monto
+  mal puesto. Si lo que quedó mal es el día, se carga 0 desde el día equivocado y el monto
+  desde el correcto.
+
+**Por mes.** Un monto por mes desde un mes, se pague como se pague: cada pago cuenta para su
+mes y lo que falta es lo acordado menos lo cobrado. Si alguien empezó a mitad de mes, se
+carga primero ese mes con lo que le corresponde y después el siguiente con el sueldo entero
+(son dos acuerdos).
+
+**Cuando se pasa de uno a otro** vale el acuerdo que empezó último, mirado sábado por sábado
+(`acordadoEnElMes()` en `src/lib/sueldos.ts`). El mes en que se pasa de «por mes» a «por
+semana» cuenta solo los sábados desde el cambio: la parte por mes no se prorratea. Para
+volver a «por mes» hay que elegir desde el mes siguiente: en un mes en que ya rige uno por
+semana, ese seguiría mandando, y la app avisa en vez de guardar algo que no se vería.
+
+En los dos casos un pago cuenta para el mes de su fecha, salvo que se le diga otro
+(«Corresponde a»). Un sábado que se terminó pagando el lunes del mes siguiente se acomoda
+así.
 
 ### La pantalla Sueldos
 
@@ -2498,8 +2525,9 @@ Gastos → «Ver sueldos» (`/sueldos`). Por mes:
 
 - **El total:** lo acordado, lo pagado y lo que falta. Lo que uno cobró de más no tapa lo
   que le falta a otro.
-- **Por persona:** el sueldo del mes, lo que cobró (con cada pago) y lo que falta o cobró de
-  más. «Definir sueldo», que le aparece solo a un dueño, pide el monto y desde qué mes;
+- **Por persona:** lo que le corresponde en el mes (por semana, con la cuenta de sábados),
+  lo que cobró (con cada pago) y lo que falta o cobró de más. «Definir sueldo», que le
+  aparece solo a un dueño, pide cómo cobra (por semana o por mes), el monto y desde cuándo;
   pregunta antes de guardar, diciendo qué había y quiénes lo van a ver. Antes de guardar
   vuelve a leer la ficha, por si otro dueño la cambió mientras tanto. Los dueños no figuran
   acá salvo que se les haya definido un sueldo o cargado un pago.
@@ -2542,9 +2570,10 @@ retiro, alguien del equipo es un sueldo) y, sin nombre, las palabras.
 ### «Mi sueldo»
 
 `/mi-sueldo`, desde «Mi día» (o desde Sueldos, «Ver solo lo mío», para quien está de
-encargado). Cada persona ve lo suyo del mes: lo acordado, cada pago que cobró y lo que le
-falta. Lo acordado sale de su ficha, que es la única que el servidor le deja leer; lo
-cobrado, de los pagos de sueldo a su nombre, que ya están en el aparato.
+encargado). Cada persona ve lo suyo del mes: lo que le corresponde (por semana, su monto por
+los sábados del mes), cada pago que cobró y lo que le falta. Lo acordado sale de su ficha,
+que es la única que el servidor le deja leer; lo cobrado, de los pagos de sueldo a su
+nombre, que ya están en el aparato.
 
 ### Los retiros de los dueños
 
@@ -2569,10 +2598,11 @@ va a abrir en la compu del local, que es de todos.
 
 Ahora `sueldosNube.ts` usa la versión liviana (`firebase/firestore/lite`), que pide y
 contesta y nada más: no tiene cache ni cola. La prueba de punta a punta busca los montos
-acordados en todo lo que guarda cada aparato (las cuatro bases de IndexedDB, localStorage y
-sessionStorage) después de usar las pantallas: no están en el del dueño, ni en la compu
-donde entró la encargada, ni en el celular de la empleada, ni el suyo propio. La misma
-búsqueda sí encuentra un pago, que es lo que tiene que estar.
+acordados en todo lo que guarda cada aparato (las cuatro bases de IndexedDB, localStorage,
+sessionStorage y lo que guarda el service worker) después de usar las pantallas: no están en
+el del dueño, ni en la compu donde entró la encargada, ni en el celular de la empleada, ni
+el suyo propio. La misma búsqueda sí encuentra un pago y un texto de la app, que es lo que
+tiene que estar.
 
 El costo: sin conexión no se ve ni se cambia lo acordado. Los pagos y los retiros sí, porque
 están en el aparato.
@@ -2583,18 +2613,35 @@ están en el aparato.
 persona su ficha; escribe solo un dueño.** Está afuera de la regla general, que deja leer a
 cualquiera con sesión.
 
-**Hay que pegarla en la consola de Firebase.** Mientras esté pegada la anterior (solo el
-dueño), a la encargada Sueldos le dice que no pudo leer lo acordado y que falta pegar las
-reglas, y «Mi sueldo» lo mismo; los pagos se ven igual. Probado.
+Para guardar, además, la ficha tiene que traer la versión de su formato (`forma: 2`), que la
+app manda sola. Es por las versiones viejas de la app: la de la madrugada del 19/11 no
+conoce los acuerdos por semana, los saltea al leer y, si guardara la ficha, los borraría.
+Sin la versión, el servidor no la deja guardar. Un aparato sin actualizar ve «Sin definir» y
+no puede cambiar nada hasta que toca «Actualizar».
+
+**Hay que pegarla en la consola de Firebase, y antes de cargar ningún sueldo.** Qué pasa
+mientras tanto depende de qué reglas haya en la consola:
+
+- Si está la de la madrugada del 19/11 (solo el dueño): a la encargada Sueldos le dice que
+  no pudo leer lo acordado y que falta pegar las reglas, y «Mi sueldo» lo mismo; los pagos
+  se ven igual. Probado. El dueño lee y guarda como siempre; lo que todavía no hay es la
+  protección contra una versión vieja de la app.
+- Si están las de antes del 19/11: la colección cae en la regla general, que deja leer a
+  cualquiera con sesión y escribir a cualquiera activo. La app no se lo muestra a quien no
+  debe, pero el servidor no lo protege. Por eso el orden: primero las reglas, después los
+  sueldos.
 
 ### Cómo se probó
 
-- 48 pruebas de la cuenta (`src/lib/sueldos.ts`) y 3 de los permisos. La cuenta y los
-  permisos se rompieron a propósito de 34 maneras: las 34 en rojo.
-- 10 pruebas de la regla contra el emulador (`pruebas/reglas-sueldos.test.ts`): la encargada
+- 75 pruebas de la cuenta (`src/lib/sueldos.ts`) y 3 de los permisos. La cuenta y los
+  permisos se rompieron a propósito de 65 maneras (31 son del sueldo por semana: cobrar los
+  viernes, no contar el día en que empieza, no multiplicar por los sábados, aceptar el 30 de
+  febrero…): las 65 en rojo.
+- 11 pruebas de la regla contra el emulador (`pruebas/reglas-sueldos.test.ts`): la encargada
   lee y no escribe; una empleada lee su ficha y ninguna otra, ni la lista; nadie que no sea
-  dueño escribe, ni la propia; con la cuenta desactivada o sin perfil no se lee nada. La
-  regla se rompió a propósito de 5 maneras, las 5 en rojo.
+  dueño escribe, ni la propia; con la cuenta desactivada o sin perfil no se lee nada; y sin
+  la versión del formato no guarda ni el dueño. La regla se rompió a propósito de 9 maneras,
+  las 9 en rojo.
 - De punta a punta en el navegador contra los emuladores, con tres aparatos (el dueño, la
   encargada y una empleada): definir, ordenar los pagos por semana, recordar el apodo, los
   retiros, cargar desde Caja y desde Gastos con la pregunta, «Mi sueldo», lo que queda
@@ -2610,8 +2657,14 @@ reglas, y «Mi sueldo» lo mismo; los pagos se ven igual. Probado.
 - **Los retiros de socios y el resultado del mes.** Hoy un retiro cuenta como un gasto más
   (variable). Si es un gasto del negocio o un reparto de lo ganado es para mirar con el
   contador, junto con lo de los pagos a proveedores.
-- **El primer mes de alguien que empezó a mitad de mes** se carga a mano. Si se quiere que
-  la app lo calcule sola, hay que decidir cómo se prorratea.
+- **Quitar un acuerdo mal cargado.** Hoy no se borra: se corrige cargando otro (el mismo día
+  con el monto bueno, o 0 desde el día equivocado). Si pasa seguido, conviene un «Quitar»
+  para el dueño.
+- **Otro día de cobro.** Por semana se cuenta el sábado para todos (`DIA_DE_COBRO`). Si
+  alguien pasa a cobrar otro día, hay que guardarlo en el acuerdo.
+- **El primer mes de alguien que cobra por mes y empezó a mitad de mes** se carga a mano. Si
+  se quiere que la app lo calcule sola, hay que decidir cómo se prorratea. Por semana no
+  hace falta: se cuenta desde el día en que empezó.
 
 ## La planilla del proveedor (19/11)
 
@@ -3450,15 +3503,17 @@ Ver «Lo que pasó el 13/11».
 
 **Hecho el 19/11** — los sueldos: lo acordado con cada persona, de quién es cada pago y
 cuánto falta. A la noche, con lo que decidió Emmanuel: los ven los dueños y quien está de
-encargado, los define solo un dueño, cada persona ve lo suyo en «Mi sueldo», y los retiros
-de los dueños se llevan por persona. Ver «Los sueldos y los retiros».
+encargado, los define solo un dueño, cada persona ve lo suyo en «Mi sueldo», el sueldo se
+acuerda por semana (un monto fijo cada sábado, con «por mes» como opción) y los retiros de
+los dueños se llevan por persona. Ver «Los sueldos y los retiros».
 
 - [ ] **Pegar en la consola de Firebase las reglas publicadas** (una sola vez: son las de
-      `firestore.rules` de `main`). Hasta entonces, la encargada no ve lo acordado y «Mi
-      sueldo» no lo muestra: la app lo avisa.
-- [ ] **Cargar los sueldos acordados** (un dueño, en Gastos → «Ver sueldos») y **darle a
-      cada dueño su cuenta** en Ajustes → «Usuarios del equipo», aunque no use la app: sin
-      eso no se le pueden anotar los retiros.
+      `firestore.rules` de `main`), **antes de cargar ningún sueldo**. Hasta entonces, según
+      qué reglas haya en la consola, o la encargada y «Mi sueldo» no ven lo acordado (la app
+      lo avisa), o el servidor no lo protege.
+- [ ] **Cargar los sueldos acordados** (un dueño, en Gastos → «Ver sueldos»: por semana, con
+      el día desde el que rige) y **darle a cada dueño su cuenta** en Ajustes → «Usuarios
+      del equipo», aunque no use la app: sin eso no se le pueden anotar los retiros.
 - [ ] **Ordenar lo que ya estaba cargado:** en Sueldos, mes por mes, «¿Esto es un sueldo?» y
       «¿Esto es un retiro de un dueño?» muestran lo que quedó en OTROS.
 - [ ] **Las comisiones por venta:** falta que Emmanuel defina la base y el porcentaje.

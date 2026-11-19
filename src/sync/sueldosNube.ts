@@ -8,7 +8,7 @@ import {
   setDoc,
   type Firestore,
 } from 'firebase/firestore/lite'
-import { fichaDesdeDatos, type FichaSueldo } from '../lib/sueldos'
+import { FORMA_DE_LA_FICHA, fichaDesdeDatos, type FichaSueldo } from '../lib/sueldos'
 import { ID_NEGOCIO } from './config'
 import { obtenerAuth } from './firebase'
 
@@ -38,7 +38,7 @@ import { obtenerAuth } from './firebase'
  *
  * Quién puede qué lo decide la regla de `sueldos` en `firestore.rules`:
  * leen los dueños y quien está de encargado, y cada persona su ficha;
- * escribe solo un dueño.
+ * escribe solo un dueño, y con la versión del formato que corresponde.
  */
 const COLECCION = 'sueldos'
 
@@ -101,7 +101,13 @@ export function leerFichaDeSueldo(id: string): Promise<FichaSueldo | null> {
   })
 }
 
-/** Guarda la ficha entera. Vuelve cuando el servidor la aceptó; si no, tira con el motivo. */
+/**
+ * Guarda la ficha entera. Vuelve cuando el servidor la aceptó; si no, tira
+ * con el motivo. Va con la versión del formato, que la regla exige: es lo
+ * que impide que una versión vieja de la app pise la ficha.
+ */
 export function guardarFichaDeSueldo(ficha: FichaSueldo): Promise<void> {
-  return pedir(() => setDoc(doc(base(), 'negocios', ID_NEGOCIO, COLECCION, ficha.id), { ...ficha }))
+  return pedir(() =>
+    setDoc(doc(base(), 'negocios', ID_NEGOCIO, COLECCION, ficha.id), { ...ficha, forma: FORMA_DE_LA_FICHA }),
+  )
 }

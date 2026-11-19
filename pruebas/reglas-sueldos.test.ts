@@ -26,8 +26,18 @@ let entorno: RulesTestEnvironment
 const FICHA = {
   id: 'uid-gabi',
   nombre: 'Gabriela',
-  acuerdos: [{ desde: '2026-11', monto: 123456, anotadoEl: 1, por: 'emmanuel@elclubdelmate.com' }],
+  acuerdos: [{ desde: '2026-11-07', monto: 123456, cada: 'semana', anotadoEl: 1, por: 'emmanuel@elclubdelmate.com' }],
   actualizadoEn: 1,
+  // La versión del formato: la manda la app al guardar y la regla la exige.
+  forma: 2,
+}
+
+/** Como la guarda una versión de la app anterior al acuerdo por semana: sin `forma`. */
+const FICHA_DE_ANTES = {
+  id: 'uid-gabi',
+  nombre: 'Gabriela',
+  acuerdos: [{ desde: '2026-11', monto: 654321, anotadoEl: 2, por: 'emmanuel@elclubdelmate.com' }],
+  actualizadoEn: 2,
 }
 
 beforeAll(async () => {
@@ -72,6 +82,20 @@ describe('sueldos: los ven los dueños y la encargada, cada uno lo suyo, y los d
     await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-nueva`), { ...FICHA, id: 'uid-nueva', nombre: 'Nueva' }))
     await assertSucceeds(updateDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), { actualizadoEn: 2 }))
     await assertSucceeds(deleteDoc(doc(db, `${NEGOCIO}/sueldos/uid-nueva`)))
+  })
+
+  it('UNA VERSIÓN VIEJA DE LA APP NO PISA LA FICHA: sin la versión del formato, ni el dueño la guarda', async () => {
+    const db = comoEmma()
+    // La app de antes no entiende los acuerdos por semana: al leer los
+    // saltea y al guardar manda la ficha entera sin ellos. Si el servidor
+    // la dejara, borraría lo acordado.
+    await assertFails(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), FICHA_DE_ANTES))
+    await assertFails(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-nueva`), { ...FICHA_DE_ANTES, id: 'uid-nueva' }))
+    await assertFails(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), { ...FICHA, forma: 1 }))
+    const sigue = await assertSucceeds(getDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`)))
+    expect(sigue.data()?.acuerdos).toEqual(FICHA.acuerdos)
+    // Con la versión de ahora, sí.
+    await assertSucceeds(setDoc(doc(db, `${NEGOCIO}/sueldos/uid-gabi`), { ...FICHA, actualizadoEn: 3 }))
   })
 
   it('LA ENCARGADA LAS VE: la de otra persona, la suya y la lista entera', async () => {

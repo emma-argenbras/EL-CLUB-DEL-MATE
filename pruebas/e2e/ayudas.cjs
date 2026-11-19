@@ -109,8 +109,9 @@ async function entrar(ctx, email, password = 'clave123') {
 
 /**
  * Busca esos textos en TODO lo que el navegador guarda de la app: cada
- * base de IndexedDB (la de la app y las de Firebase), localStorage y
- * sessionStorage. Devuelve donde aparecio cada uno.
+ * base de IndexedDB (la de la app y las de Firebase), localStorage,
+ * sessionStorage y lo que guardo el service worker. Devuelve donde
+ * aparecio cada uno.
  */
 async function rastros(p, textos) {
   return p.evaluate(async (textos) => {
@@ -133,7 +134,20 @@ async function rastros(p, textos) {
       const comoTexto = JSON.stringify(Object.entries(almacen))
       for (const t of textos) if (comoTexto.includes(t)) hallados.push(`${t} en ${nombre}`)
     }
-    return { bases: bases.length, filas, hallados }
+    // Lo que guarda el service worker (la app para andar sin conexion). No
+    // deberia tener nada del servidor, pero se mira igual: es disco tambien.
+    let guardadas = 0
+    for (const nombre of await caches.keys()) {
+      const cache = await caches.open(nombre)
+      for (const pedido of await cache.keys()) {
+        const respuesta = await cache.match(pedido)
+        if (!respuesta) continue
+        guardadas++
+        const comoTexto = pedido.url + ' ' + (await respuesta.text().catch(() => ''))
+        for (const t of textos) if (comoTexto.includes(t)) hallados.push(`${t} en la cache ${nombre} (${pedido.url})`)
+      }
+    }
+    return { bases: bases.length, filas, guardadas, hallados }
   }, textos)
 }
 

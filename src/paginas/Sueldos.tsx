@@ -3,22 +3,27 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { ETIQUETA_CUENTA, conMotivo, db, type Movimiento } from '../db/db'
 import { esVariablePorDefecto } from '../lib/borrarGasto'
-import { fechaLinda, leerNumero, mesActualISO, mesLindo, plata } from '../lib/formato'
+import { fechaLinda, hoyISO, leerNumero, mesActualISO, mesLindo, plata } from '../lib/formato'
 import {
+  acuerdoEnPalabras,
   apodoPosible,
   apodosLimpios,
+  comoSeCalcula,
   conAcuerdo,
   duenosParaRetiro,
   estadoDelSaldo,
+  inicioDelAcuerdo,
   mesDelPago,
   parecenRetiro,
   parecenSueldo,
   personasParaSueldo,
+  porQueNoCambia,
   problemaDelAcuerdo,
   resumenDeRetiros,
   resumenDeSueldos,
-  sueldoDelMes,
   textoDeConfirmacionSueldo,
+  type AcuerdoSueldo,
+  type CadaCuanto,
   type FichaSueldo,
   type PareceSueldo,
   type PersonaConSueldo,
@@ -114,7 +119,7 @@ export default function Sueldos() {
     )
   }
 
-  async function guardarAcuerdo(persona: PersonaConSueldo, monto: number, desde: string) {
+  async function guardarAcuerdo(persona: PersonaConSueldo, monto: number, desde: string, cada: CadaCuanto) {
     setError(null)
     setAviso(null)
     try {
@@ -123,18 +128,19 @@ export default function Sueldos() {
       // dueño cargó un acuerdo mientras esta pantalla estaba abierta, se
       // agrega sobre esa y no sobre la copia vieja de acá.
       const ficha = await leerFichaDeSueldo(persona.id)
-      const anterior = sueldoDelMes(ficha?.acuerdos ?? [], desde)
-      if (!confirm(textoDeConfirmacionSueldo(persona.nombre, monto, desde, anterior))) return
-      const nueva = conAcuerdo(ficha, persona, {
-        desde,
-        monto,
-        anotadoEl: Date.now(),
-        por: sesion.email,
-      })
+      const anteriores = ficha?.acuerdos ?? []
+      const acuerdo: AcuerdoSueldo = { desde, monto, cada, anotadoEl: Date.now(), por: sesion.email }
+      const noCambia = porQueNoCambia(anteriores, acuerdo)
+      if (noCambia) {
+        setError(`El sueldo de ${persona.nombre} no se guardó. ${noCambia}`)
+        return
+      }
+      if (!confirm(textoDeConfirmacionSueldo(persona.nombre, acuerdo, anteriores))) return
+      const nueva = conAcuerdo(ficha, persona, acuerdo)
       await guardarFichaDeSueldo(nueva)
       setFichas((antes) => [...(antes ?? []).filter((f) => f.id !== nueva.id), nueva])
       setEditando(null)
-      setAviso(`Listo: el sueldo de ${persona.nombre} quedó en ${plata(monto)} desde ${mesLindo(desde)}.`)
+      setAviso(`Listo: quedó guardado el sueldo de ${persona.nombre}. ${acuerdoEnPalabras(acuerdo)}.`)
     } catch (e) {
       setError(`El sueldo de ${persona.nombre} no se guardó. ${e instanceof Error ? e.message : String(e)}`)
     }
@@ -267,8 +273,9 @@ export default function Sueldos() {
               <span className="fila-valor">{fichas ? plata(resumen.falta) : '—'}</span>
             </div>
             <p className="silencio" style={{ marginBottom: 0 }}>
-              El sueldo se acuerda por mes y se paga como convenga, de una vez o por semana: cada pago
-              cuenta para su mes y el último cierra la diferencia.
+              A quien cobra por semana le corresponde, en cada mes, su monto por los sábados que tiene
+              el mes: cuatro o cinco. Cada pago cuenta para el mes de su fecha, salvo que se le diga
+              otro.
             </p>
           </section>
 
@@ -291,7 +298,7 @@ export default function Sueldos() {
                 setEditando(abrir ? r.persona.id : null)
                 setAviso(null)
               }}
-              onGuardar={(monto, desde) => void guardarAcuerdo(r.persona, monto, desde)}
+              onGuardar={(monto, desde, cada) => void guardarAcuerdo(r.persona, monto, desde, cada)}
               onQuitar={(m) =>
                 void tocarPago(m, { persona: null }, `El pago de ${plata(m.monto)} quedó sin asignar.`)
               }
@@ -597,33 +604,43 @@ function TarjetaPersona({
   puedeDefinir: boolean
   editando: boolean
   onEditar: (abrir: boolean) => void
-  onGuardar: (monto: number, desde: string) => void
+  onGuardar: (monto: number, desde: string, cada: CadaCuanto) => void
   onQuitar: (m: Gasto) => void
   onMoverDeMes: (m: Gasto, mes: string) => void
 }) {
-  const { persona, acordado, pagado, pagos } = renglon
+  const { persona, acordado, detalle, pagado, pagos } = renglon
   const estado = estadoDelSaldo(renglon)
+  const cuenta = comoSeCalcula(detalle, hoyISO())
+  const [cada, setCada] = useState<CadaCuanto>('semana')
   const [monto, setMonto] = useState('')
-  const [desde, setDesde] = useState(mes)
+  const [desdeMes, setDesdeMes] = useState(mes)
+  const [desdeDia, setDesdeDia] = useState(`${mes}-01`)
   const [problema, setProblema] = useState<string | null>(null)
 
   function abrir() {
-    setMonto(acordado ? String(acordado) : '')
-    setDesde(mes)
+    // Arranca como está hoy. Quien todavía no tiene nada, por semana: es
+    // como se cobra en el local.
+    const como: CadaCuanto = detalle?.cada ?? 'semana'
+    const actual = como === 'semana' ? detalle?.tramos[detalle.tramos.length - 1]?.monto : acordado
+    setCada(como)
+    setMonto(actual ? String(actual) : '')
+    setDesdeMes(mes)
+    setDesdeDia(`${mes}-01`)
     setProblema(null)
     onEditar(true)
   }
 
   function guardar() {
     const valor = monto.trim() === '' ? null : leerNumero(monto)
-    const mal = problemaDelAcuerdo(valor, desde)
+    const desde = cada === 'semana' ? desdeDia : desdeMes
+    const mal = problemaDelAcuerdo(valor, desde, cada)
     setProblema(mal)
     if (mal || valor === null) return
-    onGuardar(valor, desde)
+    onGuardar(valor, desde, cada)
   }
 
   const acuerdos = [...(ficha?.acuerdos ?? [])].sort(
-    (a, b) => b.desde.localeCompare(a.desde) || b.anotadoEl - a.anotadoEl,
+    (a, b) => inicioDelAcuerdo(b).localeCompare(inicioDelAcuerdo(a)) || b.anotadoEl - a.anotadoEl,
   )
 
   return (
@@ -644,6 +661,11 @@ function TarjetaPersona({
           {!seLeyo ? '—' : acordado === null ? 'Sin definir' : plata(acordado)}
         </span>
       </div>
+      {seLeyo && cuenta && (
+        <p className="silencio cuenta-del-sueldo" style={{ margin: '0 0 6px' }}>
+          {cuenta}
+        </p>
+      )}
       <div className="fila">
         <span className="fila-etiqueta">
           Cobró en el mes{pagos.length > 0 ? ` (${pagos.length} ${pagos.length === 1 ? 'pago' : 'pagos'})` : ''}
@@ -659,9 +681,22 @@ function TarjetaPersona({
 
       {editando && puedeDefinir ? (
         <div style={{ marginTop: 12 }}>
+          <div className="campo">
+            <label htmlFor={`cada-${persona.id}`}>Cómo cobra</label>
+            <select
+              id={`cada-${persona.id}`}
+              value={cada}
+              onChange={(e) => setCada(e.target.value === 'mes' ? 'mes' : 'semana')}
+            >
+              <option value="semana">Por semana: un monto fijo cada sábado</option>
+              <option value="mes">Por mes</option>
+            </select>
+          </div>
           <div className="grilla grilla-2">
             <div className="campo">
-              <label htmlFor={`sueldo-${persona.id}`}>Sueldo por mes</label>
+              <label htmlFor={`sueldo-${persona.id}`}>
+                {cada === 'semana' ? 'Monto por semana' : 'Sueldo por mes'}
+              </label>
               <input
                 id={`sueldo-${persona.id}`}
                 inputMode="decimal"
@@ -672,20 +707,31 @@ function TarjetaPersona({
               />
             </div>
             <div className="campo">
-              <label htmlFor={`desde-${persona.id}`}>Desde qué mes</label>
-              <input
-                id={`desde-${persona.id}`}
-                type="month"
-                value={desde}
-                onChange={(e) => setDesde(e.target.value)}
-              />
+              <label htmlFor={`desde-${persona.id}`}>
+                {cada === 'semana' ? 'Desde qué día' : 'Desde qué mes'}
+              </label>
+              {cada === 'semana' ? (
+                <input
+                  id={`desde-${persona.id}`}
+                  type="date"
+                  value={desdeDia}
+                  onChange={(e) => setDesdeDia(e.target.value)}
+                />
+              ) : (
+                <input
+                  id={`desde-${persona.id}`}
+                  type="month"
+                  value={desdeMes}
+                  onChange={(e) => setDesdeMes(e.target.value)}
+                />
+              )}
             </div>
           </div>
           {problema && <div className="aviso aviso-error">{problema}</div>}
           <p className="silencio" style={{ marginTop: 0 }}>
-            Los meses anteriores a ese no cambian. Si empezó a mitad de mes, cargá primero ese mes con
-            lo que le corresponde y después el mes siguiente con el sueldo entero. Para dejar de
-            pagarle un sueldo, poné 0.
+            {cada === 'semana'
+              ? 'Cuentan los sábados desde ese día: a cada mes le corresponde el monto por los sábados que tiene, cuatro o cinco. Lo anterior no cambia. Si el monto quedó mal, cargalo de nuevo con el mismo día: vale el último. Para dejar de pagarle, poné 0.'
+              : 'Los meses anteriores a ese no cambian. Si empezó a mitad de mes, cargá primero ese mes con lo que le corresponde y después el mes siguiente con el sueldo entero. Para dejar de pagarle un sueldo, poné 0.'}
           </p>
           <div className="botonera">
             <button onClick={() => onEditar(false)}>Cancelar</button>
@@ -742,7 +788,7 @@ function TarjetaPersona({
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
             {acuerdos.map((a) => (
               <li key={`${a.desde}-${a.anotadoEl}`} className="silencio">
-                Desde {mesLindo(a.desde)}: {a.monto === 0 ? 'sin sueldo' : plata(a.monto)}
+                {acuerdoEnPalabras(a)}
                 {a.anotadoEl > 0 &&
                   ` (cargado el ${new Date(a.anotadoEl).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })})`}
               </li>
