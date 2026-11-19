@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSesion } from '../sync/useSesion'
 import { estaAlMando, puedeVerSueldos } from '../sync/permisos'
-import { duenosParaRetiro, personasParaSueldo, type PersonaConSueldo, type QueParece } from '../lib/sueldos'
+import {
+  duenosParaRetiro,
+  personasConocidas,
+  personasParaSueldo,
+  type PersonaConSueldo,
+  type QueParece,
+} from '../lib/sueldos'
 import SugerenciaDeCarga from '../componentes/SugerenciaDeCarga'
 import { esVariablePorDefecto, permisoParaBorrarGasto } from '../lib/borrarGasto'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
@@ -155,7 +161,14 @@ export default function Gastos() {
 
       {mostrarForm ? (
         <FormularioGasto
-          personas={(usuarios ?? []).map((u) => ({ id: u.id, nombre: u.nombre, activo: u.activo, rol: u.rol, apodos: u.apodos }))}
+          personas={(usuarios ?? []).map((u) => ({
+            id: u.id,
+            nombre: u.nombre,
+            activo: u.activo,
+            rol: u.rol,
+            apodos: u.apodos,
+            sinCuenta: u.sinCuenta,
+          }))}
           onSalir={() => setMostrarForm(false)}
         />
       ) : (
@@ -258,6 +271,8 @@ function FormularioGasto({
 }) {
   const activas = personasParaSueldo(personas)
   const duenos = duenosParaRetiro(personas)
+  // Para la pregunta al cargar: también los dueños sin cuenta.
+  const conocidas = personasConocidas(personas)
   const [fecha, setFecha] = useState(hoyISO())
   const [persona, setPersona] = useState('')
   const [concepto, setConcepto] = useState('')
@@ -387,7 +402,7 @@ function FormularioGasto({
             concepto={concepto}
             categoria={categoria}
             persona={persona || null}
-            personas={activas}
+            personas={conocidas}
             onAplicar={aplicarSugerencia}
           />
           <div className="campo">

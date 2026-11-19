@@ -720,9 +720,14 @@ export const SECCIONES_POR_DEFECTO_EMPLEADO: SeccionId[] = [
   'gastos',
 ]
 
-/** Una persona con su propio login. El id es el uid de Firebase Auth. */
+/**
+ * Una persona del equipo. Casi siempre con su propio login: el id es el
+ * uid de Firebase Auth. La excepción es un dueño que no usa la app
+ * (`sinCuenta`, 19/11): está para anotarle los retiros, sin mail ni clave.
+ */
 export interface Usuario {
   id: string
+  /** Vacío en un dueño sin cuenta. */
   email: string
   nombre: string
   rol: Rol
@@ -740,6 +745,13 @@ export interface Usuario {
    * reservado: lo ven todos, como el nombre.
    */
   apodos?: string | null
+  /**
+   * Un dueño que no usa la app (19/11): no tiene cuenta, así que no puede
+   * entrar. Está para anotarle los retiros. Una cuenta de dueño que nadie
+   * usa sería un acceso total de más; esto no da acceso a nada. Lo agrega
+   * solo un dueño (lo dice también la regla de `usuarios`).
+   */
+  sinCuenta?: boolean
   creadoEn?: number
   actualizadoEn?: number
 }
@@ -1177,7 +1189,7 @@ class BaseECDM extends Dexie {
       // otra. Sin esto, unir dos fichas movia los saldos sin dejar
       // rastro, que es justo lo que el historial existe para evitar.
       movimientosProveedor: ['tipo', 'monto', 'fecha', 'concepto', 'proveedorId'],
-      usuarios: ['nombre', 'email', 'rol', 'activo', 'secciones', 'apodos'],
+      usuarios: ['nombre', 'email', 'rol', 'activo', 'secciones', 'apodos', 'sinCuenta'],
       // Las dos tablas de historial no se registran a si mismas: un
       // registro del registro no agrega nada y crece sin freno.
       historialProductos: [],

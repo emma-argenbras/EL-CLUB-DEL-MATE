@@ -68,6 +68,12 @@ async function crearUsuario(email, password = 'clave123') {
   const r = await fetch(`${AU}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, returnSecureToken: true }) })
   return (await r.json()).localId
 }
+/** Las cuentas que hay en el emulador de Auth (para ver que no se creo ninguna de mas). */
+async function cuentas() {
+  const r = await fetch(`${AU}/identitytoolkit.googleapis.com/v1/projects/${P}/accounts:query`, { method: 'POST', headers: H, body: '{}' })
+  const j = await r.json()
+  return j.userInfo ?? []
+}
 /** El token de alguien, para hablarle al servidor como esa persona (con las reglas). */
 async function tokenDe(email, password = 'clave123') {
   const r = await fetch(`${AU}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-key`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, returnSecureToken: true }) })
@@ -154,4 +160,4 @@ async function rastros(p, textos) {
 const dia = (n) => new Date(Date.now() - 3 * 3600 * 1000 - n * 86400000).toISOString().slice(0, 10)
 const texto = async (loc) => (await loc.innerText()).replace(/\s*\n\s*/g, ' | ')
 
-module.exports = { CAPTURAS, P, FS, AU, BASE, H, URL, v, d, poner, leer, estado, listar, sembrar, crearUsuario, tokenDe, ponerReglas, entrar, rastros, dia, texto }
+module.exports = { CAPTURAS, P, FS, AU, BASE, H, URL, v, d, poner, leer, estado, listar, sembrar, crearUsuario, cuentas, tokenDe, ponerReglas, entrar, rastros, dia, texto }

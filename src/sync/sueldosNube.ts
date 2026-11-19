@@ -60,7 +60,10 @@ function base(): Firestore {
 export function mensajeDeSueldos(error: unknown): string {
   const codigo = (error as { code?: unknown } | null)?.code
   if (codigo === 'permission-denied') {
-    return 'El servidor no deja ver ni cambiar esto con tu cuenta. Si se acaba de publicar un cambio en los sueldos, falta pegar las reglas nuevas en la consola de Firebase: avisale a Emmanuel.'
+    // Con la regla de sueldos que puede estar en la consola (19/11, solo el
+    // dueño), a la encargada y a «Mi sueldo» les toca esto. Nadie va a
+    // pegar reglas a mano (decisión del 19/11): el mensaje no lo pide.
+    return 'El servidor no deja ver lo acordado con tu cuenta: hoy lo ve solo un dueño.'
   }
   if (codigo === 'sin-respuesta' || codigo === 'unavailable' || codigo === 'deadline-exceeded') {
     return 'No hay conexión con el servidor. Lo acordado no se guarda en este aparato, así que sin conexión no se puede ver ni cambiar. Probá de nuevo en un rato.'

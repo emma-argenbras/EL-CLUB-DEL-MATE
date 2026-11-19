@@ -2586,8 +2586,32 @@ En Sueldos, abajo, «Retiros de los dueños» muestra lo que retiró cada uno en
 cada retiro. Aparecen todos los dueños activos, hayan retirado o no. «Retiros sin asignar» y
 «¿Esto es un retiro de un dueño?» sirven para ordenar lo que ya estaba cargado.
 
-Para que un dueño aparezca tiene que estar en Ajustes → «Usuarios del equipo» con el rol
-Dueño/a, aunque no use la app.
+Aparecen los dueños de la lista de Ajustes → «Usuarios del equipo». **Un dueño que no usa la
+app está ahí sin cuenta** (lo que sigue): no hace falta crearle una.
+
+### Los dueños que no usan la app (19/11, a la noche)
+
+Los dueños son tres y dos no usan la app. La primera versión pedía crearles una cuenta para
+anotarles los retiros. Se descartó: una cuenta de dueño que nadie usa es un acceso total de
+más.
+
+Ahora un dueño puede agregar, en Ajustes → «Usuarios del equipo» → «+ Dueño que no usa la
+app», a un dueño **sin cuenta**: solo el nombre, y pregunta antes de guardar. Queda en la
+misma colección `usuarios`, con `sinCuenta: true`, rol dueño, sin mail y con un id que empieza
+con `sin-cuenta-` (los de las cuentas son el uid de Firebase Auth, que no lleva guiones). No
+tiene cuenta en Firebase Auth: nadie puede entrar con eso.
+
+- **Se elige para un retiro, no para un sueldo** (`duenosParaRetiro`, `personasParaSueldo`).
+- **La pregunta al cargar lo conoce** por el nombre o los apodos (`personasConocidas`): un
+  egreso que dice «RETIRO MAMA» ofrece cargarlo como retiro de Elena.
+- **En Sueldos** figura en «Retiros de los dueños» aunque no haya retirado.
+- **«Desactivar»** lo saca de la lista; lo que ya retiró queda a su nombre.
+
+Por qué en `usuarios` y no en una colección nueva: así no se toca la sincronización (la
+colección ya viaja a todos los aparatos), los apodos y las listas de dueños andan igual, y la
+regla de `usuarios` deja crear o tocar a un dueño solo a otro dueño: una encargada no puede
+agregar un dueño ni cambiarle el nombre. Una colección nueva caería en la regla general, que
+deja escribir a cualquiera activo.
 
 ### Que lo acordado no quede guardado en ningún aparato
 
@@ -2619,29 +2643,35 @@ conoce los acuerdos por semana, los saltea al leer y, si guardara la ficha, los 
 Sin la versión, el servidor no la deja guardar. Un aparato sin actualizar ve «Sin definir» y
 no puede cambiar nada hasta que toca «Actualizar».
 
-**Hay que pegarla en la consola de Firebase, y antes de cargar ningún sueldo.** Qué pasa
-mientras tanto depende de qué reglas haya en la consola:
+**No está pegada en la consola, y por ahora no se pega** (decisión del 19/11 a la noche:
+Emmanuel no hace tareas a mano). Desde el entorno de Claude no se puede publicar: la red no
+llega a la API de Firebase, y para entrar Firebase pide pegar un código de Google, que es una
+clave. La app anda con las reglas que haya en la consola, y qué pasa depende de cuáles sean:
 
-- Si está la de la madrugada del 19/11 (solo el dueño): a la encargada Sueldos le dice que
-  no pudo leer lo acordado y que falta pegar las reglas, y «Mi sueldo» lo mismo; los pagos
-  se ven igual. Probado. El dueño lee y guarda como siempre; lo que todavía no hay es la
-  protección contra una versión vieja de la app.
-- Si están las de antes del 19/11: la colección cae en la regla general, que deja leer a
-  cualquiera con sesión y escribir a cualquiera activo. La app no se lo muestra a quien no
-  debe, pero el servidor no lo protege. Por eso el orden: primero las reglas, después los
-  sueldos.
+- Si tiene la de sueldos de la madrugada del 19/11 (solo el dueño): a la encargada Sueldos le
+  dice que el servidor no le deja ver lo acordado, y «Mi sueldo» lo mismo; los pagos se ven
+  igual. Probado. El dueño lee y guarda como siempre; lo que no hay es la protección contra
+  una versión vieja de la app.
+- Si no tiene regla de sueldos (las de antes del 19/11): la colección cae en la regla general,
+  que deja leer a cualquiera con sesión y escribir a cualquiera activo. La app no se lo
+  muestra a quien no debe, pero el servidor no lo protege. **Antes de cargar los sueldos hay
+  que mirar en la consola cuál de las dos es.**
+
+Si aparece una forma de publicar las reglas sin pasos a mano (por ejemplo, el workflow de
+reglas con una cuenta de servicio), antes se prueban en el emulador, con dueño, encargada y
+empleada, las tareas de todos los días: el archivo trae cambios que nunca se pegaron.
 
 ### Cómo se probó
 
-- 75 pruebas de la cuenta (`src/lib/sueldos.ts`) y 3 de los permisos. La cuenta y los
-  permisos se rompieron a propósito de 65 maneras (31 son del sueldo por semana: cobrar los
+- 82 pruebas de la cuenta (`src/lib/sueldos.ts`) y 3 de los permisos. La cuenta y los
+  permisos se rompieron a propósito de 78 maneras (31 son del sueldo por semana: cobrar los
   viernes, no contar el día en que empieza, no multiplicar por los sábados, aceptar el 30 de
-  febrero…): las 65 en rojo.
-- 11 pruebas de la regla contra el emulador (`pruebas/reglas-sueldos.test.ts`): la encargada
+  febrero…; 13 de los dueños sin cuenta): las 78 en rojo.
+- 12 pruebas de la regla contra el emulador (`pruebas/reglas-sueldos.test.ts`): la encargada
   lee y no escribe; una empleada lee su ficha y ninguna otra, ni la lista; nadie que no sea
-  dueño escribe, ni la propia; con la cuenta desactivada o sin perfil no se lee nada; y sin
-  la versión del formato no guarda ni el dueño. La regla se rompió a propósito de 9 maneras,
-  las 9 en rojo.
+  dueño escribe, ni la propia; con la cuenta desactivada o sin perfil no se lee nada; sin la
+  versión del formato no guarda ni el dueño; y un dueño sin cuenta lo agrega y lo toca solo
+  un dueño. La regla se rompió a propósito de 11 maneras, las 11 en rojo.
 - De punta a punta en el navegador contra los emuladores, con tres aparatos (el dueño, la
   encargada y una empleada): definir, ordenar los pagos por semana, recordar el apodo, los
   retiros, cargar desde Caja y desde Gastos con la pregunta, «Mi sueldo», lo que queda
@@ -2652,8 +2682,8 @@ mientras tanto depende de qué reglas haya en la consola:
 
 - **Las comisiones por venta.** Emmanuel va a definir sobre qué se calculan y con qué
   porcentaje. Cada venta ya guarda quién la hizo (`vendedor`).
-- **Una persona que no usa la app.** Hoy, para figurar, tiene que tener una cuenta. Si hace
-  falta sumar a alguien sin mail ni clave, es un cambio aparte.
+- **Alguien del equipo que no usa la app.** Un dueño ya puede estar sin cuenta; alguien del
+  equipo, no. Por ahora no hace falta.
 - **Los retiros de socios y el resultado del mes.** Hoy un retiro cuenta como un gasto más
   (variable). Si es un gasto del negocio o un reparto de lo ganado es para mirar con el
   contador, junto con lo de los pagos a proveedores.
@@ -3507,13 +3537,15 @@ encargado, los define solo un dueño, cada persona ve lo suyo en «Mi sueldo», 
 acuerda por semana (un monto fijo cada sábado, con «por mes» como opción) y los retiros de
 los dueños se llevan por persona. Ver «Los sueldos y los retiros».
 
-- [ ] **Pegar en la consola de Firebase las reglas publicadas** (una sola vez: son las de
-      `firestore.rules` de `main`), **antes de cargar ningún sueldo**. Hasta entonces, según
-      qué reglas haya en la consola, o la encargada y «Mi sueldo» no ven lo acordado (la app
-      lo avisa), o el servidor no lo protege.
-- [ ] **Cargar los sueldos acordados** (un dueño, en Gastos → «Ver sueldos»: por semana, con
-      el día desde el que rige) y **darle a cada dueño su cuenta** en Ajustes → «Usuarios
-      del equipo», aunque no use la app: sin eso no se le pueden anotar los retiros.
+- [ ] **Las reglas de la consola.** No se pegan a mano (decisión del 19/11) y desde el
+      entorno de Claude no se pueden publicar. Hace falta una forma sin pasos a mano, por
+      ejemplo el workflow de reglas con una cuenta de servicio. Antes de publicarlas, probar
+      en el emulador las tareas de todos los días: el archivo trae cambios que nunca se
+      pegaron. Ver «La regla del servidor».
+- [ ] **Cargar los sueldos acordados:** los carga el asistente desde la pantalla (por semana,
+      con el día desde el que rige), cuando haya reglas que los protejan.
+- [ ] **Agregar a Sebastián y a Elena como dueños sin cuenta:** Ajustes → «Usuarios del
+      equipo» → «+ Dueño que no usa la app». No se les crea una cuenta.
 - [ ] **Ordenar lo que ya estaba cargado:** en Sueldos, mes por mes, «¿Esto es un sueldo?» y
       «¿Esto es un retiro de un dueño?» muestran lo que quedó en OTROS.
 - [ ] **Las comisiones por venta:** falta que Emmanuel defina la base y el porcentaje.

@@ -9,6 +9,7 @@ import {
   comoSeCalcula,
   conAcuerdo,
   diaLindo,
+  duenoSinCuenta,
   duenosParaRetiro,
   esDia,
   esPagoDeSueldo,
@@ -20,16 +21,19 @@ import {
   miSueldoDelMes,
   parecenRetiro,
   parecenSueldo,
+  personasConocidas,
   personasParaSueldo,
   porQueNoCambia,
   preguntaDeLaSugerencia,
   problemaDelAcuerdo,
+  problemaDelDuenoSinCuenta,
   queParece,
   resumenDeRetiros,
   resumenDeSueldos,
   sabadosDelMes,
   sueldoDelMes,
   sugerenciaAplicada,
+  textoDeConfirmacionDuenoSinCuenta,
   textoDeConfirmacionSueldo,
   type AcuerdoSueldo,
   type FichaSueldo,
@@ -899,5 +903,72 @@ describe('el mes de quien cobra por semana', () => {
     const antes = miSueldoDelMes(fichas[0], pagos, 'gabi', '2026-09')
     expect(antes.acordado).toBeNull()
     expect(antes.detalle).toBeNull()
+  })
+})
+
+describe('DUEÑOS SIN CUENTA: para anotarles los retiros, sin darles acceso (19/11)', () => {
+  const usuarios: PersonaConSueldo[] = [
+    { id: 'emma', nombre: 'Emmanuel', activo: true, rol: 'owner' },
+    { id: 'sin-cuenta-1', nombre: 'Elena', activo: true, rol: 'owner', sinCuenta: true, apodos: 'Mamá' },
+    { id: 'sin-cuenta-2', nombre: 'Viejo', activo: false, rol: 'owner', sinCuenta: true },
+    { id: 'gabi', nombre: 'Gabriela', activo: true, rol: 'empleado', apodos: 'Gabi' },
+  ]
+  const ids = (lista: { id: string }[]) => lista.map((u) => u.id)
+
+  it('se eligen para un retiro, no para un sueldo; y la pregunta al cargar los conoce', () => {
+    expect(ids(duenosParaRetiro(usuarios))).toEqual(['sin-cuenta-1', 'emma'])
+    expect(ids(personasParaSueldo(usuarios))).toEqual(['emma', 'gabi'])
+    expect(ids(personasConocidas(usuarios))).toEqual(['sin-cuenta-1', 'emma', 'gabi'])
+  })
+
+  it('al cargar, un gasto que lo nombra (o dice su apodo) parece un retiro suyo', () => {
+    const conocidas = personasConocidas(usuarios)
+    expect(queParece('RETIRO MAMA', conocidas)).toEqual({ que: 'retiro', persona: usuarios[1] })
+    expect(queParece('elena', conocidas)?.persona?.id).toBe('sin-cuenta-1')
+    // Con la lista de los sueldos no se lo encontraría: por eso la pregunta usa la de todos.
+    expect(queParece('elena', personasParaSueldo(usuarios))?.persona ?? null).toBeNull()
+  })
+
+  it('en Sueldos figura entre los retiros aunque no haya retirado, y nunca entre los sueldos', () => {
+    expect(ids(resumenDeRetiros(usuarios, [], '2026-11').renglones.map((r) => r.persona))).toEqual(['sin-cuenta-1', 'emma'])
+    expect(ids(resumenDeSueldos(usuarios, [], [], '2026-11').renglones.map((r) => r.persona))).toEqual(['gabi'])
+  })
+
+  it('desactivado ya no se elige, pero lo que retiró sigue a su nombre', () => {
+    const retiro = pago('2026-11-05', 300, { categoria: 'RETIRO SOCIOS', persona: 'sin-cuenta-2' })
+    const resumen = resumenDeRetiros(usuarios, [retiro], '2026-11')
+    expect(resumen.renglones.find((r) => r.persona.id === 'sin-cuenta-2')?.retirado).toBe(300)
+    expect(resumen.sinAsignar).toEqual([])
+    expect(ids(duenosParaRetiro(usuarios))).not.toContain('sin-cuenta-2')
+  })
+
+  it('se guarda sin mail ni clave, como dueño activo, con un id que no puede ser el de una cuenta', () => {
+    expect(duenoSinCuenta('  Elena   María ', 'abc')).toEqual({
+      id: 'sin-cuenta-abc',
+      email: '',
+      nombre: 'Elena María',
+      rol: 'owner',
+      activo: true,
+      secciones: null,
+      apodos: null,
+      sinCuenta: true,
+    })
+  })
+
+  it('pide el nombre, y no repite el de alguien activo', () => {
+    expect(problemaDelDuenoSinCuenta('   ', usuarios)).toBe('Escribí el nombre.')
+    expect(problemaDelDuenoSinCuenta('elena', usuarios)).toBe('Ya hay alguien activo que se llama Elena.')
+    expect(problemaDelDuenoSinCuenta(' Eléna  ', usuarios)).toBe('Ya hay alguien activo que se llama Elena.')
+    expect(problemaDelDuenoSinCuenta('GABRIELA', usuarios)).toBe('Ya hay alguien activo que se llama Gabriela.')
+    // El de alguien desactivado sí: ya no aparece en ningún lado.
+    expect(problemaDelDuenoSinCuenta('Viejo', usuarios)).toBeNull()
+    expect(problemaDelDuenoSinCuenta('Sebastián', usuarios)).toBeNull()
+  })
+
+  it('antes de agregarlo pregunta, y dice que no va a poder entrar', () => {
+    const texto = textoDeConfirmacionDuenoSinCuenta(' Sebastián ')
+    expect(texto).toContain('¿Agregar a Sebastián a los dueños, sin cuenta?')
+    expect(texto).toContain('No va a tener mail ni clave: no puede entrar a la app.')
+    expect(texto).toContain('Retiros de los dueños')
   })
 })
