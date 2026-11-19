@@ -2018,8 +2018,8 @@ pase alrededor. No hay nada que prender ni apagar.
 - `src/db/db.ts`: `comoRemoto` y los tres ganchos. Es la tercera versión de esa marca; las
   tres están contadas en el comentario, porque las dos anteriores fallaron de formas
   opuestas (ver «Lo que pasó el 14/10»).
-- `src/sync/aplicarRemotos.ts`: cada documento que baja se guarda en su propia transacción
-  remota. Antes todo el recorrido iba adentro de una sola marca.
+- `src/sync/aplicarRemotos.ts`: lo que baja se guarda en transacciones remotas propias, de
+  a tandas (más abajo). Antes todo el recorrido iba adentro de una sola marca.
 - `src/sync/enOrden.ts`: lo que baja de cada tabla se guarda de a un aviso, en orden (más
   abajo).
 - `src/sync/motor.ts` y `src/db/sembrar.ts`: los otros lugares que guardan algo «de todos»
@@ -2048,6 +2048,38 @@ reaparece sin estar en el servidor, la revisión de pendientes lo vuelve a subir
 Ahora cada aviso espera a que termine de guardarse el anterior de su tabla
 (`colaPorClave`, en `src/sync/enOrden.ts`). Las tablas no se esperan entre sí, y un aviso que
 falla no frena a los que vienen atrás.
+
+### Lo que baja se guarda en tandas (publicación aparte, la misma madrugada)
+
+La marca por transacción tenía un costo que se midió antes de darla por terminada: cada
+documento que bajaba abría su propia transacción. Al abrir la app baja cada tabla entera, así
+que eran miles, una atrás de la otra, y con cada una las pantallas abiertas volvían a leer.
+En el navegador contra los emuladores, con 3.000 ventas en el servidor:
+
+| | La primera vez (baja todo) | Al recargar: termina de guardar lo que baja | Un gasto cargado a los 3 s de recargar llega al servidor |
+|---|---|---|---|
+| Versión publicada hasta el 19/11 | 130 s | 70 s y 66 s | a los 39 s y 35 s |
+| Marca por transacción, de a un documento | 180 s | no terminó en 180 s | a los 84 s |
+| **En tandas de 200** | **10 s** | **6 s** | **a los 4 s y 2 s** |
+
+La fila del medio es la primera publicación del arreglo: dejaba de perder lo cargado, pero
+abría más lento que antes. Por eso esta salió enseguida, la misma madrugada y antes de que
+abriera el local: con las dos, la primera sincronización de la prueba quedó en 10 s contra
+los 130 s de la versión anterior.
+
+`aplicarCambiosRemotos` ahora guarda de a `TANDA` (200) documentos por transacción:
+
+- **Cada documento sigue por su cuenta.** El que falla se anota y los demás de su tanda se
+  guardan igual (lo del 22/10 no cambia).
+- **Si la tanda entera no cierra** —el navegador cortó la transacción, o uno malo la tiró
+  abajo—, esa tanda se guarda de a uno, cada cual en su transacción, como se hacía antes.
+- **Se respeta el orden**, adentro de la tanda y entre tandas: lo último que llegó de una
+  fila es lo que queda.
+- **Son 200 y no la tabla entera a propósito:** mientras dura una tanda, lo que la persona
+  quiera escribir en esa tabla espera a que termine. Con 200 es un instante.
+
+Lo que se carga en ese rato sigue siendo de quien lo carga: la marca va en la transacción de
+la tanda, no en el aire.
 
 ### «Importar un respaldo» ya no le borra nada al servidor
 
@@ -2093,6 +2125,45 @@ Recuperar el negocio entero desde un respaldo, si algún día hace falta, es otr
   dos versiones (la tabla de arriba), el gasto cargado después de recargar, y las pruebas
   que ya había de lo que toca sincronización (ticket, ingreso, rechazo de una escritura,
   turnos retenidos, escuchas, constancias), con las dos versiones para comparar. Ver el PR.
+- **Las tandas:** 4 pruebas nuevas (una transacción por tanda y no por documento; uno malo
+  en el medio no tira abajo la tanda; si la tanda entera no cierra se guarda de a uno; el
+  orden adentro de la tanda), y la de «abrir el turno y editar mientras baja la tabla
+  entera» pasó de 400 a 1.000 documentos, cinco tandas. Rotas a propósito de 10 maneras, las
+  10 en rojo. De punta a punta, además de la medición del arranque: la batería entera otra
+  vez sobre la versión en tandas —cambiar el código de un producto, ticket, ingreso,
+  limpieza de 60 fichas, editar y borrar a los 2 s de abrir, escuchas, constancias,
+  pendientes sin subir, rechazo de una escritura, Gastos, la planilla, el gasto tras
+  recargar, importar un respaldo, «Cómo venimos», copias y turnos retenidos, sueldos—, sin
+  diferencias con la versión de a uno salvo los tiempos. Uno de los documentos de prueba
+  está roto a propósito y va primero en su tabla: el de atrás llega igual, que es la
+  confirmación en un navegador de verdad de que uno malo no tira abajo su tanda.
+
+### Un cartel rojo que es del emulador, no de la app
+
+En las pruebas contra el emulador, después de una escritura que el servidor rechaza **de
+verdad**, a veces aparece «El servidor no aceptó 5 cambios» sobre renglones del historial que
+sí llegaron. Costó una noche entender de dónde salía, así que queda escrito.
+
+Se reprodujo sin la app, con treinta líneas que usan solo el SDK de Firebase en el navegador:
+un borrado que las reglas prohíben y, atrás, en la misma cola, cinco altas en una colección
+que no admite cambios y cinco incrementos de un contador. En cuatro de seis corridas el
+emulador aplicó lo que venía atrás del rechazo y lo volvió a aplicar cuando el SDK lo reenvió
+(el SDK reenvía lo que quedó en cola después de un rechazo, que es lo correcto): las cinco
+altas volvieron rechazadas porque ya existían, y el contador de cinco incrementos quedó en
+**34**. Un servidor que hiciera eso con los incrementos no serviría para contar nada: es un
+defecto del emulador (v1.22.0), no el comportamiento del servidor real, y pasa igual con la
+versión que estaba publicada y con esta.
+
+Qué hacer cuando aparezca en una prueba: mirar si el dato está en el servidor. Si está, es
+esto. Y para no quedarse con la deducción, está pedido al soporte que busque rechazos de
+`historial` en la colección `rechazos` del servidor real (ver «Próximos pasos»).
+
+Dónde se ve seguro: al **cambiar el código de un producto** con las reglas publicadas, que
+no dejan borrar productos. El borrado del código viejo ahora sale siempre, el servidor lo
+rechaza, y eso es lo previsto: el código nuevo queda creado, las ventas pasan al nuevo, el
+viejo queda archivado y la constancia queda en `borrados`; ese rechazo se anota como
+«esperable» y no muestra cartel. En el emulador, atrás de ese rechazo aparece el cartel falso
+del historial.
 
 ### Lo que este arreglo no hace
 
@@ -2100,9 +2171,11 @@ Recuperar el negocio entero desde un respaldo, si algún día hace falta, es otr
   pisado por lo del servidor no está en ningún lado.
 - **No vuelve a hacer la limpieza de proveedores.** Hay que repetirla, con el OK de
   Emmanuel y mirando la lista antes (ver «Próximos pasos»). Esta vez tiene que llegar.
-- **No acorta el arranque.** La tabla entera se sigue guardando documento por documento
-  cada vez que se abre la app; lo que cambió es que mientras tanto se puede trabajar.
-  Guardarla en tandas es lo que sigue.
+- **No evita que al abrir la app se vuelva a guardar todo.** Cada vez que se abre, lo que
+  baja —o lo que Firestore tiene guardado en el aparato— se escribe otra vez en la base
+  local, aunque sea igual a lo que ya estaba. En tandas son segundos, pero es trabajo de
+  más. Y la subida del arranque sigue leyendo cada colección entera del servidor para saber
+  qué falta (ver «Próximos pasos»).
 
 ## Los avisos por plazo, y el cambio en una línea (06/11)
 
@@ -3364,11 +3437,30 @@ aparecían abiertos y de lo borrado que volvía. Ver «Lo que pasó el 19/11».
 - [ ] **Pedirle al soporte que mire si quedó algo sin subir de antes**: turnos que en el
       servidor figuran abiertos y en el aparato cerrados, y el número de «sin subir» de
       cada aparato después de actualizar.
-- [ ] **Guardar en tandas lo que baja al abrir la app.** Hoy es un documento por vez, y con
-      la base entera son muchos segundos en cada arranque.
 - [ ] **Una herramienta para recuperar el negocio desde un respaldo** (decisión de
       Emmanuel): «Importar un respaldo» ahora cambia solo ese aparato. Subir un respaldo
       entero al servidor tiene que ir en lotes, diciendo cuánto toca y preguntando.
+
+**Hecho el 19/11, publicación aparte (sincronización)** — lo que baja del servidor se guarda
+en tandas de 200. En la prueba, la primera sincronización pasó de 130 s a 10 s, y lo que se
+carga apenas se abre la app llega al servidor en 2 a 4 s. Ver «Lo que baja se guarda en
+tandas».
+
+- [ ] **Que la subida del arranque no lea el servidor entero.** Para saber qué le falta al
+      servidor, hoy lee cada colección completa cada vez que se abre la app. Son lecturas
+      del plan gratis de Firebase (50.000 por día entre todos los aparatos), y como corre a
+      la par de la bajada puede volver a subir algo que otro aparato acaba de borrar, si de
+      ese borrado no quedó constancia. Lo que sigue: que espere a que termine de guardarse
+      lo que baja y compare contra eso, sin leer de nuevo.
+- [ ] **Que lo borrado deje constancia en todas las tablas.** Hoy la dejan las ventas, los
+      turnos (con lo suyo), el código viejo de un producto y las fichas de proveedor unidas.
+      Un gasto, una compra, un pago o una ficha borrados desde un aparato pueden volver
+      desde otro que estaba atrasado.
+- [ ] **No volver a guardar lo que no cambió** al abrir la app (ver «Lo que este arreglo no
+      hace»).
+- [ ] **Pedirle al soporte que busque rechazos de `historial` en la colección `rechazos`**
+      del servidor real. No debería haber: es para confirmar que el cartel falso que se ve
+      en las pruebas es solo del emulador (ver «Cómo se probó»).
 
 **Hecho el 19/11, publicación aparte** — «Cómo venimos»: el uso de la app semana por semana
 (días con caja, ventas cargadas en el día o después, costos e ingresos de mercadería), con un

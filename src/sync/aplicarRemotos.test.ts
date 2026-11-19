@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db, engancharAutor, engancharSync, historialAlDia, type Producto } from '../db/db'
-import { aplicarCambiosRemotos, type CambioRemoto } from './aplicarRemotos'
+import { aplicarCambiosRemotos, TANDA, type CambioRemoto } from './aplicarRemotos'
 
 function prod(codigo: string, extra: Partial<Producto> = {}): Record<string, unknown> {
   return {
@@ -19,12 +19,14 @@ const nunca = () => false
 const nada = () => {}
 
 beforeEach(async () => {
+  // Primero se apagan la subida y el autor: vaciar las tablas con ellos
+  // prendidos deja un borrado por fila en el historial.
+  engancharSync(() => {})
+  engancharAutor(() => null)
   await db.productos.clear()
   await db.jornadas.clear()
   await historialAlDia()
   await db.historial.clear()
-  engancharSync(() => {})
-  engancharAutor(() => null)
 })
 
 describe('aplicarCambiosRemotos', () => {
@@ -95,6 +97,74 @@ describe('aplicarCambiosRemotos', () => {
   })
 
   /**
+   * En tandas (19/11). Al abrir la app llega cada tabla entera; de a un
+   * documento por transaccion eran miles de transacciones y varios
+   * segundos. Ahora van de a TANDA documentos por transaccion.
+   */
+  describe('lo que baja se guarda en tandas', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    const muchos = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ ...llega(prod(`P${String(i).padStart(4, '0')}`)), tipo: 'added' as const }))
+
+    it('una transacción por tanda, no una por documento', async () => {
+      const transacciones = vi.spyOn(db, 'transaction')
+      const fallos = await aplicarCambiosRemotos('productos', muchos(TANDA * 2 + 1), nunca, nada)
+      expect(fallos).toEqual([])
+      expect(transacciones).toHaveBeenCalledTimes(3)
+      expect(await db.productos.count()).toBe(TANDA * 2 + 1)
+    })
+
+    it('uno malo en el medio de una tanda no la tira abajo: se anota y el resto de la tanda queda', async () => {
+      const transacciones = vi.spyOn(db, 'transaction')
+      const { codigo: _sinCodigo, ...malo } = prod('MALO')
+      const cambios = [...muchos(5), llega(malo, 'MALO'), ...muchos(10).slice(5)]
+      const fallos = await aplicarCambiosRemotos('productos', cambios, nunca, nada)
+      expect(fallos.map((f) => f.id)).toEqual(['MALO'])
+      expect(await db.productos.count()).toBe(10)
+      // Sin volver a intentar de a uno: la tanda cerró bien.
+      expect(transacciones).toHaveBeenCalledTimes(1)
+    })
+
+    it('si la tanda entera no se puede guardar, se guarda de a uno como siempre', async () => {
+      // La transaccion de la tanda se cae (lo corta el navegador, o uno
+      // malo la tira abajo): no puede perderse la tanda.
+      const original = db.transaction.bind(db) as (...a: unknown[]) => Promise<unknown>
+      let primera = true
+      vi.spyOn(db, 'transaction').mockImplementation(((...a: unknown[]) => {
+        if (primera) {
+          primera = false
+          return Promise.reject(new Error('se cortó la transacción'))
+        }
+        return original(...a)
+      }) as never)
+      const { codigo: _sinCodigo, ...malo } = prod('MALO')
+      const fallos = await aplicarCambiosRemotos('productos', [...muchos(3), llega(malo, 'MALO')], nunca, nada)
+      expect(fallos.map((f) => f.id)).toEqual(['MALO'])
+      expect((await db.productos.toArray()).map((p) => p.codigo)).toEqual(['P0000', 'P0001', 'P0002'])
+    })
+
+    it('dentro de una tanda se respeta el orden: lo último que llegó de una fila es lo que queda', async () => {
+      await aplicarCambiosRemotos(
+        'productos',
+        [
+          { ...llega(prod('A', { precioVenta: 1000 })), tipo: 'added' },
+          llega(prod('A', { precioVenta: 2000 })),
+          { ...llega(prod('B')), tipo: 'added' },
+          { tipo: 'removed', id: 'B', datos: null, pendiente: false },
+          llega(prod('A', { precioVenta: 3000 })),
+        ],
+        nunca,
+        nada,
+      )
+      expect((await db.productos.get('A'))?.precioVenta).toBe(3000)
+      expect(await db.productos.get('B')).toBeUndefined()
+    })
+  })
+
+  /**
    * El hueco del 19/11.
    *
    * Hasta ese dia todo el recorrido iba adentro de una marca global de
@@ -104,7 +174,7 @@ describe('aplicarCambiosRemotos', () => {
    * abrir el turno enseguida dejaba el turno sin subir.
    */
   describe('lo que baja y lo que la persona carga MIENTRAS baja', () => {
-    const MUCHOS = 400
+    const MUCHOS = 1000
 
     function escuchar() {
       const subidos: string[] = []
