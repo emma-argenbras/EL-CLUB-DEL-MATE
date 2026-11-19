@@ -20,11 +20,24 @@ import { aClaveLocal } from './claves'
  * Ahora cada cambio va por su cuenta: el que falla se anota y el resto
  * se guarda igual.
  *
- * Y cada uno se guarda marcado como remoto en su propia transaccion
- * (19/11, ver comoRemoto en db/db.ts): no vuelve a subir ni deja
- * historial, y lo que la persona cargue mientras dura el recorrido
- * --al abrir la app es la tabla entera-- sigue siendo suyo.
+ * Y se guardan marcados como remotos en transacciones propias (19/11,
+ * ver comoRemoto en db/db.ts): no vuelven a subir ni dejan historial,
+ * y lo que la persona cargue mientras dura el recorrido --al abrir la
+ * app es la tabla entera-- sigue siendo suyo.
+ *
+ * Van en tandas (ver TANDA). La primera version de ese arreglo abria
+ * una transaccion por documento, y con la tabla entera eran miles: en
+ * la prueba con 3.000 ventas, la primera sincronizacion pasaba de 130 s
+ * a 180 s. En tandas de 200 son 10 s.
  */
+
+/**
+ * Cuantos documentos se guardan en una misma transaccion. Al abrir la app
+ * llega cada tabla entera: de a uno eran miles de transacciones. Es un
+ * numero chico a proposito: mientras dura una tanda, lo que la persona
+ * quiera escribir en esa tabla espera a que termine.
+ */
+export const TANDA = 200
 
 export interface CambioRemoto {
   tipo: 'added' | 'modified' | 'removed'
@@ -49,6 +62,23 @@ export async function aplicarCambiosRemotos(
   alRecibir: (id: string) => void,
 ): Promise<FalloAlRecibir[]> {
   const fallos: FalloAlRecibir[] = []
+  const t = db.table(tabla)
+  const anotarFallo = (cambio: CambioRemoto, e: unknown) =>
+    fallos.push({ id: cambio.id, error: e instanceof Error ? `${e.name}: ${e.message}` : String(e) })
+
+  /** Guarda un cambio. Va adentro de una transaccion remota (ver comoRemoto). */
+  const guardar = async (cambio: CambioRemoto) => {
+    if (cambio.tipo === 'removed') {
+      // El id viene escapado si la clave tenia barra: se desescapa
+      // para borrar la fila local correcta.
+      await t.delete(aClaveLocal(cambio.id))
+    } else {
+      await t.put({ ...cambio.datos })
+    }
+  }
+
+  // Lo que de verdad hay que guardar, en el orden en que llego.
+  const paraGuardar: CambioRemoto[] = []
   for (const cambio of cambios) {
     // Un cambio "pendiente" es el eco de una escritura que salio de
     // este mismo dispositivo. Un alta pendiente ya esta en la base local
@@ -64,30 +94,45 @@ export async function aplicarCambiosRemotos(
     // otro aviso: el celular se quedaria con el precio viejo hasta
     // recargar la app (paso en la prueba contra los emuladores).
     if (cambio.pendiente && cambio.tipo !== 'modified') continue
+    // Un 'removed' puede ser dos cosas muy distintas: alguien borro
+    // el dato de verdad, o el servidor rechazo una escritura de ESTE
+    // dispositivo y Firestore esta revirtiendo su cache. En el
+    // segundo caso, borrar la fila local es destruir lo que la
+    // persona acaba de cargar por un problema de permisos. Ante la
+    // duda no se borra.
+    if (cambio.tipo === 'removed' && esReversionDeRechazo(cambio.id)) continue
+    if (cambio.tipo !== 'removed') alRecibir(cambio.id)
+    paraGuardar.push(cambio)
+  }
+
+  for (let i = 0; i < paraGuardar.length; i += TANDA) {
+    const tanda = paraGuardar.slice(i, i + TANDA)
+    const fallosDeLaTanda: [CambioRemoto, unknown][] = []
     try {
-      if (cambio.tipo === 'removed') {
-        // Un 'removed' puede ser dos cosas muy distintas: alguien borro
-        // el dato de verdad, o el servidor rechazo una escritura de ESTE
-        // dispositivo y Firestore esta revirtiendo su cache. En el
-        // segundo caso, borrar la fila local es destruir lo que la
-        // persona acaba de cargar por un problema de permisos. Ante la
-        // duda no se borra.
-        if (esReversionDeRechazo(cambio.id)) continue
-        // El id viene escapado si la clave tenia barra: se desescapa
-        // para borrar la fila local correcta.
-        const clave = aClaveLocal(cambio.id)
-        await comoRemoto(db.table(tabla), async () => {
-          await db.table(tabla).delete(clave)
-        })
-      } else {
-        alRecibir(cambio.id)
-        const fila = { ...cambio.datos }
-        await comoRemoto(db.table(tabla), async () => {
-          await db.table(tabla).put(fila)
-        })
+      // La tanda entera en UNA transaccion remota: abrir una por
+      // documento era lo que hacia lento el arranque. Cada cambio sigue
+      // por su cuenta: el que falla se anota y los demas se guardan.
+      await comoRemoto(t, async () => {
+        for (const cambio of tanda) {
+          try {
+            await guardar(cambio)
+          } catch (e) {
+            fallosDeLaTanda.push([cambio, e])
+          }
+        }
+      })
+      for (const [cambio, e] of fallosDeLaTanda) anotarFallo(cambio, e)
+    } catch {
+      // La transaccion no llego a cerrar (uno malo la tiro abajo, o el
+      // navegador la corto): no quedo nada de la tanda. Se guarda de a
+      // uno, cada cual en su transaccion, como se hizo siempre.
+      for (const cambio of tanda) {
+        try {
+          await comoRemoto(t, () => guardar(cambio))
+        } catch (e) {
+          anotarFallo(cambio, e)
+        }
       }
-    } catch (e) {
-      fallos.push({ id: cambio.id, error: e instanceof Error ? `${e.name}: ${e.message}` : String(e) })
     }
   }
   return fallos
