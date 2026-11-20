@@ -2894,14 +2894,22 @@ gasto al marcarlo pagado y viaja a todos los aparatos; no hizo falta una tabla n
 - «Deudas en cuotas», arriba de la agenda, dice cuántas van pagadas, cuántas quedan, cuál
   sigue y cuánto es, aproximado (`estadoDeLaDeuda`).
 - Una cuota que ya estaba cargada, aunque sea como OTROS, se engancha con «¿Ya lo cargaste en
-  Gastos?» y pasa a la categoría de la deuda, con su persona. El historial lo dice.
+  Gastos?» y pasa a la categoría de la deuda, con su persona. El historial lo dice. Los gastos
+  que ofrece salen primero por el monto más parecido al de la agenda: OTROS junta de todo y se
+  muestran cuatro, así que el más nuevo no siempre era el que se buscaba (en la prueba en el
+  navegador, el primero era una heladera).
 
 Los montos de la compu no están en el código ni en las pruebas: los carga el asistente desde
 la pantalla.
 
-Probado con 11 pruebas de la cuenta y 5 de las escrituras. Roto a propósito de 26 maneras,
-las 26 en rojo (una necesitó una prueba más: el salto a la primera cuota no se veía si la
-agenda la conocía desde antes).
+Probado:
+- 12 pruebas de la cuenta y 5 de las escrituras. Rotas a propósito de 29 maneras, las 29 en
+  rojo (una necesitó una prueba más: el salto a la primera cuota no se veía si la agenda la
+  conocía desde antes).
+- En el navegador, contra los emuladores (`pruebas/e2e/gastos.cjs`): se carga «Una deuda en
+  cuotas» con un dueño sin cuenta, se engancha una cuota que estaba como OTROS y pasa a
+  EQUIPAMIENTO «a Elena», la tarjeta baja de 5 a 4 cuotas, y el selector de Gastos cambia otra
+  categoría. Todo queda en el historial con su motivo y el servidor no rechaza nada.
 
 ## La compu: opción B (06/11)
 
