@@ -239,8 +239,9 @@ export default function UnirProveedores() {
           <p className="tarjeta-titulo">Fichas repetidas vacías · {repetidas.vacias.length}</p>
           <p className="silencio" style={{ marginTop: 0 }}>
             Tienen el mismo nombre exacto que otra ficha y no tienen ningún producto, ni compras, ni
-            pagos. Se unen de una a su gemela, la que tiene los datos. Mirá la lista: no se toca
-            nada hasta que confirmes.
+            pagos. Se unen de una a su gemela, la que tiene los datos. Si todas las de un nombre
+            están vacías, queda una (la que ya tiene el número interno de su nombre o, si no, la más
+            completa) y las demás se le unen. Mirá la lista: no se toca nada hasta que confirmes.
           </p>
           <div className="tabla-envoltorio">
             <table className="tabla-turno">
@@ -253,7 +254,7 @@ export default function UnirProveedores() {
                 </tr>
               </thead>
               <tbody>
-                {repetidas.vacias.map(({ vacia, gemela }) => {
+                {repetidas.vacias.map(({ vacia, gemela, todasVacias }) => {
                   const plan = armarUnion(gemela.proveedor, vacia, [], [])
                   const pasa = [...plan.datosQueSeRescatan, ...plan.aliasNuevos.map((a) => `otro nombre: ${a}`)]
                   return (
@@ -264,8 +265,14 @@ export default function UnirProveedores() {
                         {vacia.activo === false && <span className="silencio"> · inactiva</span>}
                       </td>
                       <td>
-                        {cuantos(gemela.productos, 'producto', 'productos')}
-                        {gemela.movimientos > 0 && ` · ${cuantos(gemela.movimientos, 'compra o pago', 'compras y pagos')}`}
+                        {todasVacias ? (
+                          <span className="silencio">vacía también: todas las de este nombre lo están</span>
+                        ) : (
+                          <>
+                            {cuantos(gemela.productos, 'producto', 'productos')}
+                            {gemela.movimientos > 0 && ` · ${cuantos(gemela.movimientos, 'compra o pago', 'compras y pagos')}`}
+                          </>
+                        )}
                       </td>
                       <td>{pasa.length > 0 ? pasa.join(', ') : <span className="silencio">nada</span>}</td>
                     </tr>

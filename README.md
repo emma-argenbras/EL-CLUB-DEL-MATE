@@ -1049,6 +1049,15 @@ vueltas. Arriba de la pantalla aparece ahora **«Fichas repetidas vacías»**
 - **Los menús muestran cuántos productos tiene cada ficha:** dos con el mismo nombre se veían
   iguales.
 
+**Las de un nombre con todas sus fichas vacías también entran (20/11).** Antes se dejaban
+porque «no hay cuál es la buena», pero tampoco hay nada que perder: ninguna tiene productos,
+compras ni pagos. Queda una (`quedaEntreVacias`): la que ya tiene el id de su nombre (a la que
+llegan la importación del Excel y cualquier aparato) o, si no, la que tiene más datos de
+contacto y pago, la activa, la más vieja. Las demás se le unen en la misma pasada, con sus
+datos. En la lista dicen «vacía también», y la pregunta dice de cuántos nombres. Así la
+limpieza se hace de una vez y no quedan nombres repetidos sueltos; solo los que tienen datos en
+más de una ficha, que van a mano.
+
 **Y la unión ahora deja constancia en `borrados`, también la de a una.** Antes la ficha
 absorbida se borraba sin constancia. Un aparato que estuvo apagado puede volver a subir lo que
 el servidor no tiene, salvo lo que figura en `borrados` (es lo que pasaba con los turnos). Si
@@ -1079,6 +1088,13 @@ Probado:
 - La misma prueba sin la constancia: el celular tampoco las devolvió. La copia local de
   Firestore le avisó el borrado antes de subir. La constancia es la segunda barrera, para un
   aparato que no tenga esa copia, como con los turnos.
+- El 20/11, con la versión que sube lo que se carga mientras la app recibe
+  (`pruebas/e2e/proveedores.cjs`): 110 fichas como las del servidor, 64 vacías repetidas (4 de
+  nombres con todas vacías) y un par con datos. La lista muestra las 64 antes del botón, un
+  toque las une, a los 12 s la pantalla confirma «Las 64 constancias ya están en el servidor»,
+  quedan 46 fichas (el único nombre repetido es el par con datos), ningún producto cambia de
+  ficha, y el aparato de Sandra, abierto todo el tiempo, baja a 46 sin nada «sin subir» ni
+  ningún rechazo. Las pruebas de la lista, rotas a propósito de 14 maneras más: las 14 en rojo.
 
 ## Que un producto no se cargue dos veces
 
@@ -3702,9 +3718,12 @@ recibe datos del servidor ahora se sube y queda en el historial. Era la causa de
 de proveedores que no llegaba, y muy probablemente de los «sin subir», de los cierres que
 aparecían abiertos y de lo borrado que volvía. Ver «Lo que pasó el 19/11».
 
-- [ ] **Repetir la limpieza de fichas de proveedor** (con el OK de Emmanuel, después de las
-      21, mirando la lista antes). Con esta versión en todos los aparatos tiene que llegar:
-      la pantalla lo confirma contra el servidor.
+- [ ] **Repetir la limpieza de fichas de proveedor** (pedida por Emmanuel el 20/11; la hace el
+      asistente después de las 21, con la versión del 20/11 publicada): Ajustes → «Unir
+      proveedores» → mirar la lista de «Fichas repetidas vacías» entera → «Unir las N fichas
+      vacías a su gemela». Tiene que terminar en verde («Las N constancias ya están en el
+      servidor»); si sale en rojo, no repetirla y mandar la foto. Los pares con datos de los dos
+      lados los une Sandra a mano desde la misma pantalla.
 - [ ] **Pedirle al soporte que mire si quedó algo sin subir de antes**: turnos que en el
       servidor figuran abiertos y en el aparato cerrados, y el número de «sin subir» de
       cada aparato después de actualizar.
@@ -3763,17 +3782,13 @@ servidor».
       lecturas diarias del plan Spark, quedarse sin lecturas puede ser lo que tira las
       escuchas (ver «Leer menos al abrir la app», más arriba).
 
-**La limpieza de fichas de proveedor repetidas (10/11) no se repite todavía.** El 13/11 había
-252 fichas con 93 nombres repetidos y ninguna constancia de proveedores en `borrados`.
-Primero:
-- que estén publicadas la escucha que vuelve y la confirmación de las constancias;
-- saber por qué no hubo constancias. Están pedidos al soporte el historial (`borro` de
-  proveedores desde el 10/11), los `rechazos` de `borrados` y las reglas de la consola.
-
-Después, con el OK de Emmanuel: Ajustes → «Unir
-proveedores» → «Fichas repetidas vacías», mirando la lista antes del botón (ver «Las fichas
-repetidas vacías, de una»). Los pares con datos de los dos lados, como HUGO-LA ENTRERRIANA,
-los une Sandra a mano desde la misma pantalla.
+**La limpieza de fichas de proveedor repetidas (10/11) se repite con la versión del 20/11**
+(ver el pendiente de arriba). El 13/11 había 252 fichas con 93 nombres repetidos y ninguna
+constancia de proveedores en `borrados`. Lo que faltaba antes de repetirla ya está: la escucha
+que vuelve y la confirmación de las constancias (13/11), y la causa de que no llegaran, lo que
+se cargaba mientras la app recibía (19/11). Desde el 20/11 entran también los nombres con todas
+sus fichas vacías (ver «Las fichas repetidas vacías, de una»). Los pares con datos de los dos
+lados, como HUGO-LA ENTRERRIANA, los une Sandra a mano desde la misma pantalla.
 
 **Lo que sigue del plan del 06/11**, en orden:
 
