@@ -95,14 +95,36 @@ export function rolesQuePuedeAsignar(perfil: Perfil | null): Rol[] {
 }
 
 /**
- * Ver y definir los sueldos acordados (19/11).
+ * Ver los sueldos acordados y ordenar los pagos (19/11): los dueños y
+ * quien esta de encargado.
  *
- * Solo el dueño, por ahora: cuanto cobra cada persona es lo mas reservado
- * que tiene la app. Si mañana la encargada paga los sueldos, se cambia
- * aca Y en la regla de `sueldos` de firestore.rules: las dos juntas.
+ * Cuanto cobra cada persona es lo mas reservado que tiene la app. Lo
+ * decidio Emmanuel el 19/11: la administracion la lleva la encargada, y
+ * para eso tiene que ver lo acordado, decir de quien es cada pago y a que
+ * mes corresponde. Va junto con la regla de `sueldos` de firestore.rules:
+ * las dos se cambian a la vez.
  */
 export function puedeVerSueldos(perfil: Perfil | null): boolean {
-  return esDueno(perfil)
+  return perfil?.rol === 'owner' || perfil?.rol === 'encargado'
+}
+
+/**
+ * Definir o cambiar lo acordado con alguien: solo un dueño.
+ *
+ * Asi nadie se cambia el propio sueldo. La regla del servidor dice lo
+ * mismo: en `sueldos` escribe solo un dueño.
+ */
+export function puedeDefinirSueldos(perfil: Perfil | null): boolean {
+  return perfil?.rol === 'owner'
+}
+
+/**
+ * Tiene «Mi sueldo»: quien trabaja en el negocio y no es dueño. Ve solo lo
+ * suyo del mes (lo acordado, lo cobrado y lo que falta). Un dueño no cobra
+ * sueldo: retira, y eso se ve en Sueldos.
+ */
+export function tieneMiSueldo(perfil: Perfil | null): boolean {
+  return perfil?.rol === 'encargado' || perfil?.rol === 'empleado'
 }
 
 /** Entra a Ajustes (respaldo, usuarios del equipo, catalogo publico). */

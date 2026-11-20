@@ -1,7 +1,16 @@
-import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore'
-import { fichaDesdeDatos, type FichaSueldo } from '../lib/sueldos'
+import {
+  collection,
+  connectFirestoreEmulator,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  setDoc,
+  type Firestore,
+} from 'firebase/firestore/lite'
+import { FORMA_DE_LA_FICHA, fichaDesdeDatos, type FichaSueldo } from '../lib/sueldos'
 import { ID_NEGOCIO } from './config'
-import { obtenerFirestore } from './firebase'
+import { obtenerAuth } from './firebase'
 
 /**
  * Los sueldos acordados, en el servidor (19/11).
@@ -9,78 +18,96 @@ import { obtenerFirestore } from './firebase'
  * Es la única colección que NO pasa por el motor de sincronización, y es
  * a propósito: el motor baja cada tabla a todos los aparatos, y cuánto
  * cobra cada persona no tiene que estar en el celular de las demás. Acá
- * no hay base local ni ganchos: la pantalla Sueldos, que ve solo el
- * dueño, lee y escribe directo contra el servidor. La cache de Firestore
- * alcanza para verla sin internet en el aparato del dueño.
+ * no hay base local ni ganchos: las pantallas Sueldos y «Mi sueldo» leen
+ * y escriben directo contra el servidor.
+ *
+ * **Y no dejan nada guardado en el aparato.** Se usa la versión liviana de
+ * Firestore (`firebase/firestore/lite`), que pide y contesta y nada más:
+ * no tiene cache ni cola. La primera versión usaba la de siempre, que
+ * guarda en el disco todo lo que lee. Mientras Sueldos la veía solo el
+ * dueño, en su aparato, daba igual. Desde que la ve también la encargada
+ * y cada persona ve lo suyo, alguna de esas pantallas se va a abrir en la
+ * compu del local, que es de todos: lo acordado no puede quedar ahí.
+ *
+ * El costo: sin conexión no se ve ni se guarda. Es el costo correcto para
+ * este dato.
  *
  * Tampoco pasa por el historial compartido, por el mismo motivo: un
  * renglón «cambió el sueldo de 900 a 1.000» lo leería todo el que ve el
  * historial. La historia queda adentro de la ficha (sus acuerdos).
  *
- * En `firestore.rules` la colección `sueldos` es solo del dueño. Mientras
- * esas reglas no estén publicadas en la consola, lo único que la protege
- * es que la app no la muestra ni la baja a nadie más.
+ * Quién puede qué lo decide la regla de `sueldos` en `firestore.rules`:
+ * leen los dueños y quien está de encargado, y cada persona su ficha;
+ * escribe solo un dueño, y con la versión del formato que corresponde.
  */
 const COLECCION = 'sueldos'
 
-/** Cuánto se espera la respuesta del servidor antes de decir «quedó en cola». */
-const ESPERA_DE_LA_SUBIDA = 8000
+/** Cuánto se espera al servidor antes de decir que no contesta. */
+const ESPERA = 12000
 
-function comoMensaje(error: unknown): string {
+let liviana: Firestore | null = null
+
+function base(): Firestore {
+  if (!liviana) {
+    // La misma app que el resto: usa la sesión que ya está abierta.
+    liviana = getFirestore(obtenerAuth().app)
+    if (import.meta.env.VITE_FIREBASE_EMULADOR) connectFirestoreEmulator(liviana, '127.0.0.1', 8080)
+  }
+  return liviana
+}
+
+/** Lo que pasó, en palabras para la pantalla. */
+export function mensajeDeSueldos(error: unknown): string {
   const codigo = (error as { code?: unknown } | null)?.code
   if (codigo === 'permission-denied') {
-    return 'El servidor no deja ver ni cambiar los sueldos con esta cuenta: es solo para el dueño.'
+    return 'El servidor no deja ver ni cambiar esto con tu cuenta. Si se acaba de publicar un cambio en los sueldos, falta pegar las reglas nuevas en la consola de Firebase: avisale a Emmanuel.'
+  }
+  if (codigo === 'sin-respuesta' || codigo === 'unavailable' || codigo === 'deadline-exceeded') {
+    return 'No hay conexión con el servidor. Lo acordado no se guarda en este aparato, así que sin conexión no se puede ver ni cambiar. Probá de nuevo en un rato.'
   }
   return error instanceof Error ? error.message : String(error)
 }
 
-/** Avisa las fichas cada vez que cambian. Devuelve cómo dejar de escuchar. */
-export function escucharFichasDeSueldo(
-  alCambiar: (fichas: FichaSueldo[], confirmadoPorElServidor: boolean) => void,
-  alFallar: (mensaje: string) => void,
-): () => void {
-  return onSnapshot(
-    collection(obtenerFirestore(), 'negocios', ID_NEGOCIO, COLECCION),
-    (instantanea) =>
-      alCambiar(
-        instantanea.docs.map((d) => fichaDesdeDatos(d.id, d.data())),
-        !instantanea.metadata.fromCache,
-      ),
-    (error) => {
-      console.warn('No se pudieron leer los sueldos:', error)
-      alFallar(comoMensaje(error))
-    },
-  )
+function conLimite<T>(pedido: Promise<T>): Promise<T> {
+  let reloj: ReturnType<typeof setTimeout> | undefined
+  const limite = new Promise<never>((_, rechazar) => {
+    reloj = setTimeout(() => rechazar(Object.assign(new Error('sin respuesta'), { code: 'sin-respuesta' })), ESPERA)
+  })
+  return Promise.race([pedido, limite]).finally(() => clearTimeout(reloj))
+}
+
+async function pedir<T>(pedido: () => Promise<T>): Promise<T> {
+  try {
+    return await conLimite(pedido())
+  } catch (error) {
+    console.warn('Sueldos: el servidor no lo aceptó o no contestó:', error)
+    throw new Error(mensajeDeSueldos(error))
+  }
+}
+
+/** Todas las fichas. Solo para quien el servidor deja: dueños y encargada. */
+export function leerFichasDeSueldo(): Promise<FichaSueldo[]> {
+  return pedir(async () => {
+    const todas = await getDocs(collection(base(), 'negocios', ID_NEGOCIO, COLECCION))
+    return todas.docs.map((d) => fichaDesdeDatos(d.id, d.data()))
+  })
+}
+
+/** La ficha de UNA persona (para «Mi sueldo», la propia). null si todavía no tiene. */
+export function leerFichaDeSueldo(id: string): Promise<FichaSueldo | null> {
+  return pedir(async () => {
+    const ficha = await getDoc(doc(base(), 'negocios', ID_NEGOCIO, COLECCION, id))
+    return ficha.exists() ? fichaDesdeDatos(ficha.id, ficha.data()) : null
+  })
 }
 
 /**
- * Guarda la ficha entera. 'guardado' es que el servidor la aceptó;
- * 'en-cola', que no contestó a tiempo (sin internet): queda en este
- * aparato y sube sola. Si el servidor la rechaza, tira; si la rechaza
- * tarde, cuando ya se dijo «en cola», avisa por `alRechazarTarde`.
+ * Guarda la ficha entera. Vuelve cuando el servidor la aceptó; si no, tira
+ * con el motivo. Va con la versión del formato, que la regla exige: es lo
+ * que impide que una versión vieja de la app pise la ficha.
  */
-export async function guardarFichaDeSueldo(
-  ficha: FichaSueldo,
-  alRechazarTarde: (mensaje: string) => void,
-): Promise<'guardado' | 'en-cola'> {
-  const referencia = doc(obtenerFirestore(), 'negocios', ID_NEGOCIO, COLECCION, ficha.id)
-  let enCola = false
-  const subida = setDoc(referencia, { ...ficha }).then(
-    () => 'guardado' as const,
-    (error: unknown) => {
-      if (enCola) {
-        alRechazarTarde(comoMensaje(error))
-        return 'en-cola' as const
-      }
-      throw new Error(comoMensaje(error))
-    },
+export function guardarFichaDeSueldo(ficha: FichaSueldo): Promise<void> {
+  return pedir(() =>
+    setDoc(doc(base(), 'negocios', ID_NEGOCIO, COLECCION, ficha.id), { ...ficha, forma: FORMA_DE_LA_FICHA }),
   )
-  let reloj: ReturnType<typeof setTimeout> | undefined
-  const espera = new Promise<'en-cola'>((resolver) => {
-    reloj = setTimeout(() => {
-      enCola = true
-      resolver('en-cola')
-    }, ESPERA_DE_LA_SUBIDA)
-  })
-  return Promise.race([subida, espera]).finally(() => clearTimeout(reloj))
 }

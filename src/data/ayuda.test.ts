@@ -15,20 +15,30 @@ describe('ayudaParaPerfil', () => {
     expect(suyas.some((e) => e.id === 'desactivar-usuario')).toBe(false)
   })
 
-  it('lo de los sueldos lo ve solo el dueño: ni la encargada ni una empleada (19/11)', () => {
-    const delDueno = TODAS.filter((e) => e.soloDueno).map((e) => e.id)
-    expect(delDueno).toContain('sueldos')
-    // El dueño, todo.
-    expect(ayudaParaPerfil(TODAS, true, [], true).some((e) => e.id === 'sueldos')).toBe(true)
-    // La encargada esta al mando, pero no es la dueña: ve todo lo demas.
+  it('sueldos: cada uno ve la ayuda de lo que puede hacer (19/11)', () => {
+    const esta = (lista: typeof AYUDA, id: string) => lista.some((e) => e.id === id)
+    // Definir o cambiar lo acordado es lo único que queda solo para el dueño.
+    expect(TODAS.filter((e) => e.soloDueno).map((e) => e.id)).toEqual(['definir-sueldo'])
+    const delDueno = ayudaParaPerfil(TODAS, true, [], true)
+    for (const id of ['sueldos', 'definir-sueldo', 'retiros-de-los-duenos', 'apodos']) expect(esta(delDueno, id)).toBe(true)
+    // La encargada ve Sueldos, los retiros y los apodos; cómo definir un sueldo, no.
     const deLaEncargada = ayudaParaPerfil(TODAS, true, [], false)
-    expect(deLaEncargada.some((e) => e.soloDueno)).toBe(false)
-    expect(deLaEncargada.length).toBe(TODAS.length - delDueno.length)
-    expect(deLaEncargada.some((e) => e.id === 'crear-usuario')).toBe(true)
-    // Una empleada, tampoco; pero si como anotar su retiro.
+    for (const id of ['sueldos', 'retiros-de-los-duenos', 'apodos', 'mi-sueldo', 'crear-usuario']) {
+      expect(esta(deLaEncargada, id)).toBe(true)
+    }
+    expect(esta(deLaEncargada, 'definir-sueldo')).toBe(false)
+    expect(deLaEncargada.length).toBe(TODAS.length - 1)
+    // Una empleada: «Mi sueldo» y cómo anotar su retiro. Nada de lo de los demás.
     const deLaEmpleada = ayudaParaPerfil(TODAS, false, ['caja'], false)
-    expect(deLaEmpleada.some((e) => e.soloDueno)).toBe(false)
-    expect(deLaEmpleada.some((e) => e.id === 'retiro-de-sueldo')).toBe(true)
+    expect(esta(deLaEmpleada, 'mi-sueldo')).toBe(true)
+    expect(esta(deLaEmpleada, 'retiro-de-sueldo')).toBe(true)
+    for (const id of ['sueldos', 'definir-sueldo', 'retiros-de-los-duenos', 'apodos']) {
+      expect(esta(deLaEmpleada, id)).toBe(false)
+    }
+    // Y se encuentra como lo van a buscar.
+    expect(buscarAyuda('cuanto me falta cobrar', deLaEmpleada).map((e) => e.id)).toContain('mi-sueldo')
+    expect(buscarAyuda('semana', deLaEmpleada).map((e) => e.id)).toContain('retiro-de-sueldo')
+    expect(buscarAyuda('retiros de los socios', deLaEncargada).map((e) => e.id)).toContain('retiros-de-los-duenos')
   })
 
   it('la planilla del proveedor la ve quien está al mando: una empleada con Proveedores, no (19/11)', () => {

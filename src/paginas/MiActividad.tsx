@@ -8,6 +8,7 @@ import { useAuditoria } from '../lib/useAuditoria'
 import { estadoPermiso, pedirPermiso, recordarUrgentes } from '../lib/recordatorios'
 import ListaHallazgos from '../componentes/ListaHallazgos'
 import { useSesion } from '../sync/useSesion'
+import { tieneMiSueldo } from '../sync/permisos'
 
 /**
  * Mi dia: lo que tengo para hacer hoy.
@@ -105,6 +106,18 @@ export default function MiActividad() {
           Ver
         </Link>
       </div>
+
+      {tieneMiSueldo(sesion.perfil) && (
+        <div className="tarjeta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <div>
+            <p className="tarjeta-titulo" style={{ margin: 0 }}>💵 Mi sueldo</p>
+            <div className="item-sub">Lo acordado, lo que llevás cobrado este mes y lo que falta.</div>
+          </div>
+          <Link className="boton-chico" to="/mi-sueldo" style={{ flex: 'none' }}>
+            Ver
+          </Link>
+        </div>
+      )}
 
       {permiso === 'default' && (
         <div className="tarjeta" style={{ marginTop: 12 }}>
