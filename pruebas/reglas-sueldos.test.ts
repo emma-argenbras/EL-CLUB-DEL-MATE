@@ -161,6 +161,18 @@ describe('sueldos: los ven los dueños y la encargada, cada uno lo suyo, y los d
     await assertSucceeds(updateDoc(doc(comoEmma(), `${NEGOCIO}/movimientos/m1`), { persona: 'uid-sandra' }))
   })
 
+  it('UN DUEÑO SIN CUENTA (para anotarle retiros) lo agrega y lo toca solo un dueño', async () => {
+    const elena = { id: 'sin-cuenta-1', email: '', nombre: 'Elena', rol: 'owner', activo: true, sinCuenta: true }
+    const ruta = `${NEGOCIO}/usuarios/sin-cuenta-1`
+    await assertFails(setDoc(doc(comoSandra(), ruta), elena))
+    await assertFails(setDoc(doc(comoGabi(), ruta), elena))
+    await assertSucceeds(setDoc(doc(comoEmma(), ruta), elena))
+    // Ya creado, la encargada no lo toca: es un dueño.
+    await assertFails(updateDoc(doc(comoSandra(), ruta), { apodos: 'Mamá' }))
+    await assertFails(updateDoc(doc(comoSandra(), ruta), { activo: false }))
+    await assertSucceeds(updateDoc(doc(comoEmma(), ruta), { apodos: 'Mamá', activo: false }))
+  })
+
   it('el apodo de alguien lo cambia quien está al mando, no la empleada', async () => {
     await assertSucceeds(updateDoc(doc(comoSandra(), `${NEGOCIO}/usuarios/uid-gabi`), { apodos: 'Gabi' }))
     await assertSucceeds(updateDoc(doc(comoEmma(), `${NEGOCIO}/usuarios/uid-emma`), { apodos: 'Emma' }))

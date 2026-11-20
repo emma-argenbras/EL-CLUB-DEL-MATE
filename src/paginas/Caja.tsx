@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { duenosParaRetiro, personasParaSueldo, type QueParece } from '../lib/sueldos'
+import { duenosParaRetiro, personasConocidas, personasParaSueldo, type QueParece } from '../lib/sueldos'
 import SugerenciaDeCarga from '../componentes/SugerenciaDeCarga'
 import { useCambiosSinGuardar, useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -1263,6 +1263,8 @@ function PanelEgresos({
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
   const personas = personasParaSueldo(usuarios ?? [])
   const duenos = duenosParaRetiro(usuarios ?? [])
+  // Para la pregunta al cargar: también los dueños sin cuenta.
+  const conocidas = personasConocidas(usuarios ?? [])
   const [persona, setPersona] = useState('')
   useSinGuardar('un egreso de caja', concepto.trim() !== '' || monto.trim() !== '')
   const paraElegir = categoria === 'SUELDOS' ? personas : categoria === 'RETIRO SOCIOS' ? duenos : []
@@ -1365,7 +1367,7 @@ function PanelEgresos({
               concepto={concepto}
               categoria={categoria}
               persona={persona || null}
-              personas={personas}
+              personas={conocidas}
               onAplicar={aplicarSugerencia}
             />
           )}
