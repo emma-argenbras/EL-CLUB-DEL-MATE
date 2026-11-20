@@ -264,9 +264,11 @@ export async function unirFichasVacias(
 
 /** La pregunta antes de unir de una: cuántas, un ejemplo, y qué pasa. */
 export function textoDeConfirmacionVacias(
-  pares: { vacia: Proveedor; gemela: { proveedor: Proveedor; productos: number; movimientos?: number } }[],
+  pares: { vacia: Proveedor; gemela: { proveedor: Proveedor; productos: number; movimientos?: number }; todasVacias?: boolean }[],
 ): string {
   const n = pares.length
+  // De los nombres que tenían todas sus fichas vacías (20/11).
+  const nombresTodasVacias = new Set(pares.filter((p) => p.todasVacias).map((p) => p.vacia.nombre.trim())).size
   // El ejemplo, de una gemela con productos: se entiende mejor.
   const ej = [...pares].sort((a, b) => b.gemela.productos - a.gemela.productos)[0]
   const deLaGemela = (g: { productos: number; movimientos?: number }) =>
@@ -283,6 +285,11 @@ export function textoDeConfirmacionVacias(
     '',
     '· Cada ficha vacía se borra, con su constancia: no vuelve aunque un aparato haya estado apagado.',
     '· Si tenía teléfono, ciudad o alias para transferir y la gemela no, pasan a la gemela.',
+    ...(nombresTodasVacias > 0
+      ? [
+          `· ${nombresTodasVacias === 1 ? 'De 1 nombre' : `De ${nombresTodasVacias} nombres`} todas las fichas estaban vacías: queda una de cada uno, la del número interno de su nombre o la más completa.`,
+        ]
+      : []),
     '· Ningún producto, compra ni pago cambia de lugar.',
     '',
     `Queda en el historial como «${MOTIVO_FICHAS_VACIAS}».`,
