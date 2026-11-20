@@ -73,6 +73,12 @@ export function obtenerFirestore(): Firestore {
 export function crearAuthSecundario(): { auth: Auth; limpiar: () => Promise<void> } {
   const appSecundaria = initializeApp(config, `alta-${Date.now()}`)
   const authSecundaria = getAuth(appSecundaria)
+  // Contra los emuladores, la secundaria también (20/11): sin esto, dar de
+  // alta a alguien en la prueba de punta a punta iba al Firebase de verdad
+  // con una clave de mentira. En el build que se publica no hace nada.
+  if (import.meta.env.VITE_FIREBASE_EMULADOR) {
+    connectAuthEmulator(authSecundaria, 'http://127.0.0.1:9099', { disableWarnings: true })
+  }
   return {
     auth: authSecundaria,
     limpiar: () => deleteApp(appSecundaria),

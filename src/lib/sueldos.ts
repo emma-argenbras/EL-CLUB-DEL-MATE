@@ -1,5 +1,6 @@
 import type { Movimiento, Rol, Usuario } from '../db/db'
 import { fechaLinda, mesLindo, normalizar, plata } from './formato'
+import { esRolDeDueno } from '../sync/permisos'
 
 /**
  * Los sueldos (19/11): cuánto se acordó con cada persona y cuánto lleva
@@ -431,7 +432,7 @@ export function resumenDeSueldos(
     const acordado = detalle ? detalle.monto : null
     const pagos = (pagosDe.get(persona.id) ?? []).sort(porFecha)
     const sinNadaQueMostrar = acordado === null && pagos.length === 0
-    if (sinNadaQueMostrar && (!persona.activo || persona.rol === 'owner')) continue
+    if (sinNadaQueMostrar && (!persona.activo || esRolDeDueno(persona.rol))) continue
     const pagado = pagos.reduce((s, m) => s + m.monto, 0)
     renglones.push({
       persona,
@@ -553,7 +554,7 @@ export function queParece(concepto: string, personas: PersonaConSueldo[]): QuePa
   const palabras = enPalabras(concepto)
   if (palabras.length === 0) return null
   const nombrada = personas.find((p) => comoFigura(p).some((n) => palabras.includes(n))) ?? null
-  if (nombrada) return { que: nombrada.rol === 'owner' ? 'retiro' : 'sueldo', persona: nombrada }
+  if (nombrada) return { que: esRolDeDueno(nombrada.rol) ? 'retiro' : 'sueldo', persona: nombrada }
   if (palabras.some((p) => PALABRAS_DE_SUELDO.includes(p))) return { que: 'sueldo', persona: null }
   if (palabras.some((p) => PALABRAS_DE_RETIRO.includes(p))) return { que: 'retiro', persona: null }
   return null
@@ -641,17 +642,21 @@ const activosPorNombre = <T extends { nombre: string; activo: boolean }>(usuario
 
 /**
  * Quiénes se pueden elegir al cargar un pago de sueldo: los activos, por
- * nombre. Un dueño sin cuenta no: no trabaja en el local, solo retira.
+ * nombre. Un dueño sin cuenta no, ni uno que solo mira (20/11): no
+ * trabajan en el local, solo retiran.
  */
-export function personasParaSueldo<T extends { nombre: string; activo: boolean; sinCuenta?: boolean }>(
+export function personasParaSueldo<T extends { nombre: string; activo: boolean; sinCuenta?: boolean; rol?: Rol }>(
   usuarios: T[],
 ): T[] {
-  return activosPorNombre(usuarios).filter((u) => !u.sinCuenta)
+  return activosPorNombre(usuarios).filter((u) => !u.sinCuenta && u.rol !== 'socio')
 }
 
-/** De quién puede ser un retiro de socios: los dueños activos, con cuenta o sin, por nombre. */
+/**
+ * De quién puede ser un retiro de socios: los dueños activos, con cuenta o
+ * sin, y también los que entran solo a mirar (20/11), por nombre.
+ */
 export function duenosParaRetiro<T extends { nombre: string; activo: boolean; rol?: Rol }>(usuarios: T[]): T[] {
-  return activosPorNombre(usuarios).filter((u) => u.rol === 'owner')
+  return activosPorNombre(usuarios).filter((u) => esRolDeDueno(u.rol))
 }
 
 /**
@@ -761,7 +766,7 @@ export function resumenDeRetiros(
   const renglones: RenglonRetiro[] = []
   for (const persona of conocidas.values()) {
     const retiros = (retirosDe.get(persona.id) ?? []).sort(porFecha)
-    if (retiros.length === 0 && !(persona.activo && persona.rol === 'owner')) continue
+    if (retiros.length === 0 && !(persona.activo && esRolDeDueno(persona.rol))) continue
     renglones.push({ persona, retirado: retiros.reduce((s, m) => s + m.monto, 0), retiros })
   }
   renglones.sort((a, b) => a.persona.nombre.localeCompare(b.persona.nombre, 'es'))

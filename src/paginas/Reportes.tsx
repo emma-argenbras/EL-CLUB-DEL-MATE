@@ -6,9 +6,14 @@ import { costoDesactualizado, desglosarGastos, resumirMes } from '../lib/calculo
 import { fechaLinda, mesActualISO, mesLindo, plata, porcentaje, numero } from '../lib/formato'
 import DesgloseGastos from '../componentes/DesgloseGastos'
 import ReporteAnual from '../componentes/ReporteAnual'
+import { soloMira } from '../sync/permisos'
+import { useSesion } from '../sync/useSesion'
 
 export default function Reportes() {
   const navegar = useNavigate()
+  // Un dueño que solo mira (20/11) ve el reporte entero, sin los atajos
+  // que llevan a corregir productos.
+  const mira = soloMira(useSesion().perfil)
   const [vista, setVista] = useState<'mes' | 'anio'>('mes')
   const [mes, setMes] = useState(mesActualISO())
   const [anio, setAnio] = useState(mesActualISO().slice(0, 4))
@@ -242,9 +247,9 @@ export default function Reportes() {
               <ul className="lista">
                 {aActualizar.lista.slice(0, 15).map(([codigo, d]) => (
                   <li
-                    className="item notificacion"
+                    className={mira ? 'item' : 'item notificacion'}
                     key={codigo}
-                    onClick={() => navegar('/productos?alertas=1')}
+                    onClick={mira ? undefined : () => navegar('/productos?alertas=1')}
                   >
                     <div style={{ minWidth: 0 }}>
                       <div className="item-titulo">{d.desc}</div>

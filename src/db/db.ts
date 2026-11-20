@@ -718,7 +718,12 @@ export interface Ajuste {
  *
  * Quien puede hacer que esta en src/sync/permisos.ts, en un solo lugar.
  */
-export type Rol = 'owner' | 'encargado' | 'empleado'
+/**
+ * 'socio' (20/11): un dueño que entra solo a mirar el Panel y los
+ * Reportes. No carga, no edita ni borra nada, y el servidor tampoco se lo
+ * deja (ver puedoCargar en firestore.rules).
+ */
+export type Rol = 'owner' | 'socio' | 'encargado' | 'empleado'
 
 /**
  * Secciones que un owner puede prender o apagar para un empleado en

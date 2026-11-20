@@ -38,6 +38,8 @@ import {
   type Respaldo,
 } from '../db/importarRespaldo'
 import { apagarModoConsulta, leerModoConsulta, prenderModoConsulta } from '../lib/modoConsulta'
+import { problemaDelAcceso, textoDeConfirmacionAcceso } from '../lib/accesoParaMirar'
+import { loQuePasaALaCuenta, pasarALaCuenta } from '../db/accesoParaMirar'
 import {
   MOTIVO_DUENO_SIN_CUENTA,
   apodosLimpios,
@@ -769,6 +771,7 @@ function TarjetaUsuarios() {
   const [sumandoDueno, setSumandoDueno] = useState(false)
   const [editando, setEditando] = useState<string | null>(null)
   const [conApodos, setConApodos] = useState<string | null>(null)
+  const [dandoAcceso, setDandoAcceso] = useState<string | null>(null)
   const [mensaje, setMensaje] = useState('')
   const sesion = useSesion()
   const usuarios = useLiveQuery(
@@ -830,7 +833,7 @@ function TarjetaUsuarios() {
                   </div>
                   {u.apodos && <div className="item-sub">En los gastos también figura como: {u.apodos}</div>}
                 </div>
-                <span className={u.rol === 'owner' ? 'chip chip-banco' : 'chip'}>
+                <span className={u.rol === 'owner' || u.rol === 'socio' ? 'chip chip-banco' : 'chip'}>
                   {ETIQUETA_ROL[u.rol]}
                   {u.sinCuenta ? ' · sin cuenta' : ''}
                 </span>
@@ -840,6 +843,15 @@ function TarjetaUsuarios() {
                     onClick={() => setEditando(editando === u.id ? null : u.id)}
                   >
                     {editando === u.id ? 'Cerrar' : 'Qué ve'}
+                  </button>
+                )}
+                {/* 20/11: un dueño sin cuenta pasa a entrar solo a mirar. Lo da un dueño. */}
+                {u.sinCuenta && u.activo !== false && esDueno(sesion.perfil) && (
+                  <button
+                    className="boton-chico"
+                    onClick={() => setDandoAcceso(dandoAcceso === u.id ? null : u.id)}
+                  >
+                    {dandoAcceso === u.id ? 'Cerrar' : 'Darle acceso para mirar'}
                   </button>
                 )}
                 {puedeTocarUsuarioConRol(sesion.perfil, u.rol) && (
@@ -858,6 +870,16 @@ function TarjetaUsuarios() {
                   </button>
                 )}
               </div>
+              {dandoAcceso === u.id && (
+                <FormularioAccesoParaMirar
+                  dueno={u}
+                  existentes={usuarios}
+                  onListo={(texto) => {
+                    setMensaje(texto)
+                    setDandoAcceso(null)
+                  }}
+                />
+              )}
               {conApodos === u.id && (
                 <EditorApodos
                   usuario={u}
@@ -915,6 +937,100 @@ function TarjetaUsuarios() {
             + Dueño que no usa la app
           </button>
         ))}
+    </div>
+  )
+}
+
+/**
+ * Darle acceso para mirar a un dueño que hoy no tiene cuenta (20/11): se
+ * escribe su mail, la app dice qué va a poder y cuántos retiros pasan a su
+ * cuenta, y recién ahí la crea. La contraseña la elige la persona con el
+ * mail que le llega: acá no se escribe ninguna.
+ */
+function FormularioAccesoParaMirar({
+  dueno,
+  existentes,
+  onListo,
+}: {
+  dueno: Usuario
+  existentes: Usuario[]
+  onListo: (texto: string) => void
+}) {
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
+  const [trabajando, setTrabajando] = useState(false)
+  useSinGuardar('el acceso para mirar', email.trim() !== '')
+
+  async function dar() {
+    const problema = problemaDelAcceso(dueno, email, existentes)
+    setError(problema ?? '')
+    if (problema) return
+    const pasa = await loQuePasaALaCuenta(dueno.id)
+    if (!confirm(textoDeConfirmacionAcceso(dueno.nombre, email, pasa))) return
+    setTrabajando(true)
+    try {
+      const { crearCuentaParaMirar, recuperarContrasena } = await import('../sync/motor')
+      let uid: string
+      try {
+        uid = await crearCuentaParaMirar(email)
+      } catch (e) {
+        setError(
+          (e as { code?: string }).code === 'auth/email-already-in-use'
+            ? 'Ese mail ya tiene una cuenta de la app. No se cambió nada: hay que mirarlo antes con Claude.'
+            : `No se pudo crear la cuenta: ${e instanceof Error ? e.message : String(e)}. No se cambió nada.`,
+        )
+        return
+      }
+      const hecho = await pasarALaCuenta(dueno.id, uid, email)
+      let salioElMail = true
+      try {
+        await recuperarContrasena(email)
+      } catch {
+        salioElMail = false
+      }
+      const pasaron =
+        hecho.retiros + hecho.deudas > 0
+          ? ` Pasaron a su cuenta ${[
+              hecho.retiros > 0 ? `${hecho.retiros} ${hecho.retiros === 1 ? 'retiro' : 'retiros'}` : '',
+              hecho.deudas > 0 ? `${hecho.deudas} ${hecho.deudas === 1 ? 'deuda' : 'deudas'}` : '',
+            ]
+              .filter(Boolean)
+              .join(' y ')}.`
+          : ''
+      onListo(
+        `${dueno.nombre} ya puede entrar a mirar con ${email.trim().toLowerCase()}.` +
+          (salioElMail
+            ? ' Le llegó un mail para elegir su contraseña (si no lo ve, que mire en correo no deseado).'
+            : ' No salió el mail para elegir la contraseña: que entre a la app, escriba su mail y toque «Olvidé mi contraseña».') +
+          pasaron,
+      )
+    } catch (e) {
+      setError(`No se pudo terminar: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta" style={{ marginTop: 10, marginBottom: 0, background: 'var(--crema)' }}>
+      {error && <div className="aviso aviso-error">{error}</div>}
+      <p className="silencio" style={{ marginTop: 0 }}>
+        Va a ver el Panel y los Reportes, sin cargar, cambiar ni borrar nada. Le llega un mail para que
+        elija su contraseña: no la escribe nadie más. Sus retiros pasan a su cuenta.
+      </p>
+      <div className="campo">
+        <label htmlFor={`acceso-${dueno.id}`}>Mail de {dueno.nombre}</label>
+        <input
+          id={`acceso-${dueno.id}`}
+          type="email"
+          autoComplete="off"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
+      <button className="boton-principal" style={{ width: '100%' }} disabled={trabajando} onClick={() => void dar()}>
+        {trabajando ? 'Creando la cuenta…' : 'Darle acceso para mirar'}
+      </button>
     </div>
   )
 }
