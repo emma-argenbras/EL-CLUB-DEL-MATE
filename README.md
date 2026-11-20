@@ -3961,21 +3961,45 @@ celular sin dejar datos. Ver "Lo que no se sube".
 > pensando en esa importación. Siguen siendo necesarios —más todavía con carga a mano,
 > ver abajo—, pero el motivo original ya no es el que figura.
 
-**Seguridad**
+**Seguridad** (actualizado el 20/11, con el proyecto en Blaze). Lo hace Emmanuel en la
+consola; son pocos pasos y no hay que pegar ninguna clave en ningún lado.
 
-- [ ] **Pasar el repositorio a privado.** Es lo único que cierra el historial de git,
-      donde siguen los costos, las ventas de ocho meses y los arqueos que estuvieron
-      versionados en `datos/` hasta el 15/10. Antes hay que mirar el plan de la cuenta:
-      con una cuenta gratuita, Pages desde un repositorio privado se apaga y el sitio
-      se cae. Está explicado en "Qué se publica y qué no".
+- [ ] **Respaldo automático diario del servidor.** Lo hace Firestore solo, sin código ni
+      credenciales. En console.cloud.google.com → Firestore → Bases de datos (con el proyecto
+      del Club elegido arriba): en la fila «(default)», columna «Copias de seguridad
+      programadas» (*Scheduled backups*) → «Editar configuración» → «Editar» → tildar
+      «Diaria» → retención 4 semanas → «Guardar». Cuesta centavos (la base pesa poco). Se
+      restaura a una base nueva del mismo proyecto, con un comando: si alguna vez hace
+      falta, se hace con Claude. Reemplaza al respaldo nocturno de la rama (`respaldo.yml`),
+      que necesitaba una cuenta de servicio.
+- [ ] **Una alerta de gasto en Blaze**, si no hay ninguna. Consola de Firebase → ⚙️
+      «Configuración del proyecto» → «Uso y facturación» → «Detalles y configuración» →
+      «Crear alerta de presupuesto» (abre Google Cloud) → «Crear presupuesto»: el proyecto
+      del Club, un monto por mes, avisos al 50, 90 y 100 % por mail → «Finalizar». Avisa, no
+      corta el gasto.
+- [ ] **Pasar el repositorio a privado.** Es lo único que cierra el historial de git, donde
+      siguen los costos, las ventas de ocho meses y los arqueos que estuvieron versionados
+      en `datos/` hasta el 15/10. El repositorio es de una cuenta personal: con la gratuita,
+      Pages desde un repositorio privado se apaga y el sitio se cae. El camino corto:
+      1. github.com/settings/billing → pasar la cuenta a **GitHub Pro** (USD 4 por mes).
+      2. El repositorio → Settings → General → abajo de todo, «Change visibility» →
+         «Make private» → confirmar.
+      3. Settings → Pages: tiene que seguir diciendo que el sitio está publicado en
+         app.elclubdelmate.com.
+
+      El sitio sigue siendo público (es la app, y los datos los protege el inicio de
+      sesión); lo que deja de verse es el código y su historial. Lo que alguien ya haya
+      copiado antes no se puede recuperar. La alternativa sin pagar es publicar en Firebase
+      Hosting (está preparado en la rama, ver «Mudar la publicación a Firebase Hosting»),
+      pero necesita una cuenta de servicio y más pasos a mano.
 - [ ] Activar la protección de rama en `main` (pull request + check `verificar`
       obligatorios).
-- [ ] **Pegar en la consola de Firebase las reglas de la rama (247 líneas).** Traen
-      `allow delete: if estoyAlMando()` en productos, sin la cual "Cambiar el código"
-      deja el código viejo archivado en vez de libre. **Recién después de que Sandra
-      actualice la app a la versión del 22/10**, que es la que anota el código viejo en
-      `borrados`: con la anterior, un dispositivo atrasado lo podría volver a subir.
-      Cuando esté el workflow de reglas, esto deja de hacerse a mano.
+- [ ] **Pegar en la consola de Firebase las reglas del repositorio**, cuando esté publicada la
+      versión del acceso para mirar (20/11): consola de Firebase → Firestore Database →
+      «Reglas» → borrar todo → pegar `firestore.rules` entero, de `main` → «Publicar». Traen
+      el rol que solo mira, el fundador sin Sebastián, los sueldos y el borrado de un
+      producto al cambiarle el código. Probadas con un día en el local de dueño, encargada y
+      empleada (ver «Dueños que entran solo a mirar»).
 
 **Hecho el 15/10** — `datos/` salió del repositorio y hay un chequeo
 (`npm run revisar-versionados`) que falla si vuelve a entrar algo privado al árbol.
