@@ -5,6 +5,7 @@ import { borrarJornada, resumenJornada } from '../db/borrarJornada'
 import { contarOperaciones } from '../db/cambioProducto'
 import { fechaLinda, hoyISO, plata } from '../lib/formato'
 import { useSesion } from '../sync/useSesion'
+import TurnosQueNoLlegaron from './TurnosQueNoLlegaron'
 
 interface Fila {
   jornada: Jornada
@@ -141,6 +142,8 @@ export default function TurnosDelDia() {
   return (
     <>
       <h2>Turnos del día</h2>
+
+      <TurnosQueNoLlegaron />
 
       <div className="tarjeta">
         <div className="campo">

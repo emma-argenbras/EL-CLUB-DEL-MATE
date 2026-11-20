@@ -1740,9 +1740,9 @@ Probado:
   - el Panel de Emmanuel muestra el aviso con el detalle;
   - en la compu de Emmanuel no aparece ningún cartel de aparato.
 
-Pendiente, con el OK de Emmanuel: ubicar los tres turnos (la PC y el celular de Gabriela) y
-subirlos desde ahí, o rearmarlos en el servidor con las ventas, los egresos y el conteo del
-historial.
+El 20/11 Emmanuel pidió completarlos: se rearman desde Turnos del día con las ventas, los
+egresos, el conteo del historial y la cadena de caja. Ver «Rearmar los turnos que no
+llegaron».
 
 ## Lo que pasó el 13/11: el aparato que dejaba de recibir
 
@@ -2911,6 +2911,50 @@ Probado:
   EQUIPAMIENTO «a Elena», la tarjeta baja de 5 a 4 cuotas, y el selector de Gastos cambia otra
   categoría. Todo queda en el historial con su motivo y el servidor no rechaza nada.
 
+## Rearmar los turnos que no llegaron (20/11)
+
+Los tres turnos de Gabriela del 03/11 y el 04/11 (ver «Lo que pasó el 07/11») nunca llegaron
+al servidor: sus ventas y sus egresos sí. Todo lo que hacía falta para completarlos ya estaba
+allá, así que se rearman desde la app, sin buscar el aparato.
+
+**De dónde sale cada dato** (`src/lib/rearmarTurnos.ts`):
+- La fecha, el horario y la hora de apertura: el renglón «creó» del historial («Turno del
+  2026-11-03 a la mañana»). Si después se corrigió el horario, vale el corregido. Si el
+  historial no lo tiene, el horario sale de la hora de las ventas, y la pantalla lo dice.
+- El conteo del cierre, billete por billete, y la hora: el historial de cuando se cerró. Si el
+  historial no lo tiene, lo que se contó al abrir el turno siguiente.
+- Con cuánto abrió: lo que contó el turno anterior al cerrar. La cadena de caja cierra (lo
+  revisó el soporte): lo que queda en el cajón es con lo que abre el que sigue. Dos turnos
+  seguidos que faltan se apoyan uno en el otro, en orden.
+- Las ventas y los egresos: tienen el id del turno y no se tocan.
+
+**Lo que no se sabe no se inventa:** el motivo de la diferencia y el primer conteo quedan
+vacíos, el turno se crea sin visto bueno (el servidor no deja crearlo con uno), y si la caja no
+dio justa espera el visto bueno del dueño como cualquier cierre. Si falta el turno anterior o
+el conteo del cierre, o ya hay otro turno con esa fecha y ese horario, ese turno dice por qué
+y no se rearma.
+
+**Se rearma con el mismo id.** Si el aparato que lo tenía aparece y lo sube, es el mismo turno
+y no queda repetido. Al tocar el botón se vuelve a mirar si llegó mientras tanto.
+
+**Dónde:** arriba de todo en Turnos del día (adonde lleva el aviso «N turnos no llegaron al
+servidor» del Panel), solo para quien está al mando. Primero la lista: de cada turno, con
+cuánto abrió y de dónde sale, cuánto contó al cerrar, cuánto tendría que haber dado, la
+diferencia y si engancha con el turno que sigue. Abajo, «Rearmar los N turnos», que pregunta
+cuántos va a crear y cuáles. Quedan en el historial con el motivo «Turno rearmado: no había
+llegado al servidor», y en la nota del turno dice de dónde salió cada número.
+
+Probado:
+- 13 pruebas de la cuenta y 3 de las escrituras, con el caso armado como el real (montos
+  inventados). Rotas a propósito de 33 maneras, las 33 en rojo (cinco necesitaron un caso
+  más: la fecha del historial distinta de la de las ventas, un turno reabierto y vuelto a
+  cerrar, un conteo raro en el historial, y uno que llega con su id pero otro horario).
+- En el navegador, contra los emuladores (`pruebas/e2e/turnos.cjs`): el Panel dice «3 turnos
+  no llegaron al servidor», Turnos del día muestra la lista, la pregunta dice «Se van a crear
+  3 turnos», el servidor los recibe con sus ids, cerrados, con la caja inicial de la cadena y
+  el conteo del historial, el historial tiene los 3 «creó» con el motivo, las ventas siguen
+  siendo las mismas, el aviso del Panel desaparece y no hay ningún rechazo.
+
 ## La compu: opción B (06/11)
 
 Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
@@ -3586,6 +3630,10 @@ sigue.
       cuotas», y en Gastos, el selector de categoría. Ver «Equipamiento y deudas en cuotas».
 - [ ] **EQUIPAMIENTO y los retiros en el resultado del mes:** mirar con el contador si entran
       como gasto o se separan (y si el equipamiento se amortiza).
+- [ ] **Rearmar los tres turnos del 03/11 y el 04/11** (lo hace el asistente, con esta versión
+      publicada): Turnos del día → mirar la lista (que cada uno diga «Engancha» y de dónde
+      sale cada número) → «Rearmar los 3 turnos». Después, el visto bueno de los que no
+      cierren justo, como cualquier cierre.
 
 **Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
 ya no choca con un precio que su celular no había recibido), los ecos de una edición se
