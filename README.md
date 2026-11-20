@@ -3970,8 +3970,8 @@ consola; son pocos pasos y no hay que pegar ninguna clave en ningún lado.
       programadas» (*Scheduled backups*) → «Editar configuración» → «Editar» → tildar
       «Diaria» → retención 4 semanas → «Guardar». Cuesta centavos (la base pesa poco). Se
       restaura a una base nueva del mismo proyecto, con un comando: si alguna vez hace
-      falta, se hace con Claude. Reemplaza al respaldo nocturno de la rama (`respaldo.yml`),
-      que necesitaba una cuenta de servicio.
+      falta, se hace con Claude. No necesita una cuenta de servicio, como el respaldo
+      nocturno desde GitHub que quedó sin activar.
 - [ ] **Una alerta de gasto en Blaze**, si no hay ninguna. Consola de Firebase → ⚙️
       «Configuración del proyecto» → «Uso y facturación» → «Detalles y configuración» →
       «Crear alerta de presupuesto» (abre Google Cloud) → «Crear presupuesto»: el proyecto
@@ -3990,8 +3990,7 @@ consola; son pocos pasos y no hay que pegar ninguna clave en ningún lado.
       El sitio sigue siendo público (es la app, y los datos los protege el inicio de
       sesión); lo que deja de verse es el código y su historial. Lo que alguien ya haya
       copiado antes no se puede recuperar. La alternativa sin pagar es publicar en Firebase
-      Hosting (está preparado en la rama, ver «Mudar la publicación a Firebase Hosting»),
-      pero necesita una cuenta de servicio y más pasos a mano.
+      Hosting, pero necesita una cuenta de servicio y más pasos a mano.
 - [ ] Activar la protección de rama en `main` (pull request + check `verificar`
       obligatorios).
 - [ ] **Pegar en la consola de Firebase las reglas del repositorio**, cuando esté publicada la
