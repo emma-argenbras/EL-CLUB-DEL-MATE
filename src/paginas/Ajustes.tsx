@@ -1023,48 +1023,6 @@ function EditorApodos({ usuario, onGuardado }: { usuario: Usuario; onGuardado: (
   )
 }
 
-/**
- * Con que otros nombres figura alguien en los conceptos de los gastos
- * (19/11): «Gabi» por Gabriela. Con eso la app reconoce de quien es un
- * sueldo o un retiro anotado a mano (ver lib/sueldos.ts).
- */
-function EditorApodos({ usuario, onGuardado }: { usuario: Usuario; onGuardado: () => void }) {
-  const [texto, setTexto] = useState(usuario.apodos ?? '')
-  const [trabajando, setTrabajando] = useState(false)
-
-  async function guardar() {
-    setTrabajando(true)
-    try {
-      await db.usuarios.update(usuario.id, { apodos: apodosLimpios(texto) })
-      onGuardado()
-    } finally {
-      setTrabajando(false)
-    }
-  }
-
-  return (
-    <div className="tarjeta" style={{ marginTop: 10, marginBottom: 0, background: 'var(--crema)' }}>
-      <div className="campo">
-        <label htmlFor={`apodos-${usuario.id}`}>¿Cómo le dicen? (separados por coma)</label>
-        <input
-          id={`apodos-${usuario.id}`}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          placeholder="Ej: Gabi, Gaby"
-          autoFocus
-        />
-        <p className="silencio" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>
-          Sirve para reconocer sus pagos: si un gasto dice «SEMANA GABI», la app sabe que es de{' '}
-          {usuario.nombre}. Lo ve todo el equipo, como el nombre.
-        </p>
-      </div>
-      <button className="boton-principal" style={{ width: '100%' }} onClick={guardar} disabled={trabajando}>
-        {trabajando ? 'Guardando…' : 'Guardar'}
-      </button>
-    </div>
-  )
-}
-
 /** Deja tocar que secciones ve un empleado que ya existe. */
 function EditorSecciones({
   usuario,
