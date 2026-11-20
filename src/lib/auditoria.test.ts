@@ -142,6 +142,27 @@ describe('auditar: caja', () => {
     expect(h?.cantidad).toBe(7)
   })
 
+  it('no reclama la caja de un feriado (20/11), y sí la del día de al lado', () => {
+    // Noviembre de 2026, mirado el martes 24: hay caja de lunes a sábado,
+    // menos el lunes 9 (visita del papa) y el lunes 23 (Soberanía Nacional).
+    const conCaja = ['02', '03', '04', '05', '06', '07', '10', '11', '12', '13', '14', '16', '17', '18', '19', '20', '21']
+    const jornadas = conCaja.map((d) => jornada({ fecha: `2026-11-${d}`, estado: 'cerrado' }))
+    const enNoviembre = (j: Jornada[]) => auditar({ ...datos({ jornadas: j }), mes: '2026-11', hoy: '2026-11-24' })
+    expect(buscar(enNoviembre(jornadas), 'caja-dias-sin-cargar')).toBeUndefined()
+    // Sin la del viernes 20 sí avisa, y solo de ese día.
+    const sinEl20 = enNoviembre(jornadas.filter((j) => j.fecha !== '2026-11-20'))
+    expect(buscar(sinEl20, 'caja-dias-sin-cargar')?.cantidad).toBe(1)
+    expect(buscar(sinEl20, 'caja-dias-sin-cargar')?.detalle).toMatch(/2026-11-20/)
+  })
+
+  it('en un mes que ya pasó no reclama días que no existen (29, 30 y 31 de febrero)', () => {
+    const febrero = ['02', '03', '04', '05', '06', '07', '09', '10', '11', '12', '13', '14', '18', '19', '20', '21', '23', '24', '25', '26', '27', '28']
+    const jornadas = febrero.map((d) => jornada({ fecha: `2026-02-${d}`, estado: 'cerrado' }))
+    // El 16 y el 17 fueron carnaval; los domingos no cuentan.
+    const h = auditar({ ...datos({ jornadas }), mes: '2026-02', hoy: '2026-03-10' })
+    expect(buscar(h, 'caja-dias-sin-cargar')).toBeUndefined()
+  })
+
   it('detecta las diferencias de caja de los cierres del mes', () => {
     const cerrada = jornada({
       id: 'jx',

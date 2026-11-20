@@ -6,6 +6,7 @@ import { resumirMes } from '../lib/calculos'
 import { fechaLinda, hoyISO, mesActualISO, mesLindo, numero, plata, porcentaje } from '../lib/formato'
 import { saldoDeCuenta } from '../lib/cajaGrande'
 import { lunesDe, resumenDeHoy, saludo, ventasDeLaSemana } from '../lib/tablero'
+import { feriadoDe } from '../lib/feriados'
 import Icono from '../componentes/Icono'
 import { puntajeSalud } from '../lib/auditoria'
 import { agruparPorPlazo, TITULO_PLAZO } from '../lib/agruparAvisos'
@@ -346,7 +347,11 @@ function SemanaYTurnos() {
       <div className="tarjeta">
         <p className="tarjeta-titulo">Turnos de hoy</p>
         {turnos.length === 0 ? (
-          <p className="vacio">Todavía no se abrió ningún turno hoy.</p>
+          <p className="vacio">
+            {feriadoDe(hoy)
+              ? `Hoy es feriado: ${feriadoDe(hoy)}. Si el local abre, el turno se carga como siempre.`
+              : 'Todavía no se abrió ningún turno hoy.'}
+          </p>
         ) : (
           turnos.map((j: Jornada) => (
             <div key={j.id} className="fila-turno">

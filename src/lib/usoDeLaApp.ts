@@ -1,4 +1,5 @@
 import { esRecargo, type Jornada, type MovimientoProveedor, type Producto, type Venta } from '../db/db'
+import { feriadoDe, seEsperaCaja } from './feriados'
 import { fechaLinda } from './formato'
 import { lunesDe, sumarDias } from './tablero'
 import { esVentaSinCodigo } from './ventaSinCodigo'
@@ -12,7 +13,8 @@ import { esVentaSinCodigo } from './ventaSinCodigo'
  * en cada aparato, sin leer nada nuevo del servidor, y contestan lo
  * mismo cada lunes:
  *
- * - si la caja se carga todos los dias que el local abre;
+ * - si la caja se carga todos los dias que el local abre (de lunes a
+ *   sabado, sin los feriados: ver feriados.ts);
  * - si las ventas se cargan en el momento o se pasan despues desde el
  *   cuaderno (el dia en que se CARGO contra el dia de la venta);
  * - si las entregas de los proveedores se cargan en la app: cuantos
@@ -34,10 +36,12 @@ export function diaDeCarga(creadoEn: number): string {
 export interface SemanaDeUso {
   lunes: string
   sabado: string
-  /** De lunes a sabado, los dias que ya pasaron (hoy cuenta). */
+  /** De lunes a sabado, los dias que ya pasaron (hoy cuenta), sin los feriados. */
   diasHabiles: number
   diasConCaja: number
   diasSinCaja: string[]
+  /** Los feriados de la semana que ya pasaron: su caja no se reclama (20/11). */
+  feriados: { fecha: string; nombre: string }[]
   /** Turnos de dias anteriores a hoy que siguen abiertos. */
   turnosSinCerrar: number
   /** Renglones de venta de esa semana (sin los recargos de tarjeta). */
@@ -74,7 +78,8 @@ export function usoPorSemana(datos: DatosDeUso, hoy: string, semanas = 6): Seman
     const enLaSemana = (fecha: string | null | undefined) => !!fecha && fecha >= lunes && fecha <= domingo
 
     const conCaja = new Set(datos.jornadas.filter((j) => enLaSemana(j.fecha)).map((j) => j.fecha))
-    const habiles = [0, 1, 2, 3, 4, 5].map((i) => sumarDias(lunes, i)).filter((d) => d <= hoy)
+    const pasados = [0, 1, 2, 3, 4, 5].map((i) => sumarDias(lunes, i)).filter((d) => d <= hoy)
+    const habiles = pasados.filter(seEsperaCaja)
     const ventas = datos.ventas.filter((v) => enLaSemana(v.fecha) && !esRecargo(v))
 
     lista.push({
@@ -83,6 +88,10 @@ export function usoPorSemana(datos: DatosDeUso, hoy: string, semanas = 6): Seman
       diasHabiles: habiles.length,
       diasConCaja: habiles.filter((d) => conCaja.has(d)).length,
       diasSinCaja: habiles.filter((d) => !conCaja.has(d)),
+      feriados: pasados.flatMap((d) => {
+        const nombre = feriadoDe(d)
+        return nombre ? [{ fecha: d, nombre }] : []
+      }),
       turnosSinCerrar: datos.jornadas.filter((j) => enLaSemana(j.fecha) && j.estado === 'abierto' && j.fecha < hoy).length,
       ventas: ventas.length,
       ventasEnElDia: ventas.filter((v) => v.creadoEn != null && diaDeCarga(v.creadoEn) === v.fecha).length,
@@ -121,7 +130,13 @@ const plural = (n: number, uno: string, muchos: string) => `${n} ${n === 1 ? uno
 
 /** Un renglon de texto por semana, para leer o para copiar. */
 export function renglonDeLaSemana(s: SemanaDeUso): string {
-  const partes = [`caja ${s.diasConCaja} de ${plural(s.diasHabiles, 'día', 'días')}`]
+  const feriados =
+    s.feriados.length === 0
+      ? ''
+      : ` (${s.feriados.length === 1 ? 'feriado' : 'feriados'}: ${s.feriados.map((f) => fechaLinda(f.fecha).slice(0, 5)).join(', ')})`
+  // El lunes de un feriado, la semana en curso todavia no tiene dias habiles.
+  const caja = s.diasHabiles === 0 ? 'caja: ningún día hábil todavía' : `caja ${s.diasConCaja} de ${plural(s.diasHabiles, 'día', 'días')}`
+  const partes = [`${caja}${feriados}`]
   if (s.turnosSinCerrar > 0) partes.push(plural(s.turnosSinCerrar, 'turno sin cerrar', 'turnos sin cerrar'))
   if (s.ventas === 0) {
     partes.push('sin ventas cargadas')

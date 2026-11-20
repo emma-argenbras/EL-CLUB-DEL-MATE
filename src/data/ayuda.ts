@@ -1038,11 +1038,20 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['sin subir', 'pendiente', 'no sincroniza', 'no llega', 'cartel', 'ver que es', 'revisar', 'no baja', '1 cosa', '3 cosas'],
   },
   {
+    id: 'feriados',
+    categoria: 'Panel y pendientes',
+    pregunta: '¿El Panel reclama la caja de un feriado?',
+    respuesta:
+      'No. Los domingos y los feriados nacionales el local no abre, así que ni el Panel ni «Cómo venimos» reclaman la caja de esos días. Un feriado, el Panel dice «Hoy es feriado».\n\nLos días no laborables con fines turísticos (los «puentes») sí se cuentan: ahí cada comercio decide si abre. Si el local no abrió, el aviso lo dice como siempre: «puede ser que el local haya estado cerrado».\n\nSi el local abre un feriado, el turno se carga como siempre y cuenta.\n\nLa lista de feriados viene en la app. Si falta uno, avisale a Emmanuel.',
+    palabrasClave: ['feriado', 'feriados', 'cerrado', 'puente', 'no laborable', 'dia sin caja', 'domingo', 'fin de semana largo'],
+    requiereSeccion: 'caja',
+  },
+  {
     id: 'como-venimos',
     categoria: 'Panel y pendientes',
     pregunta: '¿Cómo sé si el equipo está cargando en la app y no en el cuaderno o en el Excel?',
     respuesta:
-      'En Ajustes → «Cómo venimos». Muestra las últimas seis semanas, una tarjeta por semana:\n\n• Caja cargada: de lunes a sábado, cuántos días tienen al menos un turno, y cuáles no. Un feriado en el que no se abrió figura como día sin caja.\n• Turnos de días anteriores que siguen abiertos.\n• Ventas, y qué parte se cargó el mismo día. Las «después» se pasaron más tarde, casi siempre desde el cuaderno.\n• Ventas sin código.\n• Costos actualizados e ingresos de mercadería: lo que entró de los proveedores y se cargó en la app esa semana. Si llegó mercadería y los dos números están en cero, se anotó en otro lado.\n\nCada semana lleva un cartel: «BIEN», «PARA MIRAR» (más de una de cada diez ventas se cargó después) o «FALTA CARGAR» (faltó la caja de algún día o quedó un turno sin cerrar).\n\n«Copiar el resumen» deja las seis semanas en texto, para pegar en WhatsApp.\n\nLa pantalla no cambia nada y no tiene números por persona: es para ver qué parte de la app todavía cuesta más que el cuaderno, y arreglar esa parte.',
+      'En Ajustes → «Cómo venimos». Muestra las últimas seis semanas, una tarjeta por semana:\n\n• Caja cargada: de lunes a sábado, cuántos días tienen al menos un turno, y cuáles no. Los feriados nacionales no se cuentan y se nombran en la tarjeta.\n• Turnos de días anteriores que siguen abiertos.\n• Ventas, y qué parte se cargó el mismo día. Las «después» se pasaron más tarde, casi siempre desde el cuaderno.\n• Ventas sin código.\n• Costos actualizados e ingresos de mercadería: lo que entró de los proveedores y se cargó en la app esa semana. Si llegó mercadería y los dos números están en cero, se anotó en otro lado.\n\nCada semana lleva un cartel: «BIEN», «PARA MIRAR» (más de una de cada diez ventas se cargó después) o «FALTA CARGAR» (faltó la caja de algún día o quedó un turno sin cerrar).\n\n«Copiar el resumen» deja las seis semanas en texto, para pegar en WhatsApp.\n\nLa pantalla no cambia nada y no tiene números por persona: es para ver qué parte de la app todavía cuesta más que el cuaderno, y arreglar esa parte.',
     palabrasClave: [
       'uso',
       'seguimiento',
