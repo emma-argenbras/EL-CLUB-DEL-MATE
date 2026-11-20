@@ -184,8 +184,8 @@ export const AYUDA: EntradaAyuda[] = [
     categoria: 'Usuarios y roles',
     pregunta: '¿Qué puede hacer cada rol?',
     respuesta:
-      'Hay tres.\n\n**Dueño/a** ve y maneja todo, sin límites: Caja, Productos, Proveedores, Gastos, Reportes con el margen de ganancia, y Ajustes.\n\n**Encargado/a** maneja la operación completa igual que un dueño: ve las ganancias, autoriza los cierres tardíos, da el visto bueno a las diferencias de caja, edita precios, productos, proveedores y gastos, y da de alta y maneja al equipo. Hay tres cosas que no puede, y son las que pueden destruir el negocio o repartirlo: borrar todos los datos, importar un respaldo (que pisa todo, así que es lo mismo que borrar pero más despacio), y crear, editar o desactivar a un dueño. Tampoco puede ascenderse a sí mismo.\n\n**Empleado/a**, por defecto, usa Caja, Productos, Proveedores y Gastos, y mantiene los costos de compra actualizados — pero no ve el margen de ganancia (en vez de Reportes tiene "Mi día", con su propio resumen de trabajo), no puede cambiar el precio de venta de un producto, y para archivar uno tiene que pedir autorización. Un dueño o un encargado puede ajustar cuáles de esas secciones ve cada empleado en particular.\n\nCuando un encargado autoriza algo, queda registrado con su nombre **y su rol**: la constancia dice que lo miró un encargado, no que lo miró un dueño.',
-    palabrasClave: ['rol', 'permisos', 'empleada', 'gabriela', 'encargado', 'encargada', 'sandra'],
+      'Hay cuatro.\n\n**Dueño/a** ve y maneja todo, sin límites: Caja, Productos, Proveedores, Gastos, Reportes con el margen de ganancia, y Ajustes.\n\n**Dueño/a, solo mira** (20/11) ve el Panel y los Reportes y nada más: no carga, no cambia ni borra nada, y el servidor tampoco se lo deja. Es para los dueños que quieren ver cómo va el negocio sin manejarlo. Lo da un dueño desde Ajustes.\n\n**Encargado/a** maneja la operación completa igual que un dueño: ve las ganancias, autoriza los cierres tardíos, da el visto bueno a las diferencias de caja, edita precios, productos, proveedores y gastos, y da de alta y maneja al equipo. Hay tres cosas que no puede, y son las que pueden destruir el negocio o repartirlo: borrar todos los datos, importar un respaldo (que pisa todo, así que es lo mismo que borrar pero más despacio), y crear, editar o desactivar a un dueño. Tampoco puede ascenderse a sí mismo.\n\n**Empleado/a**, por defecto, usa Caja, Productos, Proveedores y Gastos, y mantiene los costos de compra actualizados — pero no ve el margen de ganancia (en vez de Reportes tiene "Mi día", con su propio resumen de trabajo), no puede cambiar el precio de venta de un producto, y para archivar uno tiene que pedir autorización. Un dueño o un encargado puede ajustar cuáles de esas secciones ve cada empleado en particular.\n\nCuando un encargado autoriza algo, queda registrado con su nombre **y su rol**: la constancia dice que lo miró un encargado, no que lo miró un dueño.',
+    palabrasClave: ['rol', 'permisos', 'empleada', 'gabriela', 'encargado', 'encargada', 'sandra', 'solo mira', 'socio'],
   },
   {
     id: 'crear-usuario',
@@ -1214,6 +1214,24 @@ export const AYUDA: EntradaAyuda[] = [
       'Agregalo sin cuenta: Ajustes → «Usuarios del equipo» → «+ Dueño que no usa la app», con su nombre. Antes de guardar pregunta.\n\nQueda sin mail ni clave, así que no puede entrar a la app: está solo para anotarle los retiros. No le crees una cuenta si no la va a usar: una cuenta de dueño que nadie usa es un acceso total de más.\n\nDesde ahí aparece en «¿De quién es el retiro?», en Caja y en Gastos, y en Gastos → «Ver sueldos» → «Retiros de los dueños». Si en los gastos figura con otro nombre, cargale los apodos.\n\nSi deja de retirar, «Desactivar» lo saca de la lista. Lo que ya retiró queda a su nombre.\n\nLo puede hacer solo un dueño.',
     palabrasClave: ['dueño', 'dueños', 'socio', 'socios', 'sin cuenta', 'no usa la app', 'retiro', 'retiros', 'agregar dueño'],
     soloDueno: true,
+  },
+  {
+    id: 'acceso-para-mirar',
+    categoria: 'Usuarios y roles',
+    pregunta: '¿Cómo le doy acceso para mirar a un dueño que no usa la app?',
+    respuesta:
+      'Ajustes → «Usuarios del equipo» → en la fila del dueño sin cuenta, «Darle acceso para mirar». Escribís su mail y, antes de crear nada, la app dice qué va a poder y cuántos retiros pasan a su cuenta.\n\nVa a ver el Panel y los Reportes, y nada más: no puede cargar, cambiar ni borrar nada. Tampoco pidiéndoselo directo al servidor: las reglas no lo dejan.\n\nLa contraseña no la escribís vos: le llega un mail para que la elija. Si no lo ve, que mire en correo no deseado, o que entre a la app, escriba su mail y toque «Olvidé mi contraseña». Nunca se pasa una contraseña por chat.\n\nSus retiros y las deudas del local con él pasan a su cuenta: no se pierde nada. Queda en el historial con su motivo.\n\nSi un día no tiene que entrar más, «Desactivar» en la misma lista le corta el acceso. Lo hace solo un dueño.',
+    palabrasClave: ['acceso', 'solo mirar', 'solo lectura', 'socio', 'dueño', 'cuenta', 'mail', 'contraseña', 'sebastián', 'elena'],
+    soloDueno: true,
+  },
+  {
+    id: 'solo-mirar',
+    categoria: 'Usuarios y roles',
+    pregunta: 'Entro solo a mirar. ¿Qué veo y qué puedo hacer?',
+    respuesta:
+      'Si sos uno de los dueños y entrás solo a mirar, ves el Panel y los Reportes: cómo viene el mes, las ventas, el margen, el resultado y los avisos de lo que hay que revisar, con el porqué de cada uno.\n\nNo podés cargar, cambiar ni borrar nada, y por eso no te aparecen los botones para resolver los avisos: eso lo hacen Emmanuel, Sandra y Gabriela. Si ves algo raro, avisale a Emmanuel.\n\nLo que ves está al día: es lo mismo que tiene el servidor.',
+    palabrasClave: ['solo mirar', 'solo lectura', 'socio', 'dueño', 'qué puedo ver', 'no puedo cargar'],
+    requiereSeccion: 'panel',
   },
   {
     id: 'apodos',

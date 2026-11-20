@@ -6,7 +6,7 @@ import {
   type SeccionId,
 } from '../db/db'
 import { nubeConfigurada } from './config'
-import { estaAlMando } from './permisos'
+import { estaAlMando, soloMira } from './permisos'
 
 /**
  * Estado reactivo de "quien esta usando la app ahora", sin depender del
@@ -90,5 +90,7 @@ export function seccionesVisibles(perfil: Perfil | null): SeccionId[] {
   if (estaAlMando(perfil)) {
     return [...SECCIONES_CONFIGURABLES]
   }
+  // Un dueño que solo mira: el Panel y los Reportes, nada más (20/11).
+  if (soloMira(perfil)) return ['panel', 'reportes']
   return perfil?.secciones ?? SECCIONES_POR_DEFECTO_EMPLEADO
 }

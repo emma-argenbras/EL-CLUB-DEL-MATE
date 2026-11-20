@@ -13,9 +13,10 @@ import { agruparPorPlazo, TITULO_PLAZO } from '../lib/agruparAvisos'
 import { reactivarPospuestos, useAuditoria } from '../lib/useAuditoria'
 import ListaHallazgos from '../componentes/ListaHallazgos'
 import RevisionCompleta from '../componentes/RevisionCompleta'
+import { SECCIONES_CONFIGURABLES } from '../db/db'
 import { seccionesVisibles } from '../sync/sesion'
 import { useSesion } from '../sync/useSesion'
-import { estaAlMando } from '../sync/permisos'
+import { soloMira, veLosNumeros } from '../sync/permisos'
 
 
 function semaforo(puntaje: number): { emoji: string; texto: string; clase: string } {
@@ -35,7 +36,11 @@ function semaforo(puntaje: number): { emoji: string; texto: string; clase: strin
  */
 export default function Panel() {
   const sesion = useSesion()
-  const esOwner = estaAlMando(sesion.perfil)
+  // Quien está al mando, y también un dueño que solo mira (20/11): ve los
+  // números y todos los avisos, sin los botones para resolverlos.
+  const esOwner = veLosNumeros(sesion.perfil)
+  const mira = soloMira(sesion.perfil)
+  const secciones = mira ? [...SECCIONES_CONFIGURABLES] : seccionesVisibles(sesion.perfil)
   const { cargando, hallazgos, pospuestos, datos: datosAuditoria } = useAuditoria()
   const mes = mesActualISO()
 
@@ -94,8 +99,9 @@ export default function Panel() {
           // Sin nube el perfil se llama «Vos»: «Buenas tardes, Vos» no va.
           nombre={sesion.perfil && sesion.perfil.nombre !== 'Vos' ? sesion.perfil.nombre : null}
           esOwner={esOwner}
+          soloMira={mira}
           paraHoy={urgentes}
-          conCaja={seccionesVisibles(sesion.perfil).includes('caja')}
+          conCaja={!mira && secciones.includes('caja')}
         />
       </div>
 
@@ -133,7 +139,7 @@ export default function Panel() {
           <RevisionCompleta
             hallazgos={hallazgos}
             esOwner={esOwner}
-            secciones={seccionesVisibles(sesion.perfil)}
+            secciones={secciones}
             datos={datosAuditoria}
           />
 
@@ -197,11 +203,14 @@ export default function Panel() {
 function Tablero({
   nombre,
   esOwner,
+  soloMira = false,
   paraHoy,
   conCaja,
 }: {
   nombre: string | null
   esOwner: boolean
+  /** Un dueño que solo mira: la caja grande se ve, pero no lleva a contarla. */
+  soloMira?: boolean
   paraHoy: number
   conCaja: boolean
 }) {
@@ -276,7 +285,20 @@ function Tablero({
             <div className="kpi-etiqueta">Van al banco</div>
           </div>
         </div>
-        {esOwner ? (
+        {esOwner && soloMira ? (
+          <div className="tarjeta kpi">
+            <span className="kpi-ficha" style={{ background: '#eef0eb', color: '#1c1917' }}>
+              <Icono nombre="gastos" tamano={22} />
+            </span>
+            <div>
+              <div className="kpi-etiqueta">Caja grande</div>
+              <div className="kpi-valor">
+                {datos ? (datos.cajaGrande === null ? 'Sin contar' : plata(datos.cajaGrande)) : '…'}
+              </div>
+              <div className="kpi-etiqueta">Según el último conteo</div>
+            </div>
+          </div>
+        ) : esOwner ? (
           <Link className="tarjeta kpi kpi-enlace" to="/caja-grande">
             <span className="kpi-ficha" style={{ background: '#eef0eb', color: '#1c1917' }}>
               <Icono nombre="gastos" tamano={22} />

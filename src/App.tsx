@@ -6,7 +6,7 @@ import { SECCIONES_CONFIGURABLES, type SeccionId } from './db/db'
 import { nubeConfigurada } from './sync/config'
 import { seccionesVisibles } from './sync/sesion'
 import { marcarArranqueDelHistorial } from './db/db'
-import { estaAlMando, puedeVerSueldos, tieneMiSueldo } from './sync/permisos'
+import { estaAlMando, puedeVerSueldos, soloMira, tieneMiSueldo } from './sync/permisos'
 import { leerModoConsulta } from './lib/modoConsulta'
 import { useSesion } from './sync/useSesion'
 import { useEstadoNube } from './sync/useEstadoNube'
@@ -143,6 +143,9 @@ export default function App() {
   }
 
   const alMando = estaAlMando(sesion.perfil)
+  // Un dueño que solo mira (20/11): Panel, Reportes y Ayuda. Ni «Mi día»
+  // ni Ajustes, y cualquier otra dirección lo devuelve al Panel.
+  const mira = soloMira(sesion.perfil)
   const visibles = seccionesVisibles(sesion.perfil)
   const puedeVer = (s: SeccionId) => visibles.includes(s)
 
@@ -150,7 +153,9 @@ export default function App() {
     ...SECCIONES_CONFIGURABLES.filter(puedeVer).map((s) => NAV_POR_SECCION[s]),
     ...(alMando
       ? [{ ruta: '/ajustes', icono: '⚙️', texto: 'Ajustes', textoLargo: 'Ajustes', dibujo: 'ajustes' as const }]
-      : [{ ruta: '/mi-actividad', icono: '⭐', texto: 'Mi día', textoLargo: 'Mi día', dibujo: 'midia' as const }]),
+      : mira
+        ? []
+        : [{ ruta: '/mi-actividad', icono: '⭐', texto: 'Mi día', textoLargo: 'Mi día', dibujo: 'midia' as const }]),
   ]
 
   return (
@@ -207,7 +212,7 @@ export default function App() {
               aparato esta configurado como el del salon, y cuando se
               esta mirando la pantalla de consulta --aunque sea de paso,
               desde "Probarlo"--. */}
-          {!modoConsulta && !enConsulta && <Notificaciones />}
+          {!modoConsulta && !enConsulta && !mira && <Notificaciones />}
         </div>
       </header>
 
@@ -281,6 +286,14 @@ export default function App() {
       {error && <div className="aviso aviso-error">No se pudo cargar el catálogo: {error}</div>}
 
       <main className={anchoCompleto ? 'contenido contenido-ancho' : 'contenido'}>
+        {mira ? (
+          <Routes>
+            <Route path="/panel" element={<Panel />} />
+            <Route path="/reportes" element={<Reportes />} />
+            <Route path="/ayuda" element={<Ayuda />} />
+            <Route path="*" element={<Navigate to="/panel" replace />} />
+          </Routes>
+        ) : (
         <Routes>
           <Route
             path="/"
@@ -383,6 +396,7 @@ export default function App() {
           <Route path="/ayuda" element={<Ayuda />} />
           <Route path="*" element={<Navigate to="/caja" replace />} />
         </Routes>
+        )}
       </main>
 
       <nav className="menu">

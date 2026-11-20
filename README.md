@@ -3080,6 +3080,70 @@ Probado:
   el conteo del historial, el historial tiene los 3 «creó» con el motivo, las ventas siguen
   siendo las mismas, el aviso del Panel desaparece y no hay ningún rechazo.
 
+## Dueños que entran solo a mirar (20/11)
+
+Sebastián y Elena van a entrar a ver el Panel y los Reportes, sin cargar, editar ni borrar
+nada, ni en la app ni pidiéndoselo al servidor. Lo pidió Emmanuel el 20/11.
+
+**Un rol nuevo, «Dueño/a, solo mira»** (`'socio'` en `Rol`, `soloMira` y `veLosNumeros` en
+`src/sync/permisos.ts`):
+- **Ve** el Panel y los Reportes, como un dueño: cómo viene el mes, el margen, el resultado y
+  todos los avisos con su «Por qué y qué hacer». El menú tiene solo Panel y Reportes (y la
+  Ayuda); cualquier otra dirección lo devuelve al Panel. No tiene «Mi día», Ajustes ni la
+  campana.
+- **No hace** nada: los avisos no tienen «Ir a resolverlo» ni «Recordar», la caja grande del
+  Panel no lleva a contarla y los Reportes no llevan a corregir productos.
+- **No sube nada.** El motor le pregunta al servidor qué rol tiene antes de la subida inicial
+  y, si solo mira, no sube ni controla lo que no subió; cualquier cambio local tampoco viaja
+  (`modoSoloMira` en `src/sync/motor.ts`).
+- **El servidor no lo deja aunque lo pida.** Las escrituras van por lista
+  (`puedoCargar()` en `firestore.rules`: dueño, encargada y empleada). Un rol que no está en
+  la lista, este o uno nuevo, no escribe nada. Lee lo mismo que cualquiera con sesión, menos
+  los sueldos acordados.
+- **Sigue siendo dueño para los retiros:** aparece en «¿De quién es el retiro?», en «Retiros
+  de los dueños» y en las deudas en cuotas; en el mes de sueldos, no. La encargada no lo
+  crea, no lo toca ni pasa a nadie a este rol (en la app y en las reglas).
+
+**Darle acceso a un dueño sin cuenta sin que pierda sus retiros:** Ajustes → «Usuarios del
+equipo» → «Darle acceso para mirar», en la fila del dueño sin cuenta. Solo un dueño.
+- Se escribe su mail; antes de crear nada dice qué va a poder y cuántos retiros y deudas pasan
+  a su cuenta.
+- La cuenta se crea con una contraseña al azar que nadie ve (`crearCuentaParaMirar`), y le
+  llega un mail para elegir la suya. **Nadie escribe ni pasa una contraseña.**
+- Una cuenta de Firebase trae su propio id, así que se crea su usuario con ese id y todo lo
+  que apuntaba al «sin cuenta» pasa al nuevo, de una y con su motivo en el historial
+  (`pasarALaCuenta` en `src/db/accesoParaMirar.ts`): los retiros (`Movimiento.persona`) y las
+  deudas del local con él (`Vencimiento.aQuien`). El «sin cuenta» se saca.
+- Si el mail ya tiene una cuenta, no toca nada y lo dice.
+
+**El fundador ahora es solo Emmanuel.** Hasta hoy, el mail de Sebastián se hacía dueño
+completo solo, en su primer login (`esFundador()` en las reglas y `EMAILS_FUNDADORES` en el
+motor). Si va a entrar solo a mirar, eso era un acceso total de más: se sacó de los dos
+lados, y una prueba controla que digan lo mismo.
+
+Probado:
+- Permisos, retiros y Ayuda: pruebas nuevas; el paso a la cuenta, con 5 pruebas de la cuenta
+  y 4 de las escrituras. Todo roto a propósito de 26 maneras, las 26 en rojo (una necesitó un
+  caso más: un mail guardado con mayúsculas).
+- Las reglas, contra el emulador (`pruebas/reglas-socio.test.ts`): lee todo lo del Panel y
+  los Reportes y no los sueldos; no escribe en ninguna colección, ni su perfil; un rol que no
+  está en la lista tampoco; la encargada no lo crea ni lo toca; el mail de Sebastián ya no se
+  hace dueño. Rotas a propósito de 11 maneras, las 11 en rojo.
+- **Un día en el local, contra las reglas nuevas** (`pruebas/reglas-dia.test.ts`), con
+  dueño, encargada y empleada: abrir la caja, vender, egreso, retiro, cambio de producto,
+  corregir y deshacer una venta, cerrar, cargar un gasto, un ingreso de mercadería, unir
+  proveedores y cambiar un código, cada paso con lo que escribe la app y su historial. Todo
+  pasa (la empleada no archiva ni borra productos, como hasta ahora). Rotas a propósito de
+  6 maneras: las 5 que cambian algo, en rojo.
+- En el navegador, contra los emuladores (`pruebas/e2e/solo-mira.cjs`): Emmanuel le da acceso
+  a Elena; la pregunta dice «2 retiros anotados y 1 deuda»; en el servidor queda su usuario
+  «solo mira», con los 2 retiros y la deuda, y el «sin cuenta» ya no está; le llega el mail
+  y elige su contraseña; entra y ve Panel y Reportes, con los números y 4 avisos sin un solo
+  botón para resolver; nueve direcciones de otras pantallas la devuelven al Panel; mientras
+  mira, el servidor no cambia en nada y no hay renglones a su nombre; pidiéndoselo directo al
+  servidor, una venta, un retiro, borrar un turno y hacerse dueña dan 403, y leer da 200. El
+  mail de Sebastián no entra ni crea cuenta. Cero rechazos.
+
 ## La compu: opción B (06/11)
 
 Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
@@ -3793,15 +3857,17 @@ encargado, los define solo un dueño, cada persona ve lo suyo en «Mi sueldo», 
 acuerda por semana (un monto fijo cada sábado, con «por mes» como opción) y los retiros de
 los dueños se llevan por persona. Ver «Los sueldos y los retiros».
 
-- [ ] **Las reglas de la consola.** No se pegan a mano (decisión del 19/11) y desde el
-      entorno de Claude no se pueden publicar. Hace falta una forma sin pasos a mano, por
-      ejemplo el workflow de reglas con una cuenta de servicio. Antes de publicarlas, probar
-      en el emulador las tareas de todos los días: el archivo trae cambios que nunca se
-      pegaron. Ver «La regla del servidor».
+- [ ] **Pegar las reglas en la consola** (desde el 20/11 las pega Emmanuel). Probadas en el
+      emulador con las tareas de todos los días de dueño, encargada y empleada (ver «Dueños
+      que entran solo a mirar»). Van **antes** de darle acceso a nadie para mirar: con las
+      reglas viejas, un rol que solo mira podría escribir pidiéndoselo al servidor, y el mail
+      de Sebastián todavía se haría dueño solo.
 - [ ] **Cargar los sueldos acordados:** los carga el asistente desde la pantalla (por semana,
       con el día desde el que rige), cuando haya reglas que los protejan.
-- [ ] **Agregar a Sebastián y a Elena como dueños sin cuenta:** Ajustes → «Usuarios del
-      equipo» → «+ Dueño que no usa la app». No se les crea una cuenta.
+- [ ] **Darles acceso para mirar a Sebastián y a Elena** (con las reglas ya pegadas):
+      Ajustes → «Usuarios del equipo» → en cada uno, «Darle acceso para mirar», con el mail que
+      pase Emmanuel. Si alguno todavía no está como dueño sin cuenta, primero «+ Dueño que no
+      usa la app». Les llega un mail para elegir la contraseña.
 - [ ] **Ordenar lo que ya estaba cargado:** en Sueldos, mes por mes, «¿Esto es un sueldo?» y
       «¿Esto es un retiro de un dueño?» muestran lo que quedó en OTROS.
 - [ ] **Las comisiones por venta:** falta que Emmanuel defina la base y el porcentaje.

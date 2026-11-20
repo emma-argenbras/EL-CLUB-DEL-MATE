@@ -915,6 +915,16 @@ describe('DUEÑOS SIN CUENTA: para anotarles los retiros, sin darles acceso (19/
   ]
   const ids = (lista: { id: string }[]) => lista.map((u) => u.id)
 
+  it('UN DUEÑO QUE SOLO MIRA (20/11) sigue siendo dueño: retira, no cobra sueldo', () => {
+    const conSocia: PersonaConSueldo[] = [...usuarios, { id: 'uid-elena', nombre: 'Elena B', activo: true, rol: 'socio', apodos: 'Ele' }]
+    expect(ids(duenosParaRetiro(conSocia))).toEqual(['sin-cuenta-1', 'uid-elena', 'emma'])
+    expect(ids(personasParaSueldo(conSocia))).toEqual(['emma', 'gabi'])
+    expect(queParece('retiro Ele', conSocia)).toEqual({ que: 'retiro', persona: conSocia[4] })
+    // En el mes de sueldos no figura; en el de retiros sí, aunque no haya retirado nada.
+    expect(resumenDeSueldos(conSocia, [], [], '2026-11').renglones.map((x) => x.persona.id)).not.toContain('uid-elena')
+    expect(resumenDeRetiros(conSocia, [], '2026-11').renglones.map((x) => x.persona.id)).toContain('uid-elena')
+  })
+
   it('se eligen para un retiro, no para un sueldo; y la pregunta al cargar los conoce', () => {
     expect(ids(duenosParaRetiro(usuarios))).toEqual(['sin-cuenta-1', 'emma'])
     expect(ids(personasParaSueldo(usuarios))).toEqual(['emma', 'gabi'])

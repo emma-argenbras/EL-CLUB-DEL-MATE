@@ -17,8 +17,8 @@ describe('ayudaParaPerfil', () => {
 
   it('sueldos: cada uno ve la ayuda de lo que puede hacer (19/11)', () => {
     const esta = (lista: typeof AYUDA, id: string) => lista.some((e) => e.id === id)
-    // Definir o cambiar lo acordado y agregar un dueño sin cuenta es lo único que queda solo para el dueño.
-    expect(TODAS.filter((e) => e.soloDueno).map((e) => e.id)).toEqual(['definir-sueldo', 'dueno-sin-cuenta'])
+    // Definir o cambiar lo acordado, agregar un dueño sin cuenta y darle acceso para mirar (20/11) es lo único que queda solo para el dueño.
+    expect(TODAS.filter((e) => e.soloDueno).map((e) => e.id)).toEqual(['definir-sueldo', 'dueno-sin-cuenta', 'acceso-para-mirar'])
     const delDueno = ayudaParaPerfil(TODAS, true, [], true)
     for (const id of ['sueldos', 'definir-sueldo', 'retiros-de-los-duenos', 'apodos', 'dueno-sin-cuenta']) {
       expect(esta(delDueno, id)).toBe(true)
@@ -31,7 +31,8 @@ describe('ayudaParaPerfil', () => {
     }
     expect(esta(deLaEncargada, 'definir-sueldo')).toBe(false)
     expect(esta(deLaEncargada, 'dueno-sin-cuenta')).toBe(false)
-    expect(deLaEncargada.length).toBe(TODAS.length - 2)
+    expect(esta(deLaEncargada, 'acceso-para-mirar')).toBe(false)
+    expect(deLaEncargada.length).toBe(TODAS.length - 3)
     // Una empleada: «Mi sueldo» y cómo anotar su retiro. Nada de lo de los demás.
     const deLaEmpleada = ayudaParaPerfil(TODAS, false, ['caja'], false)
     expect(esta(deLaEmpleada, 'mi-sueldo')).toBe(true)
@@ -119,5 +120,17 @@ describe('buscarAyuda', () => {
   it('encuentra por palabra clave, no solo por la pregunta', () => {
     const resultados = buscarAyuda('backup')
     expect(resultados.length).toBeGreaterThan(0)
+  })
+
+  it('un dueño que solo mira (20/11) ve lo suyo: el Panel, los Reportes y qué puede hacer', () => {
+    const esta = (lista: typeof AYUDA, id: string) => lista.some((e) => e.id === id)
+    const deQuienMira = ayudaParaPerfil(TODAS, false, ['panel', 'reportes'], false)
+    expect(esta(deQuienMira, 'solo-mirar')).toBe(true)
+    expect(esta(deQuienMira, 'acceso-para-mirar')).toBe(false)
+    expect(deQuienMira.some((e) => e.soloOwner || e.soloDueno)).toBe(false)
+    expect(deQuienMira.some((e) => e.requiereSeccion && !['panel', 'reportes'].includes(e.requiereSeccion))).toBe(false)
+    expect(buscarAyuda('solo mirar', deQuienMira).map((e) => e.id)).toContain('solo-mirar')
+    // Y el dueño encuentra cómo darle el acceso.
+    expect(buscarAyuda('acceso para mirar', ayudaParaPerfil(TODAS, true, [], true)).map((e) => e.id)).toContain('acceso-para-mirar')
   })
 })

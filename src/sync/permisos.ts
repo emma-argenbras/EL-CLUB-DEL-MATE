@@ -20,6 +20,7 @@ import type { Perfil } from './sesion'
 /** El rol tal como se lee en pantalla. */
 export const ETIQUETA_ROL: Record<Rol, string> = {
   owner: 'Dueño/a',
+  socio: 'Dueño/a, solo mira',
   encargado: 'Encargado/a',
   empleado: 'Empleado/a',
 }
@@ -34,6 +35,33 @@ export const QUE_HACE_CADA_ROL: Record<Rol, string> = {
   empleado: 'Empleado/a — opera la caja, no ve ganancias',
   encargado: 'Encargado/a — maneja todo, sin borrar datos ni tocar dueños',
   owner: 'Dueño/a — maneja todo, sin límites',
+  socio: 'Dueño/a, solo mira — ve el Panel y los Reportes, no carga ni cambia nada',
+}
+
+/**
+ * Entra solo a mirar (20/11): un dueño que ve el Panel y los Reportes y
+ * nada más. No carga, no edita ni borra, ni en la app ni pidiéndoselo al
+ * servidor (las reglas lo frenan aunque la app tuviera un error).
+ */
+export function soloMira(perfil: Perfil | null): boolean {
+  return perfil?.rol === 'socio'
+}
+
+/**
+ * Ve los números del negocio y todos los avisos del Panel: quien está al
+ * mando y un dueño que solo mira. Ver no es poder hacer: los botones que
+ * llevan a resolver algo se esconden para quien solo mira.
+ */
+export function veLosNumeros(perfil: Perfil | null): boolean {
+  return estaAlMando(perfil) || soloMira(perfil)
+}
+
+/**
+ * Es uno de los dueños del negocio, mire o maneje: para los retiros, las
+ * deudas del local con un dueño y los límites de la encargada.
+ */
+export function esRolDeDueno(rol: Rol | null | undefined): boolean {
+  return rol === 'owner' || rol === 'socio'
 }
 
 /**
@@ -84,12 +112,12 @@ export function puedeImportarRespaldo(perfil: Perfil | null): boolean {
 export function puedeTocarUsuarioConRol(perfil: Perfil | null, rolObjetivo: Rol): boolean {
   if (esDueno(perfil)) return true
   if (perfil?.rol !== 'encargado') return false
-  return rolObjetivo !== 'owner'
+  return !esRolDeDueno(rolObjetivo)
 }
 
 /** Los roles que esta persona puede elegir al dar de alta a alguien. */
 export function rolesQuePuedeAsignar(perfil: Perfil | null): Rol[] {
-  if (esDueno(perfil)) return ['owner', 'encargado', 'empleado']
+  if (esDueno(perfil)) return ['owner', 'socio', 'encargado', 'empleado']
   if (perfil?.rol === 'encargado') return ['encargado', 'empleado']
   return []
 }

@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { posponerHallazgo } from '../lib/useAuditoria'
+import { soloMira } from '../sync/permisos'
+import { useSesion } from '../sync/useSesion'
 import { ETIQUETA_MODULO, type Hallazgo, type NivelHallazgo } from '../lib/auditoria'
 import { avanceDe } from '../lib/agruparAvisos'
 
@@ -43,6 +45,9 @@ export default function ListaHallazgos({
   onIr?: () => void
   conPosponer?: boolean
 }) {
+  // Un dueño que solo mira (20/11) lee qué pasa y qué hay que hacer, pero
+  // no tiene adónde ir a resolverlo: no le aparecen los botones.
+  const mira = soloMira(useSesion().perfil)
   // El detalle y el «que hacer» van plegados: la lista se lee de un
   // vistazo, y el que quiere saber mas lo abre (06/11).
   const navegar = useNavigate()
@@ -73,6 +78,7 @@ export default function ListaHallazgos({
               <strong>Qué hacer:</strong> {h.comoSeResuelve}
             </p>
           </details>
+          {!mira && (
           <div className="botonera" style={{ marginTop: 10 }}>
             <button
               className="boton-chico"
@@ -93,6 +99,7 @@ export default function ListaHallazgos({
               </button>
             )}
           </div>
+          )}
         </div>
       ))}
       {hallazgos.length === 0 && (
