@@ -459,9 +459,31 @@ export interface Vencimiento {
   desde: string
   activo: boolean
   notas: string | null
+  /**
+   * Si es una deuda en cuotas (20/11): cuántas son y desde cuál paga el
+   * local. Antes de la primera no se reclama nada y después de la última
+   * queda terminada. null: se repite todos los meses, sin fin.
+   */
+  cuotas?: CuotasVencimiento | null
+  /**
+   * A quién se le debe, si es alguien de la lista (20/11): por ejemplo, un
+   * dueño que pagó algo del local con su tarjeta y se le devuelve en
+   * cuotas. El gasto de cada pago lleva esa persona (`Movimiento.persona`).
+   */
+  aQuien?: string | null
   creadoEn?: number
   creadoPor?: string | null
   actualizadoEn?: number
+}
+
+/** Una deuda en cuotas (ver Vencimiento.cuotas). */
+export interface CuotasVencimiento {
+  /** Cuántas cuotas tiene la deuda en total. */
+  total: number
+  /** La primera que paga el local: 2 si la primera la pagó otro. */
+  primera: number
+  /** El mes (yyyy-mm) en que vence esa primera cuota. */
+  periodo: string
 }
 
 /**
@@ -585,6 +607,10 @@ export const CATEGORIAS_GASTO = [
   'IMPUESTOS',
   'CONTADOR',
   'MANTENIMIENTO',
+  // Compras de equipamiento o inversión (20/11): la compu del local, una
+  // heladera. Algo que queda, no algo que se consume. Hasta el 20/11 se
+  // cargaba como OTROS.
+  'EQUIPAMIENTO',
   'RETIRO SOCIOS',
   'OTROS',
 ] as const
@@ -1209,6 +1235,8 @@ class BaseECDM extends Dexie {
         'avisarDiasAntes',
         'activo',
         'notas',
+        'cuotas',
+        'aQuien',
       ],
       // El alta queda como 'creo'; lo que importa despues es quien lo paso
       // de estado.

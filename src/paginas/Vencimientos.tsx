@@ -6,6 +6,7 @@ import {
   ETIQUETA_CUENTA,
   type CategoriaGasto,
   type CuentaDePago,
+  type Usuario,
   type Vencimiento,
 } from '../db/db'
 import {
@@ -21,12 +22,15 @@ import {
   AVISAR_DIAS_ANTES,
   CATEGORIAS_FIJAS,
   cuandoVence,
+  cuotaDelPeriodo,
+  estadoDeLaDeuda,
   gastosParaEnganchar,
   nombreDelMes,
   periodoDe,
   SUGERIDOS,
   type Situacion,
 } from '../lib/vencimientos'
+import { duenosParaRetiro } from '../lib/sueldos'
 import { fechaLinda, hoyISO, leerNumero, plata } from '../lib/formato'
 import { useCambiosSinGuardar } from '../lib/sinGuardar'
 
@@ -37,13 +41,16 @@ import { useCambiosSinGuardar } from '../lib/sinGuardar'
 export default function Vencimientos() {
   const hoy = hoyISO()
   const datos = useLiveQuery(async () => {
-    const [vencimientos, movimientos, turnoAbierto] = await Promise.all([
+    const [vencimientos, turnoAbierto, usuarios] = await Promise.all([
       db.vencimientos.toArray(),
-      // Alcanza con los ultimos meses: la agenda mira el mes pasado y este.
-      db.movimientos.where('fecha').aboveOrEqual(`${periodoDe(hoy).slice(0, 4)}-01-00`).toArray(),
       db.jornadas.where('estado').equals('abierto').first(),
+      db.usuarios.toArray(),
     ])
-    return { vencimientos, movimientos, turnoAbierto: turnoAbierto ?? null }
+    // Alcanza con los ultimos meses: la agenda mira el mes pasado y este.
+    // Una deuda en cuotas, desde su primera cuota: para contar las pagadas.
+    const desde = [`${periodoDe(hoy).slice(0, 4)}-01`, ...vencimientos.flatMap((v) => (v.cuotas ? [v.cuotas.periodo] : []))].sort()[0]
+    const movimientos = await db.movimientos.where('fecha').aboveOrEqual(`${desde}-00`).toArray()
+    return { vencimientos, movimientos, turnoAbierto: turnoAbierto ?? null, usuarios }
   }, [hoy])
   const [editando, setEditando] = useState<Vencimiento | 'nuevo' | null>(null)
   const [pagando, setPagando] = useState<string | null>(null)
@@ -54,6 +61,11 @@ export default function Vencimientos() {
 
   const lista = agenda(datos.vencimientos, hoy, datos.movimientos)
   const archivados = datos.vencimientos.filter((v) => v.activo === false)
+  const nombres = new Map(datos.usuarios.map((u) => [u.id, u.nombre]))
+  const nombreDe = (id: string | null | undefined) => (id ? (nombres.get(id) ?? null) : null)
+  const deudas = datos.vencimientos
+    .filter((v) => v.activo !== false && v.cuotas)
+    .map((v) => ({ v, e: estadoDeLaDeuda(v, datos.movimientos)! }))
   const delMes = lista.filter((s) => s.periodo === periodoDe(hoy))
   const pagadoMes = delMes.reduce((t, s) => t + (s.pago?.monto ?? 0), 0)
   const faltaMes = delMes
@@ -83,6 +95,35 @@ export default function Vencimientos() {
         </div>
       )}
 
+      {deudas.length > 0 && (
+        <section className="tarjeta" aria-label="Deudas en cuotas">
+          <p className="tarjeta-titulo">Deudas en cuotas</p>
+          <ul className="lista">
+            {deudas.map(({ v, e }) => (
+              <li className="item" key={v.id}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="item-titulo">
+                    {v.concepto}
+                    {nombreDe(v.aQuien) ? ` · a ${nombreDe(v.aQuien)}` : ''}
+                  </div>
+                  <div className="item-sub">
+                    {e.quedan === 0
+                      ? `Cuotas ${v.cuotas!.primera} a ${v.cuotas!.total}: pagadas todas.`
+                      : `Cuotas ${v.cuotas!.primera} a ${v.cuotas!.total}: ${e.pagadas} ${e.pagadas === 1 ? 'pagada' : 'pagadas'}, ${e.quedan === 1 ? 'queda 1' : `quedan ${e.quedan}`}. Sigue la ${e.siguiente}; la última vence en ${nombreDelMes(e.ultimoPeriodo, hoy)}.`}
+                  </div>
+                </div>
+                <div className="item-monto">
+                  {e.quedan === 0 ? '—' : e.montoQueda === null ? `${e.quedan} ${e.quedan === 1 ? 'cuota' : 'cuotas'}` : plata(e.montoQueda)}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="silencio" style={{ marginBottom: 0 }}>
+            Lo que queda es aproximado: las cuotas que faltan por el monto de la agenda.
+          </p>
+        </section>
+      )}
+
       <div className="tarjeta">
         {lista.length === 0 ? (
           <p className="vacio">
@@ -99,6 +140,7 @@ export default function Vencimientos() {
                 abierto={pagando === s.vencimiento.id}
                 onPagar={() => setPagando(pagando === s.vencimiento.id ? null : s.vencimiento.id)}
                 onEditar={() => setEditando(s.vencimiento)}
+                nombreDe={nombreDe}
                 movimientos={datos.movimientos}
                 turnoAbierto={datos.turnoAbierto}
                 onListo={(texto) => {
@@ -123,6 +165,7 @@ export default function Vencimientos() {
         <FormularioVencimiento
           vencimiento={editando === 'nuevo' ? null : editando}
           existentes={datos.vencimientos}
+          duenos={duenosParaRetiro(datos.usuarios)}
           hoy={hoy}
           onSalir={(texto) => {
             setEditando(null)
@@ -163,6 +206,7 @@ function RenglonVencimiento({
   abierto,
   onPagar,
   onEditar,
+  nombreDe,
   movimientos,
   turnoAbierto,
   onListo,
@@ -172,13 +216,15 @@ function RenglonVencimiento({
   abierto: boolean
   onPagar: () => void
   onEditar: () => void
+  nombreDe: (id: string | null | undefined) => string | null
   movimientos: import('../db/db').Movimiento[]
   turnoAbierto: import('../db/db').Jornada | null
   onListo: (texto: string) => void
 }) {
   const v = s.vencimiento
+  const cuota = cuotaDelPeriodo(v, s.periodo)
   const chip =
-    s.estado === 'pagado'
+    s.estado === 'pagado' || s.estado === 'terminado'
       ? 'chip'
       : s.estado === 'vencido' || s.dias <= 0
         ? 'chip chip-peligro'
@@ -196,17 +242,21 @@ function RenglonVencimiento({
             </span>
           </div>
           <div className="item-sub">
-            {s.estado === 'pagado' && s.pago
-              ? `Pagado el ${fechaLinda(s.pago.fecha)}: ${plata(s.pago.monto)} · el próximo vence el ${fechaLinda(s.proximo!)}`
-              : `${s.periodo !== periodoDe(hoy) ? `El de ${nombreDelMes(s.periodo, hoy)}: ` : ''}vence el ${fechaLinda(s.fecha)}${v.montoAproximado ? ` · aprox. ${plata(v.montoAproximado)}` : ''}`}
+            {s.estado === 'terminado'
+              ? 'Ya pasó la última cuota.'
+              : s.estado === 'pagado' && s.pago
+                ? `Pagado el ${fechaLinda(s.pago.fecha)}: ${plata(s.pago.monto)} · ${s.proximo ? `el próximo vence el ${fechaLinda(s.proximo)}` : 'era la última cuota'}`
+                : `${s.periodo !== periodoDe(hoy) ? `El de ${nombreDelMes(s.periodo, hoy)}: ` : ''}vence el ${fechaLinda(s.fecha)}${v.montoAproximado ? ` · aprox. ${plata(v.montoAproximado)}` : ''}`}
           </div>
           <div className="item-sub">
+            {cuota !== null && v.cuotas && s.estado !== 'terminado' ? `Cuota ${cuota} de ${v.cuotas.total} · ` : ''}
+            {nombreDe(v.aQuien) ? `A ${nombreDe(v.aQuien)} · ` : ''}
             {v.categoria} · {ETIQUETA_CUENTA[v.cuenta]}
             {v.notas ? ` · ${v.notas}` : ''}
           </div>
         </div>
         <div className="botonera" style={{ marginTop: 0, flexDirection: 'column', flex: 'none' }}>
-          {s.estado !== 'pagado' && (
+          {s.estado !== 'pagado' && s.estado !== 'terminado' && (
             <button className="boton-chico" onClick={onPagar}>
               {abierto ? 'Cerrar' : 'Marcar pagado'}
             </button>
@@ -244,6 +294,8 @@ function PagarVencimiento({
   const [guardando, setGuardando] = useState(false)
   const yaCargados = gastosParaEnganchar(v, [s.periodo, periodoDe(hoy)], movimientos)
   const mes = nombreDelMes(s.periodo, hoy)
+  const cuota = cuotaDelPeriodo(v, s.periodo)
+  const queSePaga = cuota !== null && v.cuotas ? `cuota ${cuota} de ${v.cuotas.total}, ${mes}` : mes
 
   async function pagar() {
     setGuardando(true)
@@ -278,7 +330,8 @@ function PagarVencimiento({
       {error && <div className="aviso aviso-error">{error}</div>}
       {yaCargados.length > 0 && (
         <div className="aviso aviso-ojo">
-          ¿Ya lo cargaste en Gastos? Elegilo y no se carga dos veces:
+          ¿Ya lo cargaste en Gastos? Elegilo y no se carga dos veces
+          {v.cuotas ? ` (si está como OTROS, pasa a ${v.categoria})` : ''}:
           <ul className="lista" style={{ marginTop: 6 }}>
             {yaCargados.slice(0, 4).map((m) => (
               <li className="item" key={m.id}>
@@ -298,7 +351,7 @@ function PagarVencimiento({
       )}
       <div className="grilla grilla-2">
         <div className="campo">
-          <label htmlFor={`pv-monto-${v.id}`}>Cuánto se pagó ({mes})</label>
+          <label htmlFor={`pv-monto-${v.id}`}>Cuánto se pagó ({queSePaga})</label>
           <input id={`pv-monto-${v.id}`} inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} />
         </div>
         <div className="campo">
@@ -327,11 +380,14 @@ function PagarVencimiento({
 function FormularioVencimiento({
   vencimiento,
   existentes,
+  duenos,
   hoy,
   onSalir,
 }: {
   vencimiento: Vencimiento | null
   existentes: Vencimiento[]
+  /** A quién puede deberle el local: los dueños, con cuenta o sin. */
+  duenos: Usuario[]
   hoy: string
   onSalir: (texto?: string) => void
 }) {
@@ -343,8 +399,14 @@ function FormularioVencimiento({
   const [esVariable, setEsVariable] = useState(vencimiento?.esVariable ?? false)
   const [avisar, setAvisar] = useState(String(vencimiento?.avisarDiasAntes ?? AVISAR_DIAS_ANTES))
   const [notas, setNotas] = useState(vencimiento?.notas ?? '')
+  // Una deuda en cuotas (20/11): cuántas, desde cuál paga el local y a quién.
+  const [enCuotas, setEnCuotas] = useState(!!vencimiento?.cuotas)
+  const [total, setTotal] = useState(vencimiento?.cuotas ? String(vencimiento.cuotas.total) : '')
+  const [primera, setPrimera] = useState(vencimiento?.cuotas ? String(vencimiento.cuotas.primera) : '1')
+  const [periodoCuota, setPeriodoCuota] = useState(vencimiento?.cuotas?.periodo ?? periodoDe(hoy))
+  const [aQuien, setAQuien] = useState(vencimiento?.aQuien ?? '')
   const [error, setError] = useState('')
-  useCambiosSinGuardar('el vencimiento', [concepto, dia, monto, categoria, cuenta, esVariable, avisar, notas])
+  useCambiosSinGuardar('el vencimiento', [concepto, dia, monto, categoria, cuenta, esVariable, avisar, notas, enCuotas, total, primera, periodoCuota, aQuien])
 
   const datos: DatosVencimiento = {
     concepto,
@@ -355,6 +417,8 @@ function FormularioVencimiento({
     esVariable,
     avisarDiasAntes: Number(avisar),
     notas,
+    cuotas: enCuotas ? { total: Number(total), primera: Number(primera), periodo: periodoCuota } : null,
+    aQuien: aQuien || null,
   }
   const problema = problemaDelVencimiento(datos)
   const yaEstan = new Set(existentes.map((v) => v.concepto.toLowerCase()))
@@ -364,6 +428,13 @@ function FormularioVencimiento({
     setCategoria(sg.categoria)
     setDia(String(sg.dia))
     setEsVariable(!CATEGORIAS_FIJAS.includes(sg.categoria))
+  }
+
+  /** Una compra del local en cuotas que se le devuelve a un dueño. */
+  function deudaEnCuotas() {
+    setEnCuotas(true)
+    setCategoria('EQUIPAMIENTO')
+    setEsVariable(false)
   }
 
   async function guardar() {
@@ -397,6 +468,9 @@ function FormularioVencimiento({
               {sg.concepto}
             </button>
           ))}
+          <button className="boton-chico" style={{ flex: 'none' }} onClick={deudaEnCuotas}>
+            Una deuda en cuotas
+          </button>
         </div>
       )}
       <div className="campo">
@@ -409,7 +483,7 @@ function FormularioVencimiento({
           <input id="v-dia" type="number" min={1} max={31} inputMode="numeric" value={dia} onChange={(e) => setDia(e.target.value)} />
         </div>
         <div className="campo">
-          <label htmlFor="v-monto">Monto aproximado</label>
+          <label htmlFor="v-monto">{enCuotas ? 'Monto de cada cuota (aprox.)' : 'Monto aproximado'}</label>
           <input id="v-monto" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="Opcional" />
         </div>
       </div>
@@ -456,6 +530,46 @@ function FormularioVencimiento({
           </select>
         </div>
       </div>
+      <label className="campo" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input type="checkbox" checked={enCuotas} onChange={(e) => setEnCuotas(e.target.checked)} style={{ width: 'auto' }} />
+        Es una deuda en cuotas
+      </label>
+      {enCuotas && (
+        <div className="tarjeta" style={{ background: 'var(--crema)', marginBottom: 10 }}>
+          <div className="grilla grilla-2">
+            <div className="campo">
+              <label htmlFor="v-cuotas">Cuotas en total</label>
+              <input id="v-cuotas" type="number" min={1} max={120} inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="Ej: 6" />
+            </div>
+            <div className="campo">
+              <label htmlFor="v-primera">La primera que paga el local</label>
+              <input id="v-primera" type="number" min={1} inputMode="numeric" value={primera} onChange={(e) => setPrimera(e.target.value)} />
+            </div>
+          </div>
+          <div className="grilla grilla-2">
+            <div className="campo">
+              <label htmlFor="v-periodo-cuota">Mes en que vence esa cuota</label>
+              <input id="v-periodo-cuota" type="month" value={periodoCuota} onChange={(e) => setPeriodoCuota(e.target.value)} />
+            </div>
+            <div className="campo">
+              <label htmlFor="v-a-quien">¿A quién se le debe?</label>
+              <select id="v-a-quien" value={aQuien} onChange={(e) => setAQuien(e.target.value)}>
+                <option value="">A nadie de la lista</option>
+                {duenos.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="silencio" style={{ margin: 0, fontSize: '0.8rem' }}>
+            Por ejemplo, algo del local que un dueño pagó con su tarjeta: si la primera cuota la pagó él
+            y el local le devuelve de la 2 a la 6, poné 6 en total y 2 la primera. Antes de esa cuota no
+            se reclama nada, y después de la última la deuda queda terminada.
+          </p>
+        </div>
+      )}
       <div className="campo">
         <label htmlFor="v-notas">Notas</label>
         <input id="v-notas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="N° de cliente, a quién se transfiere…" />

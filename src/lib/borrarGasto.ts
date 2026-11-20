@@ -15,6 +15,8 @@ export const FIJOS_POR_DEFECTO: CategoriaGasto[] = [
   'CONTADOR',
   'IMPUESTOS',
   'MANTENIMIENTO',
+  // Lo que se compra para el local no depende de cuánto se vende (20/11).
+  'EQUIPAMIENTO',
 ]
 
 /**

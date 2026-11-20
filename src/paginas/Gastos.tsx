@@ -16,6 +16,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CATEGORIAS_GASTO,
   ETIQUETA_CUENTA,
+  conMotivo,
   db,
   nuevoId,
   tipoSegunCuenta,
@@ -193,10 +194,10 @@ export default function Gastos() {
                   <div className="item-titulo">{m.concepto}</div>
                   <div className="item-sub">
                     {fechaLinda(m.fecha)} · {m.categoria ?? 'OTROS'}
-                    {(m.categoria === 'SUELDOS' || m.categoria === 'RETIRO SOCIOS') &&
-                    m.persona &&
-                    nombreDe.has(m.persona)
-                      ? ` de ${nombreDe.get(m.persona)}`
+                    {m.persona && nombreDe.has(m.persona)
+                      ? // Un sueldo o un retiro es «de» alguien; otro pago con
+                        // persona (una cuota que se le devuelve a un dueño) es «a» alguien.
+                        `${m.categoria === 'SUELDOS' || m.categoria === 'RETIRO SOCIOS' ? ' de ' : ' a '}${nombreDe.get(m.persona)}`
                       : ''}{' '}
                     <span className={m.esVariable ? 'chip' : 'chip chip-banco'}>
                       {m.esVariable ? 'VARIABLE' : 'FIJO'}
@@ -224,6 +225,29 @@ export default function Gastos() {
                         </option>
                       ))}
                     </select>
+                    {/* La categoría también se corrige desde acá (20/11): la
+                        compu del local se venía cargando como OTROS. Toma el
+                        fijo o variable de la categoría nueva, y queda en el
+                        historial. Solo quien está al mando. */}
+                    {alMando && (
+                      <select
+                        aria-label={`Categoría de ${m.concepto}`}
+                        value={m.categoria ?? 'OTROS'}
+                        onChange={(e) => {
+                          const nueva = e.target.value as CategoriaGasto
+                          void conMotivo('Categoría corregida desde Gastos', () =>
+                            db.movimientos.update(m.id, { categoria: nueva, esVariable: esVariablePorDefecto(nueva) }),
+                          )
+                        }}
+                        style={{ padding: '2px 6px', fontSize: '0.78rem', width: 'auto', marginLeft: 6 }}
+                      >
+                        {CATEGORIAS_GASTO.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
