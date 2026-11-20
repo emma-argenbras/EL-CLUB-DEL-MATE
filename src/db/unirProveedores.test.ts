@@ -259,7 +259,7 @@ describe('unirFichasVacias (las repetidas de la importación)', () => {
 
   it('borra las vacías y deja todo lo demás donde estaba', async () => {
     await sembrar()
-    const r = await unirFichasVacias(pares, 'emmanuelclubdelmate@gmail.com')
+    const r = await unirFichasVacias(pares, 'dueno@prueba.test')
     expect(r).toEqual({ unidas: 2, idsUnidas: ['hugo-copia', 'ana-copia'], salteadas: [] })
     expect((await db.proveedores.toArray()).map((p) => p.id).sort()).toEqual(['ana', 'hugo'])
     expect(await db.productos.get('A')).toMatchObject({ proveedorId: 'hugo' })
@@ -279,7 +279,7 @@ describe('unirFichasVacias (las repetidas de la importación)', () => {
 
   it('deja la constancia de cada una y el motivo en el historial', async () => {
     await sembrar()
-    await unirFichasVacias(pares, 'emmanuelclubdelmate@gmail.com')
+    await unirFichasVacias(pares, 'dueno@prueba.test')
     expect((await db.borrados.toArray()).map((b) => `${b.id}:${b.motivo}`).sort()).toEqual([
       `proveedores/ana-copia:${MOTIVO_FICHAS_VACIAS}`,
       `proveedores/hugo-copia:${MOTIVO_FICHAS_VACIAS}`,

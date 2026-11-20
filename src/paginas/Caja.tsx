@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { duenosParaRetiro, personasConocidas, personasParaSueldo, type QueParece } from '../lib/sueldos'
+import { FIJOS_POR_DEFECTO } from '../lib/borrarGasto'
 import SugerenciaDeCarga from '../componentes/SugerenciaDeCarga'
 import { useCambiosSinGuardar, useSinGuardar } from '../lib/sinGuardar'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -1231,15 +1232,8 @@ function TablaDelTurno({
 
 /* ------------------------------------------------------------------ */
 
-/** Categorias que se pagan igual se venda mucho o poco. */
-const CATEGORIAS_FIJAS: CategoriaGasto[] = [
-  'ALQUILER',
-  'SERVICIOS',
-  'SUELDOS',
-  'CONTADOR',
-  'IMPUESTOS',
-  'MANTENIMIENTO',
-]
+/** Categorias que se pagan igual se venda mucho o poco: la misma lista de toda la app. */
+const CATEGORIAS_FIJAS: CategoriaGasto[] = FIJOS_POR_DEFECTO
 
 function PanelEgresos({
   jornada,
