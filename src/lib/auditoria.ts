@@ -19,6 +19,7 @@ import {
   sinStock,
   totalArqueo,
 } from './calculos'
+import { seEsperaCaja } from './feriados'
 import { fechaLinda, plata } from './formato'
 import { fantasmasDeLosProductos } from './proveedorDeProducto'
 import { comodinesConVentas, ventasSinCodigo } from './ventaSinCodigo'
@@ -256,11 +257,10 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
   const faltantes: string[] = []
   for (let dia = 1; dia <= ultimoDia; dia++) {
     const fecha = `${datos.mes}-${String(dia).padStart(2, '0')}`
-    // Date.parse rechaza los dias que no existen en ese mes (30 de febrero).
-    if (Number.isNaN(Date.parse(`${fecha}T00:00:00`))) continue
-    // Los domingos el local esta cerrado: no se reclaman. Si un domingo
-    // se abre, el turno cargado se cuenta igual que cualquier otro.
-    if (new Date(`${fecha}T12:00:00`).getDay() === 0) continue
+    // Ni los dias que no existen (el 30 de febrero), ni los domingos, ni
+    // los feriados (20/11): el local esta cerrado y no se reclaman. Si
+    // abre igual, el turno cargado se cuenta como cualquier otro.
+    if (!seEsperaCaja(fecha)) continue
     if (!conJornada.has(fecha)) faltantes.push(fecha)
   }
 

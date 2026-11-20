@@ -2811,8 +2811,8 @@ aparato, sin leer nada nuevo del servidor, y contestan lo mismo cada lunes.
 Una tarjeta por semana, las últimas seis (`usoPorSemana`, en `src/lib/usoDeLaApp.ts`):
 
 - **Caja cargada:** de lunes a sábado, cuántos días tienen al menos un turno, y cuáles no.
-  En la semana en curso solo cuentan los días que ya pasaron. El domingo no se reclama; un
-  feriado en el que no se abrió sí figura, porque la app no sabe de feriados.
+  En la semana en curso solo cuentan los días que ya pasaron. El domingo y los feriados no
+  se reclaman (ver «Los feriados»); los feriados de la semana se nombran en la tarjeta.
 - **Turnos de días anteriores sin cerrar.**
 - **Ventas, y qué parte se cargó el mismo día.** Se compara el día de la venta con el día en
   que se cargó (`creadoEn`, en la hora del aparato). Las «después» se pasaron más tarde,
@@ -2836,6 +2836,34 @@ todavía cuesta más que el cuaderno y arreglar esa parte, no para marcarle nada
 Probado con 14 pruebas de la cuenta (rotas a propósito de 14 maneras, las 14 en rojo; una
 fija la hora del local para que el «día de carga» no dependa de dónde corre la prueba), 1 de
 la Ayuda, y de punta a punta contra los emuladores.
+
+## Los feriados (20/11)
+
+El lunes 23/11/2026 es feriado (Día de la Soberanía Nacional, trasladado del viernes 20). Hasta
+el 20/11 la app no sabía de feriados: el martes, el Panel iba a avisar que faltaba la caja de
+un día en que el local estuvo cerrado, y «Cómo venimos» lo iba a marcar como día sin caja.
+
+Ahora `src/lib/feriados.ts` tiene los feriados nacionales, y `seEsperaCaja(fecha)` dice si
+ese día se espera caja: de lunes a sábado, menos los feriados. La usan el aviso del Panel de
+días sin caja (`auditoria.ts`) y «Cómo venimos» (`usoDeLaApp.ts`), que además nombra los
+feriados de la semana. En el Panel, la tarjeta de turnos dice «Hoy es feriado».
+
+- **Qué entra:** los feriados nacionales, inamovibles y trasladables, el día en que se
+  observan (Ley 27.399), y los que agrega un decreto (el lunes 9/11/2026, por la visita del
+  papa: Decreto 1103/2026). 2026 sale del calendario oficial. 2027 tiene los inamovibles y
+  los trasladables movidos como dice la ley.
+- **Qué no:** los días no laborables con fines turísticos (en 2026: 23/3, 10/7 y 7/12),
+  porque ahí cada comercio decide si abre; y los feriados de una sola provincia o ciudad.
+- **Si el local abre un feriado,** el turno se carga como siempre y cuenta. Lo único que
+  cambia es que, si no hay caja, no se reclama.
+
+De paso: el aviso de días sin caja daba por hecho que el navegador rechaza el 30 de febrero,
+y no lo rechaza (lo convierte en el 2 de marzo). Mirando un mes ya pasado podía reclamar el
+29, el 30 y el 31 de febrero. `seEsperaCaja` mira que el día exista.
+
+Probado con 6 pruebas de los feriados, 2 del aviso del Panel y 1 de «Cómo venimos» (tres
+pruebas viejas cambiaron: usaban la semana del 9/11, que tuvo un feriado). Roto a propósito
+de 11 maneras: las 11 en rojo.
 
 ## La compu: opción B (06/11)
 
@@ -3501,8 +3529,12 @@ error y la revisión no sube nada de esa tabla (ver «Lo que pasó el 13/11» y
 
 ## Próximos pasos
 
-Lo que está pendiente de verdad, al 19/11/2026. Lo de arriba de la lista es lo que
+Lo que está pendiente de verdad, al 20/11/2026. Lo de arriba de la lista es lo que
 sigue.
+
+- [ ] **Los feriados de 2027 y 2028** (`src/lib/feriados.ts`): revisar 2027 cuando salga el
+      calendario oficial (puede haber un decreto que agregue o mueva alguno) y sumar 2028
+      antes de que termine 2027.
 
 **Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
 ya no choca con un precio que su celular no había recibido), los ecos de una edición se
