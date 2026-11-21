@@ -2865,6 +2865,52 @@ Probado con 6 pruebas de los feriados, 2 del aviso del Panel y 1 de «Cómo veni
 pruebas viejas cambiaron: usaban la semana del 9/11, que tuvo un feriado). Roto a propósito
 de 11 maneras: las 11 en rojo.
 
+## Equipamiento y deudas en cuotas (20/11)
+
+La compu del local se compró con la tarjeta de un dueño, en 6 cuotas, y el local le devuelve
+de la 2 a la 6. Se venía cargando como OTROS, y no había forma de llevar cuánto se le debía.
+
+**La categoría EQUIPAMIENTO** es para lo que se compra para el local y queda (una compu, una
+heladera). Arranca como gasto fijo (`FIJOS_POR_DEFECTO`, que ahora es una sola lista para toda
+la app: la usaban copiada Caja y Vencimientos). Entra en el resultado del mes en que se paga;
+en cuotas, cada cuota en su mes, así la compra se reparte sola. Si conviene que no entre en
+el resultado y se amortice, es para mirar con el contador, junto con los retiros.
+
+**Corregir la categoría desde Gastos:** al lado de cada gasto hay un selector de categoría,
+solo para quien está al mando. Toma el fijo o variable de la categoría nueva y queda en el
+historial («Categoría corregida desde Gastos»). Es para pasar a EQUIPAMIENTO lo que ya estaba
+como OTROS.
+
+**Una deuda en cuotas es un vencimiento de la agenda con cuotas** (`Vencimiento.cuotas`:
+cuántas en total, la primera que paga el local y el mes de esa cuota) y, si es con alguien de
+la lista, a quién (`Vencimiento.aQuien`). Se usó la agenda porque ya avisa cada mes, carga el
+gasto al marcarlo pagado y viaja a todos los aparatos; no hizo falta una tabla nueva.
+
+- Antes de la primera cuota no se reclama nada, y después de la última queda **terminada**
+  (`tocaEn`, `cuotaDelPeriodo` en `src/lib/vencimientos.ts`). Se controla desde la primera
+  cuota aunque se cargue después.
+- El gasto de cada pago dice qué cuota es («cuota 3 de 6, diciembre») y queda a nombre de la
+  persona (`Movimiento.persona`). En Gastos se lee «a Elena».
+- «Deudas en cuotas», arriba de la agenda, dice cuántas van pagadas, cuántas quedan, cuál
+  sigue y cuánto es, aproximado (`estadoDeLaDeuda`).
+- Una cuota que ya estaba cargada, aunque sea como OTROS, se engancha con «¿Ya lo cargaste en
+  Gastos?» y pasa a la categoría de la deuda, con su persona. El historial lo dice. Los gastos
+  que ofrece salen primero por el monto más parecido al de la agenda: OTROS junta de todo y se
+  muestran cuatro, así que el más nuevo no siempre era el que se buscaba (en la prueba en el
+  navegador, el primero era una heladera).
+
+Los montos de la compu no están en el código ni en las pruebas: los carga el asistente desde
+la pantalla.
+
+Probado:
+- 12 pruebas de la cuenta y 5 de las escrituras. Rotas a propósito de 29 maneras, las 29 en
+  rojo (una necesitó una prueba más: el salto a la primera cuota no se veía si la agenda la
+  conocía desde antes).
+- En el navegador, contra los emuladores (`pruebas/e2e/gastos.cjs`): se carga «Una deuda en
+  cuotas» con un dueño sin cuenta, se engancha una cuota que estaba como OTROS y pasa a
+  EQUIPAMIENTO «a Elena», la tarjeta baja de 5 a 4 cuotas, y el selector de Gastos cambia otra
+  categoría. Todo queda en el historial con su motivo y el servidor no rechaza nada.
+
 ## La compu: opción B (06/11)
 
 Punto 20 del pedido del 06/11 («hay que mejorar la visual»). Emmanuel eligió la opción B de
@@ -3535,6 +3581,11 @@ sigue.
 - [ ] **Los feriados de 2027 y 2028** (`src/lib/feriados.ts`): revisar 2027 cuando salga el
       calendario oficial (puede haber un decreto que agregue o mueva alguno) y sumar 2028
       antes de que termine 2027.
+- [ ] **Cargar la deuda de la compu y corregir sus cuotas cargadas como OTROS** (lo hace el
+      asistente desde la pantalla, con los montos de verdad): Vencimientos → «Una deuda en
+      cuotas», y en Gastos, el selector de categoría. Ver «Equipamiento y deudas en cuotas».
+- [ ] **EQUIPAMIENTO y los retiros en el resultado del mes:** mirar con el contador si entran
+      como gasto o se separan (y si el equipamiento se amortiza).
 
 **Hecho el 31/10** — cada edición manda solo los campos que cambió (la venta de Gabriela
 ya no choca con un precio que su celular no había recibido), los ecos de una edición se

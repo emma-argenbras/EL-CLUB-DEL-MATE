@@ -1,4 +1,5 @@
 import type { CategoriaGasto, Movimiento, Vencimiento } from '../db/db'
+import { FIJOS_POR_DEFECTO } from './borrarGasto'
 
 /**
  * La agenda de pagos que se repiten (punto 18 del pedido del 06/11).
@@ -10,17 +11,15 @@ import type { CategoriaGasto, Movimiento, Vencimiento } from '../db/db'
  *
  * Que se reclama: el mes anterior, si vencio y no se pago (y la agenda
  * ya lo conocia), y el mes en curso. Mas atras no: para eso esta Gastos.
+ *
+ * Una deuda en cuotas (20/11) es un vencimiento con `cuotas`: antes de la
+ * primera cuota que paga el local no se reclama nada, y despues de la
+ * ultima queda terminada. Asi se lleva, por ejemplo, lo que el local le
+ * devuelve a un dueño que pago algo del local con su tarjeta.
  */
 
-/** Las categorias que se pagan igual se venda mucho o poco (como en Caja). */
-export const CATEGORIAS_FIJAS: CategoriaGasto[] = [
-  'ALQUILER',
-  'SERVICIOS',
-  'SUELDOS',
-  'CONTADOR',
-  'IMPUESTOS',
-  'MANTENIMIENTO',
-]
+/** Las categorias que se pagan igual se venda mucho o poco: una sola lista para toda la app. */
+export const CATEGORIAS_FIJAS: CategoriaGasto[] = FIJOS_POR_DEFECTO
 
 /** Para cargar los de siempre de un toque. Los dias son una guia: se corrigen. */
 export const SUGERIDOS: { concepto: string; categoria: CategoriaGasto; dia: number }[] = [
@@ -59,6 +58,37 @@ export function periodoSiguiente(periodo: string): string {
   return m === 12 ? armarPeriodo(a + 1, 1) : armarPeriodo(a, m + 1)
 }
 
+/** Cuantos meses van de un periodo a otro (negativo si `hasta` es antes). */
+export function mesesEntre(desde: string, hasta: string): number {
+  const [a1, m1] = partes(desde)
+  const [a2, m2] = partes(hasta)
+  return (a2 - a1) * 12 + (m2 - m1)
+}
+
+/** El periodo `n` meses despues (o antes, si `n` es negativo). */
+export function sumarMeses(periodo: string, n: number): string {
+  const [a, m] = partes(periodo)
+  const total = a * 12 + (m - 1) + n
+  return armarPeriodo(Math.floor(total / 12), (total % 12) + 1)
+}
+
+/**
+ * El numero de cuota que vence en ese mes, si es una deuda en cuotas; null
+ * si no lo es. Puede caer fuera de las cuotas (antes de la primera o
+ * despues de la ultima): eso lo dice `tocaEn`.
+ */
+export function cuotaDelPeriodo(v: Pick<Vencimiento, 'cuotas'>, periodo: string): number | null {
+  if (!v.cuotas) return null
+  return v.cuotas.primera + mesesEntre(v.cuotas.periodo, periodo)
+}
+
+/** Si ese mes hay algo que pagar: siempre, o, en una deuda en cuotas, entre la primera y la ultima. */
+export function tocaEn(v: Pick<Vencimiento, 'cuotas'>, periodo: string): boolean {
+  const n = cuotaDelPeriodo(v, periodo)
+  if (n === null || !v.cuotas) return true
+  return n >= v.cuotas.primera && n <= v.cuotas.total
+}
+
 /** Cuando vence en ese mes: el dia elegido, o el ultimo si el mes es mas corto. */
 export function fechaDeVencimiento(dia: number, periodo: string): string {
   const [a, m] = partes(periodo)
@@ -76,7 +106,8 @@ export function diasEntre(desde: string, hasta: string): number {
   return Math.round((utc(hasta) - utc(desde)) / 86_400_000)
 }
 
-export type EstadoVencimiento = 'vencido' | 'por-vencer' | 'pendiente' | 'pagado'
+/** 'terminado': una deuda en cuotas que ya no tiene cuotas por delante. */
+export type EstadoVencimiento = 'vencido' | 'por-vencer' | 'pendiente' | 'pagado' | 'terminado'
 
 export interface Situacion {
   vencimiento: Vencimiento
@@ -103,9 +134,9 @@ export function situacionDe(v: Vencimiento, hoy: string, movimientos: Movimiento
   const anterior = periodoAnterior(actual)
   const avisar = v.avisarDiasAntes ?? AVISAR_DIAS_ANTES
 
-  // 1. El mes pasado quedo sin pagar, y la agenda ya lo conocia.
+  // 1. El mes pasado quedo sin pagar, la agenda ya lo conocia y tocaba pagar.
   const fechaAnterior = fechaDeVencimiento(v.dia, anterior)
-  if (v.desde <= fechaAnterior && !pagoDelPeriodo(v, anterior, movimientos)) {
+  if (v.desde <= fechaAnterior && tocaEn(v, anterior) && !pagoDelPeriodo(v, anterior, movimientos)) {
     return {
       vencimiento: v,
       periodo: anterior,
@@ -124,9 +155,20 @@ export function situacionDe(v: Vencimiento, hoy: string, movimientos: Movimiento
     periodo = periodoSiguiente(actual)
     fecha = fechaDeVencimiento(v.dia, periodo)
   }
+  // En cuotas: antes de la primera se mira la primera; despues de la ultima, termino.
+  const cuota = cuotaDelPeriodo(v, periodo)
+  if (cuota !== null && v.cuotas) {
+    if (cuota < v.cuotas.primera) {
+      periodo = v.cuotas.periodo
+      fecha = fechaDeVencimiento(v.dia, periodo)
+    } else if (cuota > v.cuotas.total) {
+      return { vencimiento: v, periodo, fecha, dias: diasEntre(hoy, fecha), estado: 'terminado', pago: null, proximo: null }
+    }
+  }
   const dias = diasEntre(hoy, fecha)
   const pago = pagoDelPeriodo(v, periodo, movimientos)
   if (pago) {
+    const siguiente = periodoSiguiente(periodo)
     return {
       vencimiento: v,
       periodo,
@@ -134,7 +176,8 @@ export function situacionDe(v: Vencimiento, hoy: string, movimientos: Movimiento
       dias,
       estado: 'pagado',
       pago,
-      proximo: fechaDeVencimiento(v.dia, periodoSiguiente(periodo)),
+      // Si era la ultima cuota, no hay proximo.
+      proximo: tocaEn(v, siguiente) ? fechaDeVencimiento(v.dia, siguiente) : null,
     }
   }
   return {
@@ -148,7 +191,7 @@ export function situacionDe(v: Vencimiento, hoy: string, movimientos: Movimiento
   }
 }
 
-const ORDEN: Record<EstadoVencimiento, number> = { vencido: 0, 'por-vencer': 1, pendiente: 2, pagado: 3 }
+const ORDEN: Record<EstadoVencimiento, number> = { vencido: 0, 'por-vencer': 1, pendiente: 2, pagado: 3, terminado: 4 }
 
 /** Todos los activos, primero lo vencido, despues lo que vence antes. */
 export function agenda(vencimientos: Vencimiento[], hoy: string, movimientos: Movimiento[]): Situacion[] {
@@ -160,6 +203,7 @@ export function agenda(vencimientos: Vencimiento[], hoy: string, movimientos: Mo
 
 /** Lo que dice el renglon: «Vence en 3 días», «Venció hace 2 días», «Vence hoy». */
 export function cuandoVence(s: Pick<Situacion, 'dias' | 'estado'>): string {
+  if (s.estado === 'terminado') return 'Terminada'
   if (s.estado === 'pagado') return 'Pagado'
   if (s.dias === 0) return 'Vence hoy'
   if (s.dias === 1) return 'Vence mañana'
@@ -172,21 +216,37 @@ export function cuandoVence(s: Pick<Situacion, 'dias' | 'estado'>): string {
  * Los gastos del mes que podrian ser el pago de este vencimiento y no
  * estan enganchados a ninguno: misma categoria, sin vencimiento. Para no
  * cargar dos veces lo que ya se cargo a mano en Gastos.
+ *
+ * En una deuda en cuotas tambien los de OTROS: las cuotas que ya se
+ * pagaron casi siempre se cargaron asi (20/11). Al engancharlo pasa a la
+ * categoria de la deuda.
+ *
+ * Primero los de monto mas parecido al de la agenda: OTROS junta de todo y
+ * la pantalla muestra los cuatro primeros, asi que el mas reciente no
+ * siempre es el que se busca. A igual distancia, el mas nuevo.
  */
 export function gastosParaEnganchar(
-  v: Pick<Vencimiento, 'categoria'>,
+  v: Pick<Vencimiento, 'categoria' | 'cuotas' | 'montoAproximado'>,
   meses: string[],
   movimientos: Movimiento[],
 ): Movimiento[] {
+  const categorias: (CategoriaGasto | null | undefined)[] = v.cuotas ? [v.categoria, 'OTROS'] : [v.categoria]
   return movimientos
     .filter(
       (m) =>
         (m.tipo === 'GASTO_CAJA_GRANDE' || m.tipo === 'EGRESO_CAJA') &&
-        m.categoria === v.categoria &&
+        categorias.includes(m.categoria) &&
         !m.vencimiento &&
         meses.includes(periodoDe(m.fecha)),
     )
-    .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    .sort((a, b) => {
+      const monto = v.montoAproximado
+      if (monto) {
+        const dif = Math.abs(a.monto - monto) - Math.abs(b.monto - monto)
+        if (dif !== 0) return dif
+      }
+      return b.fecha.localeCompare(a.fecha)
+    })
 }
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -196,4 +256,49 @@ export function nombreDelMes(periodo: string, hoy: string): string {
   const [a, m] = partes(periodo)
   const nombre = MESES[m - 1] ?? periodo
   return periodo.slice(0, 4) === hoy.slice(0, 4) ? nombre : `${nombre} de ${a}`
+}
+
+/** Como va una deuda en cuotas. */
+export interface EstadoDeLaDeuda {
+  /** Cuantas paga el local: de la primera a la ultima. */
+  aPagar: number
+  /** Cuantas tienen su pago cargado. */
+  pagadas: number
+  quedan: number
+  /** Lo que queda, con el monto aproximado de la cuota; null si no tiene monto. */
+  montoQueda: number | null
+  /** El numero de la proxima cuota sin pagar, o null si no queda ninguna. */
+  siguiente: number | null
+  /** El mes de la ultima cuota. */
+  ultimoPeriodo: string
+}
+
+/**
+ * Cuanto va pagado de una deuda en cuotas y cuanto queda (20/11). Cuenta
+ * los meses que tienen un gasto enganchado; null si no es en cuotas.
+ */
+export function estadoDeLaDeuda(v: Vencimiento, movimientos: Movimiento[]): EstadoDeLaDeuda | null {
+  if (!v.cuotas) return null
+  const aPagar = Math.max(0, v.cuotas.total - v.cuotas.primera + 1)
+  const pagados = new Set(
+    movimientos
+      .filter((m) => m.vencimiento?.id === v.id && tocaEn(v, m.vencimiento.periodo))
+      .map((m) => m.vencimiento!.periodo),
+  )
+  let siguiente: number | null = null
+  for (let i = 0; i < aPagar; i++) {
+    if (!pagados.has(sumarMeses(v.cuotas.periodo, i))) {
+      siguiente = v.cuotas.primera + i
+      break
+    }
+  }
+  const quedan = aPagar - pagados.size
+  return {
+    aPagar,
+    pagadas: pagados.size,
+    quedan,
+    montoQueda: v.montoAproximado == null ? null : quedan * v.montoAproximado,
+    siguiente,
+    ultimoPeriodo: sumarMeses(v.cuotas.periodo, aPagar - 1),
+  }
 }

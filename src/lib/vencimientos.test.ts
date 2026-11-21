@@ -2,15 +2,22 @@ import { describe, expect, it } from 'vitest'
 import type { Movimiento, Vencimiento } from '../db/db'
 import {
   agenda,
+  CATEGORIAS_FIJAS,
   cuandoVence,
+  cuotaDelPeriodo,
   diasEntre,
+  estadoDeLaDeuda,
   fechaDeVencimiento,
   gastosParaEnganchar,
+  mesesEntre,
   nombreDelMes,
   periodoAnterior,
   periodoSiguiente,
   situacionDe,
+  sumarMeses,
+  tocaEn,
 } from './vencimientos'
+import { esVariablePorDefecto, FIJOS_POR_DEFECTO } from './borrarGasto'
 
 const venc = (extra: Partial<Vencimiento> = {}): Vencimiento => ({
   id: 'alq', concepto: 'Alquiler', dia: 10, montoAproximado: 350000, categoria: 'ALQUILER', cuenta: 'cajaGrande',
@@ -113,5 +120,111 @@ describe('no cargar dos veces lo que ya está en Gastos', () => {
       { ...pago('x', '2026-11', '2026-11-03'), id: 'pase', vencimiento: null, tipo: 'A_CAJA_GRANDE' },
     ]
     expect(gastosParaEnganchar(venc(), ['2026-11'], gastos).map((m) => m.id)).toEqual(['a-mano'])
+  })
+})
+
+describe('EQUIPAMIENTO (20/11)', () => {
+  it('es una categoría fija, la misma lista en toda la app', () => {
+    expect(esVariablePorDefecto('EQUIPAMIENTO')).toBe(false)
+    expect(CATEGORIAS_FIJAS).toBe(FIJOS_POR_DEFECTO)
+    expect(CATEGORIAS_FIJAS).toContain('EQUIPAMIENTO')
+  })
+})
+
+describe('UNA DEUDA EN CUOTAS (20/11): el local le devuelve a un dueño de la cuota 2 a la 6', () => {
+  // La 2 vence el 10 de noviembre; la 6, el 10 de marzo.
+  const deuda = venc({
+    id: 'compu', concepto: 'Compu del local', categoria: 'EQUIPAMIENTO', dia: 10, montoAproximado: 100,
+    desde: '2026-11-10', cuotas: { total: 6, primera: 2, periodo: '2026-11' }, aQuien: 'sin-cuenta-1',
+  })
+  const cuota = (periodo: string, fecha = `${periodo}-10`) =>
+    pago('compu', periodo, fecha, { id: `c-${periodo}`, categoria: 'EQUIPAMIENTO', monto: 100 })
+  const pagadas = (...periodos: string[]) => periodos.map((p) => cuota(p))
+
+  it('los meses, cruzando el año', () => {
+    expect(mesesEntre('2026-11', '2027-03')).toBe(4)
+    expect(mesesEntre('2027-03', '2026-11')).toBe(-4)
+    expect(sumarMeses('2026-11', 4)).toBe('2027-03')
+    expect(sumarMeses('2026-01', -1)).toBe('2025-12')
+    expect(sumarMeses('2026-12', 1)).toBe('2027-01')
+  })
+
+  it('cada mes tiene su cuota; antes de la primera y después de la última no toca pagar', () => {
+    expect(cuotaDelPeriodo(deuda, '2026-11')).toBe(2)
+    expect(cuotaDelPeriodo(deuda, '2027-01')).toBe(4)
+    expect(cuotaDelPeriodo(deuda, '2027-03')).toBe(6)
+    expect(tocaEn(deuda, '2026-10')).toBe(false)
+    expect(tocaEn(deuda, '2026-11')).toBe(true)
+    expect(tocaEn(deuda, '2027-03')).toBe(true)
+    expect(tocaEn(deuda, '2027-04')).toBe(false)
+    // Un vencimiento de siempre toca todos los meses.
+    expect(cuotaDelPeriodo(venc(), '2026-11')).toBeNull()
+    expect(tocaEn(venc(), '2030-01')).toBe(true)
+  })
+
+  it('cargada antes de la primera cuota: muestra la primera, sin reclamar nada', () => {
+    const s = situacionDe(deuda, '2026-10-20', [])
+    expect([s.periodo, s.estado]).toEqual(['2026-11', 'pendiente'])
+    // Aunque la agenda la conozca desde antes: octubre sería la cuota 1, que el local no paga.
+    const antes = situacionDe({ ...deuda, desde: '2026-09-01' }, '2026-10-05', [])
+    expect([antes.periodo, antes.fecha]).toEqual(['2026-11', '2026-11-10'])
+  })
+
+  it('pagada la última, no hay próximo; y el mes siguiente queda terminada', () => {
+    const hastaFebrero = pagadas('2026-11', '2026-12', '2027-01', '2027-02')
+    const marzo = situacionDe(deuda, '2027-03-05', hastaFebrero)
+    expect([marzo.periodo, marzo.estado]).toEqual(['2027-03', 'pendiente'])
+    const pagaMarzo = situacionDe(deuda, '2027-03-12', [...hastaFebrero, cuota('2027-03')])
+    expect([pagaMarzo.estado, pagaMarzo.proximo]).toEqual(['pagado', null])
+    const abril = situacionDe(deuda, '2027-04-20', [...hastaFebrero, cuota('2027-03')])
+    expect(abril.estado).toBe('terminado')
+    expect(cuandoVence(abril)).toBe('Terminada')
+    // Si la última quedó sin pagar, en abril se reclama marzo.
+    const debeMarzo = situacionDe(deuda, '2027-04-20', hastaFebrero)
+    expect([debeMarzo.periodo, debeMarzo.estado]).toEqual(['2027-03', 'vencido'])
+    // Y una cuota del medio pagada: el próximo es el mes siguiente.
+    expect(situacionDe(deuda, '2026-12-12', pagadas('2026-11', '2026-12')).proximo).toBe('2027-01-10')
+  })
+
+  it('el mes de antes de la primera cuota no se reclama aunque esté sin pagar', () => {
+    const s = situacionDe({ ...deuda, desde: '2026-09-01' }, '2026-11-05', [])
+    expect([s.periodo, s.estado]).toEqual(['2026-11', 'pendiente'])
+  })
+
+  it('en la agenda lo terminado va al final', () => {
+    const otro = venc({ id: 'luz', concepto: 'Luz', dia: 15, desde: '2026-09-01' })
+    const lista = agenda([deuda, otro], '2027-04-20', pagadas('2026-11', '2026-12', '2027-01', '2027-02', '2027-03'))
+    expect(lista.map((s) => s.vencimiento.id)).toEqual(['luz', 'compu'])
+  })
+
+  it('cuánto va pagado y cuánto queda', () => {
+    expect(estadoDeLaDeuda(deuda, pagadas('2026-11'))).toEqual({
+      aPagar: 5, pagadas: 1, quedan: 4, montoQueda: 400, siguiente: 3, ultimoPeriodo: '2027-03',
+    })
+    // Una cuota salteada: la siguiente es la que falta, no la del mes.
+    expect(estadoDeLaDeuda(deuda, pagadas('2026-12'))?.siguiente).toBe(2)
+    // Un pago enganchado a un mes fuera de las cuotas no cuenta.
+    expect(estadoDeLaDeuda(deuda, pagadas('2026-10', '2026-11'))?.pagadas).toBe(1)
+    const todas = estadoDeLaDeuda(deuda, pagadas('2026-11', '2026-12', '2027-01', '2027-02', '2027-03'))
+    expect([todas?.quedan, todas?.siguiente, todas?.montoQueda]).toEqual([0, null, 0])
+    expect(estadoDeLaDeuda({ ...deuda, montoAproximado: null }, [])?.montoQueda).toBeNull()
+    expect(estadoDeLaDeuda(venc(), [])).toBeNull()
+  })
+
+  it('para enganchar, en una deuda en cuotas también ofrece lo cargado como OTROS', () => {
+    const otros = { ...cuota('2026-11'), id: 'o1', categoria: 'OTROS' as const, vencimiento: null }
+    const alquiler = { ...cuota('2026-11'), id: 'a1', categoria: 'ALQUILER' as const, vencimiento: null }
+    expect(gastosParaEnganchar(deuda, ['2026-11'], [otros, alquiler]).map((m) => m.id)).toEqual(['o1'])
+    // Un vencimiento de siempre, no: solo su categoría.
+    expect(gastosParaEnganchar(venc(), ['2026-11'], [otros, alquiler]).map((m) => m.id)).toEqual(['a1'])
+  })
+
+  it('para enganchar, primero lo de monto más parecido; a igual monto, lo más nuevo', () => {
+    const otro = (id: string, fecha: string, monto: number) =>
+      ({ ...cuota('2026-11'), id, fecha, monto, categoria: 'OTROS' as const, vencimiento: null })
+    const gastos = [otro('lejos-nuevo', '2026-11-15', 300), otro('cerca-viejo', '2026-11-02', 101), otro('justo', '2026-11-05', 100), otro('justo-nuevo', '2026-11-07', 100)]
+    expect(gastosParaEnganchar(deuda, ['2026-11'], gastos).map((m) => m.id)).toEqual(['justo-nuevo', 'justo', 'cerca-viejo', 'lejos-nuevo'])
+    // Sin monto en la agenda, por fecha.
+    expect(gastosParaEnganchar({ ...deuda, montoAproximado: null }, ['2026-11'], gastos).map((m) => m.id)).toEqual(['lejos-nuevo', 'justo-nuevo', 'justo', 'cerca-viejo'])
   })
 })

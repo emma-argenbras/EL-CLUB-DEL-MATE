@@ -1150,6 +1150,26 @@ export const AYUDA: EntradaAyuda[] = [
     palabrasClave: ['insumos', 'falta', 'bolsas', 'papel', 'rollos', 'ticket', 'limpieza', 'pedido', 'anotar', 'se termino'],
   },
   {
+    id: 'equipamiento',
+    categoria: 'Gastos',
+    pregunta: '¿En qué categoría cargo algo que se compra para el local, como una compu o una heladera?',
+    respuesta:
+      'En EQUIPAMIENTO: lo que se compra para el local y queda (una compu, una heladera, una estantería). Arranca como gasto fijo, porque no depende de cuánto se vende.\n\nEntra en el resultado del mes en que se paga. Si se paga en cuotas, cada cuota en su mes: así la compra se reparte sola. Para llevar las cuotas, mirá «¿Cómo llevo una deuda en cuotas?».\n\nSi algo ya está cargado con otra categoría (por ejemplo, como OTROS), se corrige desde la lista de Gastos: al lado de cada gasto está el selector de la categoría. Toma el fijo o variable de la categoría nueva y queda en el historial. Lo puede hacer quien está al mando.',
+    palabrasClave: ['equipamiento', 'inversion', 'compu', 'computadora', 'heladera', 'compra para el local', 'categoria', 'cambiar categoria', 'otros'],
+    soloOwner: true,
+    requiereSeccion: 'gastos',
+  },
+  {
+    id: 'deuda-en-cuotas',
+    categoria: 'Gastos',
+    pregunta: '¿Cómo llevo una deuda del local en cuotas, por ejemplo con un dueño?',
+    respuesta:
+      'Con la agenda: Gastos → «📅 Vencimientos» → «Ver agenda» → «+ Agregar un vencimiento» → «Una deuda en cuotas». Se carga qué es, qué día del mes vence, el monto de cada cuota, cuántas cuotas son en total, la primera que paga el local, en qué mes vence esa cuota y a quién se le debe.\n\nPor ejemplo: algo del local que un dueño pagó con su tarjeta en 6 cuotas, y el local le devuelve de la 2 a la 6. Se pone 6 en total, 2 la primera y el mes de la cuota 2.\n\nDesde ahí la agenda avisa cada mes. Al marcar una cuota pagada se carga el gasto, que dice qué cuota es («cuota 3 de 6») y queda a nombre de esa persona. Antes de la primera cuota no se reclama nada, y después de la última la deuda queda terminada.\n\nArriba de la agenda, «Deudas en cuotas» dice cuántas van pagadas, cuántas quedan y cuánto es, aproximado.\n\nSi una cuota ya estaba cargada en Gastos, incluso como OTROS, al marcarla pagada aparece «¿Ya lo cargaste en Gastos?»: con «Es este» se engancha, pasa a la categoría de la deuda y no se carga dos veces.',
+    palabrasClave: ['deuda', 'cuotas', 'cuota', 'reintegro', 'devolver', 'tarjeta de un dueño', 'prestamo', 'le debemos', 'compu'],
+    soloOwner: true,
+    requiereSeccion: 'gastos',
+  },
+  {
     id: 'vencimientos',
     categoria: 'Gastos',
     pregunta: '¿Cómo hago para que la app me avise antes de que venza el alquiler, la luz o el monotributo?',
