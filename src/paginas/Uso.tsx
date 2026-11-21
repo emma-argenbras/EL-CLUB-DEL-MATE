@@ -85,7 +85,8 @@ export default function Uso() {
         <p className="tarjeta-titulo">Cómo leerlo</p>
         <p className="silencio" style={{ marginTop: 0 }}>
           <strong>Caja:</strong> de lunes a sábado, los días que tienen al menos un turno cargado.
-          Un feriado en el que no se abrió va a figurar como día sin caja.
+          Los feriados nacionales no se cuentan. Los días no laborables con fines turísticos sí: el
+          comercio puede abrir.
         </p>
         <p className="silencio">
           <strong>Ventas cargadas en el día:</strong> las que se cargaron el mismo día de la venta.
@@ -136,9 +137,17 @@ function Semana({ semana: s, esLaActual }: { semana: SemanaDeUso; esLaActual: bo
       <div className="fila">
         <span className="fila-etiqueta">Caja cargada</span>
         <span className={s.diasSinCaja.length > 0 ? 'fila-valor negativo' : 'fila-valor'}>
-          {s.diasConCaja} de {s.diasHabiles} {s.diasHabiles === 1 ? 'día' : 'días'}
+          {s.diasHabiles === 0
+            ? 'ningún día hábil todavía'
+            : `${s.diasConCaja} de ${s.diasHabiles} ${s.diasHabiles === 1 ? 'día' : 'días'}`}
         </span>
       </div>
+      {s.feriados.length > 0 && (
+        <p className="item-sub" style={{ margin: '2px 0 6px' }}>
+          {s.feriados.length === 1 ? 'Feriado, no se cuenta: ' : 'Feriados, no se cuentan: '}
+          {s.feriados.map((f) => `${diaCorto(f.fecha)} (${f.nombre})`).join(', ')}.
+        </p>
+      )}
       {s.diasSinCaja.length > 0 && (
         <p className="item-sub negativo" style={{ margin: '2px 0 6px' }}>
           Sin caja: {s.diasSinCaja.map(diaCorto).join(', ')}.{' '}
