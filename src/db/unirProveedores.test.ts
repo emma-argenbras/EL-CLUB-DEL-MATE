@@ -18,6 +18,8 @@ import {
   unirFichasVacias,
   unirProveedores,
 } from './unirProveedores'
+import { planDeRepetidas } from '../lib/fichasRepetidas'
+import { idDeProveedor } from '../lib/idProveedor'
 
 function prov(id: string, nombre: string, extra: Partial<Proveedor> = {}): Proveedor {
   return { id, nombre, contacto: null, notas: null, activo: true, ...extra }
@@ -305,6 +307,25 @@ describe('unirFichasVacias (las repetidas de la importación)', () => {
     expect(await db.borrados.count()).toBe(0)
   })
 
+  it('si todas las de un nombre están vacías (20/11), queda una con los datos de las demás', async () => {
+    const id = idDeProveedor('LA YERBERA')
+    await db.proveedores.bulkPut([
+      prov('yerbera-azar', 'LA YERBERA', { contacto: '3456 000000', ciudad: 'Paraná' }),
+      prov(id, 'LA YERBERA'),
+      prov('yerbera-otra', 'LA YERBERA ', { aliasCbu: 'la.yerbera.mp' }),
+    ])
+    const plan = planDeRepetidas(await db.proveedores.toArray(), [], [])
+    expect(plan.vacias.map((x) => `${x.vacia.id}→${x.gemela.proveedor.id}`)).toEqual([`yerbera-azar→${id}`, `yerbera-otra→${id}`])
+    const r = await unirFichasVacias(plan.vacias.map((x) => ({ idVacia: x.vacia.id, idGemela: x.gemela.proveedor.id })), 'dueno@prueba.test')
+    expect(r.unidas).toBe(2)
+    expect((await db.proveedores.toArray()).map((p) => p.id)).toEqual([id])
+    expect(await db.proveedores.get(id)).toMatchObject({ contacto: '3456 000000', ciudad: 'Paraná', aliasCbu: 'la.yerbera.mp' })
+    expect(await db.borrados.count()).toBe(2)
+    expect(textoDeConfirmacionVacias(plan.vacias)).toContain(
+      '· De 1 nombre todas las fichas estaban vacías: queda una de cada uno, la del número interno de su nombre o la más completa.',
+    )
+  })
+
   it('la pregunta dice cuántas, con un ejemplo, antes de tocar nada', () => {
     const texto = textoDeConfirmacionVacias([
       { vacia: prov('hugo-copia', 'HUGO'), gemela: { proveedor: prov('hugo', 'HUGO'), productos: 12 } },
@@ -313,5 +334,6 @@ describe('unirFichasVacias (las repetidas de la importación)', () => {
     expect(texto).toContain('Vas a unir 2 fichas repetidas vacías')
     expect(texto).toContain('"HUGO" (sin productos, ni compras, ni pagos) dentro de "HUGO" (12 productos)')
     expect(texto).toContain(MOTIVO_FICHAS_VACIAS)
+    expect(texto).not.toContain('todas las fichas estaban vacías')
   })
 })
