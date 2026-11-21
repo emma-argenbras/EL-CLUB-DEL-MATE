@@ -80,7 +80,7 @@ import {
 } from './escuchas'
 import { enTandas, type RevisionConstancias } from './constancias'
 import { sumarDias } from '../lib/tablero'
-import { estaAlMando } from './permisos'
+import { estaAlMando, soloMira } from './permisos'
 import {
   camposParaConservar,
   motivosDelRechazo,
@@ -119,12 +119,15 @@ const TABLAS: NombreTabla[] = [
 ]
 
 /**
- * Los unicos dos mails que pueden auto-asignarse el rol "owner" la primera
- * vez que se loguean (arranque de la cuenta). Tiene que ser exactamente
- * la misma lista que en firestore.rules: si se suma un socio nuevo hay
- * que agregarlo en los dos lugares.
+ * El unico mail que puede auto-asignarse el rol "owner" la primera vez que
+ * se loguea (arranque de la cuenta). Tiene que ser exactamente la misma
+ * lista que en firestore.rules (esFundador).
+ *
+ * Hasta el 20/11 estaba tambien el de Sebastian: se saco porque va a
+ * entrar solo a mirar, y este arranque lo hacia dueño completo en su
+ * primer login. A un dueño nuevo lo da de alta otro dueño desde Ajustes.
  */
-export const EMAILS_FUNDADORES = ['emmanuel@elclubdelmate.com', 'sebastian@elclubdelmate.com']
+export const EMAILS_FUNDADORES = ['emmanuel@elclubdelmate.com']
 
 /**
  * Clave donde cada dispositivo anota cuando fue la ultima vez que
@@ -216,9 +219,39 @@ function limpiar(obj: Record<string, unknown>): Record<string, unknown> {
   return limpio
 }
 
+/**
+ * Esta sesión es de un dueño que solo mira (20/11): no sube nada. La app
+ * no le ofrece cargar ni cambiar nada, y las reglas del servidor se lo
+ * rechazarían igual; esto evita siquiera intentarlo, y que algo que este
+ * aparato tenga de antes (de otra persona que lo usó) suba a su nombre.
+ *
+ * Se averigua preguntándole al servidor antes de la subida inicial: el
+ * perfil de la sesión llega un rato después, y para entonces la subida ya
+ * habría arrancado.
+ */
+let modoSoloMira = false
+
+/** Corta la cadena de la subida inicial sin que cuente como error. */
+class SoloMira extends Error {}
+
+function estaSesionSoloMira(): boolean {
+  return modoSoloMira || soloMira(obtenerSesion().perfil)
+}
+
+/** El rol de esta cuenta según el servidor; sin internet, según este aparato. */
+async function soloMiraSegunElServidor(uid: string): Promise<boolean> {
+  const ref = doc(obtenerFirestore(), 'negocios', ID_NEGOCIO, 'usuarios', uid)
+  try {
+    return (await getDocFromServer(ref)).data()?.rol === 'socio'
+  } catch {
+    return (await db.usuarios.get(uid))?.rol === 'socio'
+  }
+}
+
 function pushCambio(tabla: NombreTabla, accion: AccionCambio, clave: string, doc_: unknown) {
   const auth = obtenerAuth()
   if (!auth.currentUser) return
+  if (estaSesionSoloMira()) return
   const firestore = obtenerFirestore()
 
   // La clave se escapa para nombrar el documento (ver claves.ts): hay
@@ -1455,12 +1488,22 @@ export function iniciarMotor(): void {
       leerRetenidos()
         .then((t) => fijarEstadoNube({ retenidos: t }))
         .catch(() => {})
-      empujarTodoLocal()
-        .catch((e) => console.warn('No se pudo subir el estado inicial:', e))
+      modoSoloMira = false
+      soloMiraSegunElServidor(usuario.uid)
+        .then((mira) => {
+          modoSoloMira = mira
+          // Quien solo mira no sube nada ni tiene nada que controlar.
+          if (mira) throw new SoloMira()
+        })
+        .then(() => empujarTodoLocal())
+        .catch((e) => {
+          if (!(e instanceof SoloMira)) console.warn('No se pudo subir el estado inicial:', e)
+        })
         // Recien despues de intentar subir tiene sentido contar lo que
         // quedo: si se controlara antes, el numero seria el de lo que
         // esta por subirse y asustaria sin motivo.
         .finally(() => {
+          if (modoSoloMira) return
           void controlarSinSubir()
           // Y cada tanto despues: lo que no sube no avisa solo, asi que
           // hay que ir a preguntar.
@@ -1539,6 +1582,24 @@ export async function crearUsuario(
       activo: true,
       secciones: rol === 'empleado' ? (secciones ?? null) : null,
     })
+  } finally {
+    await limpiar()
+  }
+}
+
+/**
+ * Crea la cuenta de un dueño que va a entrar solo a mirar (20/11), con una
+ * contraseña al azar que nadie ve, y devuelve su id. El usuario lo arma
+ * después pasarALaCuenta (db/accesoParaMirar.ts), y la persona elige su
+ * contraseña con el mail de recuperarContrasena. Así la contraseña no pasa
+ * por nadie: ni por el chat, ni por quien le da el acceso.
+ */
+export async function crearCuentaParaMirar(email: string): Promise<string> {
+  const { contrasenaAlAzar, mailLimpio } = await import('../lib/accesoParaMirar')
+  const { auth: authSecundaria, limpiar } = crearAuthSecundario()
+  try {
+    const credencial = await createUserWithEmailAndPassword(authSecundaria, mailLimpio(email), contrasenaAlAzar())
+    return credencial.user.uid
   } finally {
     await limpiar()
   }

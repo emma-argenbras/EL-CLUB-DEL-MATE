@@ -9,11 +9,17 @@ rules_version = '2';
 // todo el negocio. "empleado" opera el dia a dia pero no ve numeros de
 // ganancia ni puede archivar productos sin autorizacion de un owner.
 //
-// Fundadores: los unicos mails que pueden auto-asignarse el rol "owner"
-// la primera vez que se loguean (arranque de la cuenta, sin depender de
-// que ya exista otro owner). Despues de ese primer login, cualquier owner
-// puede crear o promover otros usuarios desde la app (Ajustes > Usuarios
-// del equipo), sin volver a tocar este archivo nunca mas.
+// "socio" (20/11) es un dueño que entra solo a mirar el Panel y los
+// Reportes: lee como cualquiera con sesion y no escribe nada (ver
+// puedoCargar).
+//
+// Fundador: el unico mail que puede auto-asignarse el rol "owner" la
+// primera vez que se loguea (arranque de la cuenta, sin depender de que ya
+// exista otro owner). Despues, cualquier owner crea o promueve a otros
+// desde la app (Ajustes > Usuarios del equipo). Hasta el 20/11 tambien lo
+// era el mail de Sebastian: se saco porque va a entrar solo a mirar, y un
+// mail que se hace dueño completo solo en su primer login es justo el
+// acceso total que no tiene que tener.
 //
 // Desactivar a alguien: un owner puede apagarle el acceso a cualquiera
 // desde Ajustes (incluso a otro owner). Mientras este desactivado, sus
@@ -28,8 +34,7 @@ service cloud.firestore {
 
     function esFundador() {
       return estaLogueado() && request.auth.token.email in [
-        'emmanuel@elclubdelmate.com',
-        'sebastian@elclubdelmate.com'
+        'emmanuel@elclubdelmate.com'
       ];
     }
 
@@ -63,6 +68,14 @@ service cloud.firestore {
       return soyOwner() || soyEncargado();
     }
 
+    // Puede cargar, editar o borrar algo del negocio (20/11): los roles que
+    // trabajan. Va por lista y no por "todos menos el socio": un rol que
+    // no esta en la lista (uno nuevo, o un error de tipeo en un perfil) no
+    // escribe, en vez de escribir todo.
+    function puedoCargar() {
+      return estoyActivo() && miPerfil().rol in ['owner', 'encargado', 'empleado'];
+    }
+
     // Perfiles de usuario: quien es cada quien y que rol tiene. Un
     // fundador puede crear SU PROPIO perfil como owner (arranque de la
     // cuenta); despues de eso, solo un owner ya existente puede crear,
@@ -78,12 +91,14 @@ service cloud.firestore {
     // Se mira el rol de los DOS lados: el que tiene el documento ahora y
     // el que tendria despues. Mirar solo uno dejaria pasar la mitad
     // (ascender a alguien, o degradar a un dueño para despues tocarlo).
+    // Un dueño que solo mira tambien es dueño: la encargada no lo crea, no
+    // lo toca ni lo pasa a dueño completo (20/11).
     function elObjetivoNoEsDueno() {
-      return resource == null || resource.data.get('rol', '') != 'owner';
+      return resource == null || !(resource.data.get('rol', '') in ['owner', 'socio']);
     }
 
     function noQuedaComoDueno() {
-      return request.resource == null || request.resource.data.get('rol', '') != 'owner';
+      return request.resource == null || !(request.resource.data.get('rol', '') in ['owner', 'socio']);
     }
 
     match /negocios/el-club-del-mate/usuarios/{uid} {
@@ -109,7 +124,7 @@ service cloud.firestore {
     // tiene algo que esconder.
     match /negocios/el-club-del-mate/historial/{entradaId} {
       allow read: if estaLogueado();
-      allow create: if estoyActivo() && request.resource.data.quien == request.auth.token.email;
+      allow create: if puedoCargar() && request.resource.data.quien == request.auth.token.email;
       allow update, delete: if false;
     }
 
@@ -117,7 +132,7 @@ service cloud.firestore {
     // hay renglones ahi de antes de la migracion.
     match /negocios/el-club-del-mate/historialProductos/{entradaId} {
       allow read: if estaLogueado();
-      allow create: if estoyActivo() && request.resource.data.quien == request.auth.token.email;
+      allow create: if puedoCargar() && request.resource.data.quien == request.auth.token.email;
       allow update, delete: if false;
     }
 
@@ -152,8 +167,8 @@ service cloud.firestore {
 
     match /negocios/el-club-del-mate/productos/{codigo} {
       allow read: if estaLogueado();
-      allow create: if estoyActivo();
-      allow update: if estoyActivo() && (
+      allow create: if puedoCargar();
+      allow update: if puedoCargar() && (
         estoyAlMando() ||
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['archivado', 'precioVenta'])
       ) &&
@@ -161,7 +176,13 @@ service cloud.firestore {
         noPisaConVacio('proveedorId') &&
         noPisaConVacio('proveedor') &&
         noPisaConVacio('rentabilidad');
-      allow delete: if false;
+      // Borrar un producto lo hace solo "Cambiar el codigo" (editar el
+      // producto -> cambiarle el codigo), que antes mueve sus ventas y
+      // sus compras al codigo nuevo y lo deja archivado. Con "if false"
+      // el servidor rechazaba ese borrado y el codigo viejo quedaba vivo
+      // en los otros celulares, con el producto repartido en dos. Lo
+      // puede hacer quien puede cambiar codigos: dueño y encargada.
+      allow delete: if estoyAlMando();
     }
 
     // El dia de hoy en hora de Argentina. request.time viene en UTC y
@@ -203,9 +224,9 @@ service cloud.firestore {
       // campo, asi que la version directa rechazaba cada turno que se
       // abria --y el rechazo, al revertirse, llegaba al dispositivo como
       // un borrado: la caja se cargaba y desaparecia.
-      allow create: if estoyActivo() &&
+      allow create: if puedoCargar() &&
         request.resource.data.get('cierreAutorizado', null) == null;
-      allow update: if estoyActivo() && (
+      allow update: if puedoCargar() && (
         estoyAlMando() || (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['cierreAutorizado']) &&
           !(
@@ -215,7 +236,7 @@ service cloud.firestore {
           )
         )
       );
-      allow delete: if estoyActivo();
+      allow delete: if puedoCargar();
     }
 
     // Todo lo demas del negocio (caja, ventas, gastos, proveedores): la
@@ -231,7 +252,7 @@ service cloud.firestore {
         coleccion != 'productos' &&
         coleccion != 'jornadas' &&
         coleccion != 'sueldos';
-      allow write: if estoyActivo() &&
+      allow write: if puedoCargar() &&
         coleccion != 'usuarios' &&
         coleccion != 'historial' &&
         coleccion != 'historialProductos' &&

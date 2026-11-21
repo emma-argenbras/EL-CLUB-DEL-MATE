@@ -790,6 +790,30 @@ describe('no se pisa un dato cargado con vacio', () => {
   })
 })
 
+describe('borrar un producto (lo que hace "Cambiar el codigo")', () => {
+  it('la encargada puede', async () => {
+    await sembrarProducto()
+    await assertSucceeds(deleteDoc(doc(comoSandra(), `${NEGOCIO}/productos/TM015`)))
+  })
+
+  it('el dueño puede', async () => {
+    await sembrarProducto()
+    await assertSucceeds(deleteDoc(doc(comoEmma(), `${NEGOCIO}/productos/TM015`)))
+  })
+
+  it('una empleada NO puede', async () => {
+    await sembrarProducto()
+    await assertFails(deleteDoc(doc(comoGabi(), `${NEGOCIO}/productos/TM015`)))
+  })
+
+  it('sin sesion NO se puede', async () => {
+    await sembrarProducto()
+    await assertFails(
+      deleteDoc(doc(entorno.unauthenticatedContext().firestore(), `${NEGOCIO}/productos/TM015`)),
+    )
+  })
+})
+
 describe('motivoRechazo dice lo mismo que la regla de productos', () => {
   // motivoRechazo.ts repite del lado de la app las preguntas de la
   // regla, para poder decirle a la persona POR QUE no entro su cambio.

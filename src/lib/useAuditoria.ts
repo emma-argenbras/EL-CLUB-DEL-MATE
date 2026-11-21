@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Movimiento, type Venta } from '../db/db'
+import { db, SECCIONES_CONFIGURABLES, type Movimiento, type Venta } from '../db/db'
 import { CLAVE_ULTIMA_SYNC } from '../sync/motor'
 import { hoyISO, mesActualISO } from './formato'
 import {
@@ -12,7 +12,7 @@ import {
 import { seccionesVisibles } from '../sync/sesion'
 import { useEstadoNube } from '../sync/useEstadoNube'
 import { useSesion } from '../sync/useSesion'
-import { estaAlMando } from '../sync/permisos'
+import { soloMira, veLosNumeros } from '../sync/permisos'
 
 /** Prefijo de la clave con que se guarda un hallazgo pospuesto. */
 const PREFIJO_POSPUESTO = 'pospuesto_'
@@ -59,8 +59,10 @@ export interface ResultadoAuditoria {
 export function useAuditoria(): ResultadoAuditoria {
   const sesion = useSesion()
   const nube = useEstadoNube()
-  const esOwner = estaAlMando(sesion.perfil)
-  const secciones = seccionesVisibles(sesion.perfil)
+  // Un dueño que solo mira (20/11) ve todos los avisos, como quien está al
+  // mando: es información. Los botones para resolverlos no le aparecen.
+  const esOwner = veLosNumeros(sesion.perfil)
+  const secciones = soloMira(sesion.perfil) ? [...SECCIONES_CONFIGURABLES] : seccionesVisibles(sesion.perfil)
 
   const hoy = hoyISO()
   const mes = mesActualISO()

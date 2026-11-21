@@ -10,7 +10,10 @@ import {
   puedeTocarUsuarioConRol,
   puedeVerSueldos,
   rolesQuePuedeAsignar,
+  esRolDeDueno,
+  soloMira,
   tieneMiSueldo,
+  veLosNumeros,
 } from './permisos'
 import { seccionesVisibles } from './sesion'
 import type { Perfil } from './sesion'
@@ -18,6 +21,7 @@ import type { Perfil } from './sesion'
 const DUENO: Perfil = { nombre: 'Emmanuel', rol: 'owner' }
 const ENCARGADA: Perfil = { nombre: 'Sandra', rol: 'encargado' }
 const EMPLEADA: Perfil = { nombre: 'Gabriela', rol: 'empleado' }
+const SOCIA: Perfil = { nombre: 'Elena', rol: 'socio' }
 
 describe('encargado: maneja la operacion como un dueño', () => {
   it('esta al mando', () => {
@@ -82,8 +86,8 @@ describe('el dueño no perdio nada', () => {
     expect(puedeTocarUsuarioConRol(DUENO, 'owner')).toBe(true)
   })
 
-  it('puede asignar los tres roles', () => {
-    expect(rolesQuePuedeAsignar(DUENO)).toEqual(['owner', 'encargado', 'empleado'])
+  it('puede asignar todos los roles, también el de dueño que solo mira', () => {
+    expect(rolesQuePuedeAsignar(DUENO)).toEqual(['owner', 'socio', 'encargado', 'empleado'])
   })
 })
 
@@ -105,9 +109,9 @@ describe('los tres roles tienen nombre para mostrar', () => {
 })
 
 describe('el alta de usuarios ofrece el rol de encargado', () => {
-  it('un dueño ve las tres opciones, encargado entre ellas', () => {
+  it('un dueño ve las cuatro opciones, encargado entre ellas', () => {
     const opciones = rolesQuePuedeAsignar(DUENO).map((r) => QUE_HACE_CADA_ROL[r])
-    expect(opciones).toHaveLength(3)
+    expect(opciones).toHaveLength(4)
     expect(opciones.some((o) => o.startsWith('Encargado/a'))).toBe(true)
   })
 
@@ -147,5 +151,42 @@ describe('sueldos: quién ve, quién define y quién tiene «Mi sueldo» (19/11)
     expect(tieneMiSueldo(ENCARGADA)).toBe(true)
     expect(tieneMiSueldo(DUENO)).toBe(false)
     expect(tieneMiSueldo(null)).toBe(false)
+  })
+})
+
+describe('un dueño que solo mira (20/11)', () => {
+  it('ve el Panel y los Reportes, nada más', () => {
+    expect(seccionesVisibles(SOCIA)).toEqual(['panel', 'reportes'])
+  })
+
+  it('ve los números como un dueño, pero no está al mando: no carga, no edita, no borra', () => {
+    expect(soloMira(SOCIA)).toBe(true)
+    expect(veLosNumeros(SOCIA)).toBe(true)
+    expect(estaAlMando(SOCIA)).toBe(false)
+    expect(esDueno(SOCIA)).toBe(false)
+    expect(puedeBorrarTodo(SOCIA)).toBe(false)
+    expect(puedeImportarRespaldo(SOCIA)).toBe(false)
+    expect(rolesQuePuedeAsignar(SOCIA)).toEqual([])
+    expect(puedeTocarUsuarioConRol(SOCIA, 'empleado')).toBe(false)
+  })
+
+  it('no ve sueldos acordados ni tiene «Mi sueldo»: un dueño retira', () => {
+    expect(puedeVerSueldos(SOCIA)).toBe(false)
+    expect(puedeDefinirSueldos(SOCIA)).toBe(false)
+    expect(tieneMiSueldo(SOCIA)).toBe(false)
+  })
+
+  it('los demás no solo miran, y ven los números solo los que están al mando', () => {
+    expect([DUENO, ENCARGADA, EMPLEADA, null].map(soloMira)).toEqual([false, false, false, false])
+    expect([DUENO, ENCARGADA, EMPLEADA].map(veLosNumeros)).toEqual([true, true, false])
+  })
+
+  it('es dueño para los retiros, y la encargada no lo toca ni lo puede asignar', () => {
+    expect(esRolDeDueno('socio')).toBe(true)
+    expect(esRolDeDueno('owner')).toBe(true)
+    expect(esRolDeDueno('encargado')).toBe(false)
+    expect(puedeTocarUsuarioConRol(ENCARGADA, 'socio')).toBe(false)
+    expect(rolesQuePuedeAsignar(ENCARGADA)).not.toContain('socio')
+    expect(puedeTocarUsuarioConRol(DUENO, 'socio')).toBe(true)
   })
 })
