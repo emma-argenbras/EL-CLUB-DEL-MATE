@@ -350,7 +350,7 @@ function auditarCaja(datos: DatosAuditoria, hallazgos: Hallazgo[]): void {
         'Las ventas cuentan en los reportes, pero el turno no está: falta con cuánto abrió, el conteo del cierre y la diferencia. ' +
         'Seguramente quedó solo en el aparato donde se cargó.',
       comoSeResuelve:
-        'En ese aparato no borres la app ni sus datos ni cierres la sesión. Abrilo con la sesión de quien cargó el turno y mirá en Caja, con esa fecha, si el turno aparece. Antes de tocar datos, avisá: se puede subir desde ese aparato o rearmar desde el historial.',
+        'En Turnos del día está la lista de los que faltan, con lo que se rearma de cada uno: con cuánto abrió (lo que contó el turno anterior al cerrar), el conteo del cierre del historial y la diferencia. Revisala y tocá «Rearmar». Si el aparato donde se cargó todavía lo tiene, no borres la app ni sus datos: es el mismo turno y no queda repetido.',
       ruta: '/turnos',
       cantidad: turnos.length,
       monto: sinTurno.reduce((s, v) => s + v.total, 0),
